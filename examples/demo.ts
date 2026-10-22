@@ -9,7 +9,10 @@
 import { createConsole } from "../src/console/index.js";
 import { CommandError } from "../src/console/commands.js";
 import { logo } from "../src/core/index.js";
-import { serve } from "../src/node/index.js";
+import { createFileSink, createLogFiles, serve } from "../src/node/index.js";
+
+const LOG_DIR = "logs";
+logo.addSink(createFileSink({ dir: LOG_DIR, maxBytes: 5 * 1024 * 1024 }));
 
 const PORT = Number(process.env.PORT ?? 1234);
 
@@ -23,6 +26,7 @@ const debug = createConsole({
   logger: logo,
   basePath: "/console",
   title: "Noodle",
+  logFiles: createLogFiles({ dir: LOG_DIR }),
   version: "0.1.0",
   auth: { users: { xmli: "123456" }, secret: process.env.DBG_SECRET ?? "demo-secret" },
   commands: [

@@ -1,11 +1,10 @@
 import type { Logger } from "../core/logger.js";
-import { createRingSink, type RingSink } from "../core/ring.js";
 import { createAuth, type Auth } from "./auth.js";
 import { createBuiltinCommands, createHelpCommand } from "./builtins.js";
 import { CommandError, findCommand, splitArgs } from "./commands.js";
 import { createMetrics } from "./metrics.js";
 import { createBroadcast, type Broadcast } from "./sse.js";
-import type { AuthOptions, Command, CommandOutput, Topic } from "./types.js";
+import type { AuthOptions, Command, CommandOutput, LogFiles, Topic } from "./types.js";
 
 const DEFAULT_HISTORY = 1000;
 const DEFAULT_TIMEOUT_MS = 10_000;
@@ -25,7 +24,6 @@ export interface ConsoleSourceOptions {
   auth: AuthOptions;
   commands?: Command[];
   topics?: Topic[];
-  historySize?: number;
   /** 头栏显示的项目名，默认 "console"。 */
   title?: string;
   version?: string;
@@ -34,6 +32,10 @@ export interface ConsoleSourceOptions {
    * 的人本来就能碰到这个进程，再要一次 token 只是仪式。
    */
   user?: string;
+  /** 日志目录端口。Node 侧用 createLogFiles 提供；浏览器/Workers 不传。 */
+  logFiles?: LogFiles;
+  /** 拼日志文件链接的前缀，如 "/console"。 */
+  basePath?: string;
   timeoutMs?: number;
 }
 
@@ -46,8 +48,8 @@ export interface ConsoleSourceOptions {
 export interface ConsoleSource {
   commands: readonly Command[];
   topics: readonly Topic[];
-  records: RingSink;
   broadcast: Broadcast;
+  logFiles?: LogFiles;
   auth: Auth;
   title: string;
   version: string;
@@ -84,25 +86,24 @@ function createDefaultTopics(metrics: ReturnType<typeof createMetrics>): Topic[]
 }
 
 export function createConsoleSource(options: ConsoleSourceOptions): ConsoleSource {
-  const historySize = options.historySize ?? DEFAULT_HISTORY;
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const version = options.version ?? "unknown";
   const title = options.title ?? "console";
   const localUser = options.user ?? null;
 
-  const records = createRingSink(historySize);
   const broadcast = createBroadcast();
   const metrics = createMetrics({ connections: () => broadcast.count() });
   const auth = createAuth(options.auth);
 
-  // 两个 sink 都挂在调用方给的 logger 上：历史与实时是同一份记录的两个去处。
-  options.logger.addSink(records);
+  // 实时日志直接推给 SSE；历史去磁盘看（logs 命令列文件），内存里不再留环形缓冲。
   options.logger.addSink(broadcast.sink);
 
+  const basePath = options.basePath ?? "";
   const builtins = createBuiltinCommands({
-    records,
     metrics,
-    flush: () => options.logger.flush(),
+    auth,
+    basePath,
+    ...(options.logFiles === undefined ? {} : { logFiles: options.logFiles }),
   });
 
   // 调用方传入的命令优先：内置只是默认值，不是特权层。
@@ -183,8 +184,8 @@ export function createConsoleSource(options: ConsoleSourceOptions): ConsoleSourc
   return {
     commands,
     topics,
-    records,
     broadcast,
+    ...(options.logFiles === undefined ? {} : { logFiles: options.logFiles }),
     auth,
     title,
     version,
@@ -202,7 +203,6 @@ export function createConsoleSource(options: ConsoleSourceOptions): ConsoleSourc
       if (disposed) return;
       disposed = true;
       broadcast.closeAll();
-      options.logger.removeSink(records);
       options.logger.removeSink(broadcast.sink);
     },
   };

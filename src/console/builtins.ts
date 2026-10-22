@@ -1,22 +1,21 @@
-import type { RingSink } from "../core/ring.js";
 import { formatDuration, toHuman } from "../core/human.js";
+import { formatTime } from "../core/time.js";
 import { CommandError } from "./commands.js";
 import type { Metrics } from "./metrics.js";
-import type { Command, CommandContext, CommandOutput } from "./types.js";
+import type { Auth } from "./auth.js";
+import type { Command, CommandContext, CommandOutput, LogFiles } from "./types.js";
 
 const DEFAULT_LOG_COUNT = 20;
 
 export interface BuiltinDeps {
-  records: RingSink;
   metrics: Metrics;
-  /** 读历史前先把缓冲写出来，否则刚写下的日志要等 100ms 才看得到。 */
-  flush?: () => void;
+  auth: Auth;
+  /** 日志目录端口；没注入就说明这个宿主没有文件系统。 */
+  logFiles?: LogFiles;
+  /** 拼日志文件链接用，如 "/console"。 */
+  basePath: string;
 }
 
-/** ISO 字符串截到毫秒。日志视图不需要时区后缀，浏览器按本地时区展示。 */
-function formatTime(time: number): string {
-  return new Date(time).toISOString().slice(0, 23);
-}
 
 /**
  * 指标表的取值格式。
@@ -50,29 +49,36 @@ export function createHelpCommand(list: () => readonly Command[]): Command {
   };
 }
 
-function createLogsCommand(records: RingSink, flush: () => void): Command {
+function createLogsCommand(deps: {
+  logFiles?: LogFiles;
+  auth: Auth;
+  basePath: string;
+}): Command {
   return {
     name: "logs",
-    note: "查看最近的日志",
-    args: "[n]",
-    run(ctx: CommandContext): CommandOutput {
-      const requested = ctx.args[0];
-      const count = requested === undefined ? DEFAULT_LOG_COUNT : Number(requested);
-
-      // 不做 parseInt 的宽松解析："20abc" 应该报错，而不是悄悄当成 20。
-      if (!Number.isInteger(count) || count <= 0) {
-        throw new CommandError(`logs 需要一个正整数，收到: ${requested}`);
+    note: "列出日志文件（点文件名看全文）",
+    async run(ctx: CommandContext): Promise<CommandOutput> {
+      if (deps.logFiles === undefined) {
+        throw new CommandError("没有配置日志目录，logs 不可用（Node 侧用 createLogFiles 传进来）");
       }
 
-      flush();
+      const files = await deps.logFiles.list();
+      if (files.length === 0) return { kind: "text", text: "日志目录里还没有文件" };
+
+      // 新窗口打不开自定义头，凭证只能放 URL：签一个一分钟的，够点开一次。
+      const token = await deps.auth.issue(ctx.user ?? "local", 60_000);
 
       return {
         kind: "table",
-        columns: ["time", "level", "msg"],
-        rows: records.read(count).map((record) => [
-          formatTime(record.time),
-          record.level,
-          record.msg ?? "",
+        columns: ["file", "size", "modified"],
+        formats: ["auto", "bytes", "auto"],
+        rows: files.map((file) => [
+          {
+            text: file.name,
+            href: `${deps.basePath}/log/${encodeURIComponent(file.name)}?t=${token}`,
+          },
+          file.size,
+          formatTime(file.modified),
         ]),
       };
     },
@@ -152,7 +158,7 @@ function createLogoutCommand(): Command {
  */
 export function createBuiltinCommands(deps: BuiltinDeps): Command[] {
   const commands: Command[] = [
-    createLogsCommand(deps.records, deps.flush ?? (() => {})),
+    createLogsCommand({ auth: deps.auth, basePath: deps.basePath, ...(deps.logFiles === undefined ? {} : { logFiles: deps.logFiles }) }),
     createTopCommand(deps.metrics),
     createAuthCommand(),
     createLogoutCommand(),

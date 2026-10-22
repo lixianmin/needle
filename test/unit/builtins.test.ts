@@ -11,7 +11,18 @@ const metrics = { read: async () => ({ runtime: "node", uptimeMs: 1234 }) };
 
 function setup() {
   const records = createRingSink(100);
-  const commands = createBuiltinCommands({ records, metrics });
+  const commands = createBuiltinCommands({
+    metrics,
+    auth: { login: async () => null, verify: async () => null, issue: async () => "tok" },
+    basePath: "/console",
+    logFiles: {
+      list: async () => [
+        { name: "info.log", size: 2048, modified: 1_700_000_000_000 },
+        { name: "error.log", size: 512, modified: 1_700_000_100_000 },
+      ],
+      read: async () => "",
+    },
+  });
   const context = (args: string[]): CommandContext => ({
     args,
     user: "admin",
@@ -26,44 +37,23 @@ function setup() {
 }
 
 describe("内置命令", () => {
-  test("logs 默认 20 条，可指定条数", async () => {
-    const { records, run } = setup();
-    const logger = createLogger({ flushIntervalMs: 0, batch: false, sinks: [records] });
-    for (let i = 0; i < 30; i += 1) logger.info("n", i);
-    logger.flush();
-
-    const byDefault = await run("logs");
-    expect(byDefault.kind).toBe("table");
-    expect((byDefault as { columns: string[] }).columns).toEqual(["time", "level", "msg"]);
-    expect((byDefault as { rows: unknown[] }).rows).toHaveLength(20);
-
-    const five = await run("logs", ["5"]);
-    expect((five as { rows: unknown[] }).rows).toHaveLength(5);
-  });
-
-  test("logs 先 flush，刚写下的日志立刻可见", async () => {
-    const records = createRingSink(10);
-    const logger = createLogger({ flushIntervalMs: 10_000, batch: false, sinks: [records] });
-    const commands = createBuiltinCommands({
-      records,
-      metrics,
-      flush: () => logger.flush(),
-    });
-    const logs = findCommand(commands, "logs");
-
-    logger.info("written just now");
-    const output = (await logs?.run({ args: [], user: "admin", log: logger })) as {
-      rows: unknown[][];
-    };
-
-    expect(output.rows[0]?.[2]).toBe("written just now");
-  });
-
-  test("logs 参数非法时抛 CommandError", async () => {
+  test("logs 列出日志文件，文件名带链接", async () => {
     const { run } = setup();
-    await expect(run("logs", ["abc"])).rejects.toBeInstanceOf(CommandError);
-    await expect(run("logs", ["0"])).rejects.toBeInstanceOf(CommandError);
-    await expect(run("logs", ["-3"])).rejects.toBeInstanceOf(CommandError);
+    const output = await run("logs");
+
+    expect(output.kind).toBe("table");
+    const table = output as {
+      columns: string[];
+      rows: Array<Array<{ text: string; href: string } | string | number>>;
+    };
+    expect(table.columns).toEqual(["file", "size", "modified"]);
+    expect(table.rows).toHaveLength(2);
+
+    const first = table.rows[0]?.[0] as { text: string; href: string };
+    expect(first.text).toBe("info.log");
+    expect(first.href).toBe("/console/log/info.log?t=tok");
+    // 大小是数字（排序用），不是字符串
+    expect(table.rows[0]?.[1]).toBe(2048);
   });
 
   test("top 返回表格", async () => {
@@ -98,13 +88,4 @@ describe("内置命令", () => {
     expect(publicNames.sort()).toEqual(["auth", "logout", "sub", "unsub"]);
   });
 
-  test("logs 把记录渲染成表", async () => {
-    const { records, run } = setup();
-    records([{ time: 0, level: "info", msg: "hello" } as LogRecord]);
-
-    const output = await run("logs");
-    const rows = (output as { rows: Array<Array<string | number | null>> }).rows;
-    expect(rows[0]?.[1]).toBe("info");
-    expect(rows[0]?.[2]).toBe("hello");
-  });
 });

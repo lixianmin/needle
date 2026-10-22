@@ -84,6 +84,23 @@ export function createConsole(options: ConsoleOptions): Console {
 
       if (req.method === "GET" && path === "/health") return json({ ok: true });
 
+      if (req.method === "GET" && path.startsWith("/log/")) {
+        // 新窗口没法带 Authorization 头，凭证走 ?t=（短效 token，1 分钟）。
+        const verified = await source.auth.verify(url.searchParams.get("t"));
+        if (verified === null) return new Response("unauthorized", { status: 401 });
+
+        const name = decodeURIComponent(path.slice("/log/".length));
+        const body = await source.logFiles?.read(name);
+        if (body === null || body === undefined) return new Response("not found", { status: 404 });
+
+        return new Response(body, {
+          headers: {
+            "content-type": "text/plain; charset=utf-8",
+            "cache-control": "no-store",
+          },
+        });
+      }
+
       if (req.method === "POST" && path === "/exec") return exec(req);
 
       if (req.method === "POST" && path === "/auth") return authenticate(req);
