@@ -50,10 +50,6 @@ export function createLocalAdapter(source: ConsoleSource): ConsoleAdapter {
       return result.ok ? { ok: true, user: result.user } : { ok: false, error: result.error };
     },
 
-    logout() {
-      // 本地模式没有 token 可清，保留接口是为了让 UI 不用分支。
-    },
-
     setTopics(spec: string) {
       for (const timer of timers) clearInterval(timer);
       timers = [];

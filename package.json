@@ -1,6 +1,6 @@
 {
   "name": "@needle/logo",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "内置调试控制台的 TypeScript 日志库：浏览器里看日志、敲命令、订指标",
   "type": "module",
   "sideEffects": false,

@@ -286,7 +286,7 @@ export function mountConsole(root: HTMLElement, adapter: ConsoleAdapter): Consol
   let availableCommands: Array<{ name: string; note: string; args: string | null }> = [];
 
   /** 控制台自己的命令，不在服务端命令表里也照样能补全。 */
-  const LOCAL_COMMANDS = ["auth", "logout", "sub", "unsub"] as const;
+  const LOCAL_COMMANDS = ["auth", "sub", "unsub"] as const;
 
   function topicSpec(): string {
     return [...subscriptions.entries()]
@@ -440,11 +440,6 @@ export function mountConsole(root: HTMLElement, adapter: ConsoleAdapter): Consol
         enterPasswordMode(target);
         return true;
       }
-
-      case "logout":
-        adapter.logout();
-        pushText("已退出", "status");
-        return true;
 
       case "sub": {
         const topic = args[0];

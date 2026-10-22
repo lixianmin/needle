@@ -6,10 +6,17 @@
  *
  * 页面每隔一秒会收到一条 heartbeat，用来确认 SSE 是活的。
  */
+import { readFileSync } from "node:fs";
+
 import { createConsole } from "../src/console/index.js";
 import { CommandError } from "../src/console/commands.js";
 import { logo } from "../src/core/index.js";
 import { createFileSink, createLogFiles, serve } from "../src/node/index.js";
+
+// 版本号的唯一来源是 package.json（AGENTS.md §14），别在这里硬编码。
+const pkg = JSON.parse(
+  readFileSync(new URL("../package.json", import.meta.url), "utf8"),
+) as { version: string };
 
 const LOG_DIR = "logs";
 logo.addSink(createFileSink({ dir: LOG_DIR, maxBytes: 5 * 1024 * 1024 }));
@@ -27,7 +34,7 @@ const debug = createConsole({
   basePath: "/console",
   title: "Needle",
   logFiles: createLogFiles({ dir: LOG_DIR }),
-  version: "0.1.0",
+  version: pkg.version,
   auth: { users: { xmli: "123456" }, secret: process.env.DBG_SECRET ?? "demo-secret" },
   commands: [
     {

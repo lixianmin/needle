@@ -1,0 +1,7 @@
+#!/bin/sh
+# 提交前重建 dist 与内联页面脚本，产物随源码进入同一个 commit（spec §13）。
+# 别人用 Git 依赖装这个包时不需要构建步骤，所以 dist 必须留在仓库里。
+set -e
+
+bun run build
+git add dist src/console/ui/script.generated.ts

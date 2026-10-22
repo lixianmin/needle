@@ -264,7 +264,7 @@ event: topic
 data: {"name":"top","data":{...}}
 ```
 
-**`/events` 必须带合法 token，否则 401。** 日志流是这套东西里最敏感的数据，匿名只应该能拿到页面和 `help`。页面加载时若没有 token 或 token 已失效，显示"先 login"，不反复重试；`login` 成功后再建立连接。
+**`/events` 必须带合法 token，否则 401。** 日志流是这套东西里最敏感的数据，匿名只应该能拿到页面和 `help`。页面加载时若没有 token 或 token 已失效，显示"先 auth"，不反复重试；`auth` 成功后再建立连接。
 
 `handshake` 在连接建立后立即发送，前端用它拿项目名、命令表、主题表和当前身份。名字照 gonsole `road` 层的握手语义：连接建立后服务端先发一帧配置，客户端据此决定怎么渲染和补全。`topics` 用查询参数声明，断线重连时自动重新订阅（`fetch`+`ReadableStream` 读流，不用原生 `EventSource`，因为要带 `Authorization` 头）。
 
@@ -293,7 +293,7 @@ interface CommandContext {
 
 失败用抛错表示（`throw new CommandError("unknown command: foo")`），router 统一捕获并转成 `{ok:false, error}`。这样 `run` 正常路径只返回输出，不用每层判断 `ok`。
 
-内置：`help`、`log.list`、`top`、`auth <user>`、`logout`、`sub`、`unsub`。`login`/`help`/`logout` 是 public，其余默认需要登录。
+内置：`help`、`log.list`、`top`、`auth <user>`、`sub`、`unsub`。`help`/`auth`/`sub`/`unsub` 是 public，其余默认需要登录。不提供 `logout`：登录态是可过期的 token，过期即回到未登录，不需要主动退出。
 
 名字重复时，调用方传入的命令优先于内置命令——内置只是默认值，不是特权层。
 
@@ -392,13 +392,13 @@ interface Topic {
 
 前端 JS 同样按教材标准写：`renderLog` / `runCommand` / `connect` 各管一件事。
 
-**Tab 补全**：只按行尾补全，候选来自 handshake 的命令表（所以服务器上自定义的命令一样能补），加上 `auth`/`logout`/`sub`/`unsub` 这几个客户端命令；`sub`/`unsub` 的第二个词补主题名。唯一候选直接补全，多个候选先补公共前缀，再按一次列出候选。Tab 永远 `preventDefault`，不会把焦点移走。
+**Tab 补全**：只按行尾补全，候选来自 handshake 的命令表（所以服务器上自定义的命令一样能补），加上 `auth`/`sub`/`unsub` 这几个客户端命令；`sub`/`unsub` 的第二个词补主题名。唯一候选直接补全，多个候选先补公共前缀，再按一次列出候选。Tab 永远 `preventDefault`，不会把焦点移走。
 
 **头栏**：项目名（`title`，默认 `console`）+ 版本 + 当前用户，全部靠左。项目名同时用作浏览器标签页标题。
 
 ## 12. 鉴权
 
-`login <user> <pass>` 命令，服务端校验后签发 token：
+`auth <user>` 命令（回车后输入框切成 `type=password`，密码走 `POST /auth`，不进历史），服务端校验后签发 token：
 
 ```
 payload = base64url({"sub":"admin","exp":1758994834567})
@@ -408,8 +408,8 @@ token   = payload + "." + base64url(HMAC-SHA256(secret, payload))
 - 配置形如 `auth: { users: { admin: "secret" }, secret: "..." }`。core 不读环境变量（Workers 上没有 `process.env` 的常规语义），secret 必须由宿主传进来。
 - 没传 secret 就随机生成，重启后所有 token 失效，启动时打一行警告。Workers 上必须传固定 secret，否则每次 isolate 回收都会让已登录的浏览器掉线。
 - 密码直接以字符串保存在内存里，比较时逐字节等时比较（内存里存摘要不增加任何安全性）。
-- 前端存 localStorage，请求时放 `Authorization: Bearer <token>`。
-- 未登录：`public` 命令可跑，其余返回 401，前端提示"先 login"。
+- 前端存 localStorage，请求时放 `Authorization: Bearer <token>`。token 带 `exp`，默认 12 小时（`auth.ttlMs` 可调）；过期后前端回到未登录态，重新 `auth` 即可。
+- 未登录：`public` 命令可跑，其余返回 401，前端提示"先 auth"。
 - 不做 Basic auth：浏览器原生弹窗是一刀切的，而且凭据会被自动带给同源的其他接口。
 
 ## 13. 包与构建
@@ -427,6 +427,8 @@ package.json exports:
 `"type": "module"`、`"sideEffects": false`。入口靠 subpath 显式区分，不用条件导出——文件 sink 已经在 `./node` 里，核心入口不存在需要按运行时分支的模块。`./node` 内部对 `node:fs` 一律动态 `import()`。
 
 构建：`tsc`（TypeScript 7.0.2 原生版已验证能产出 `.js` + `.d.ts`）。不做额外打包，`bun build` 只在测体积时用。
+
+`dist/` 随源码一起提交，否则 Git 依赖（`git+https://…`）拿到的是没有产物的源码。`.githooks/pre-commit` 在每次提交时重跑 `bun run build` 并把 `dist/`、`src/console/ui/script.generated.ts` stage 进同一个 commit——产物和源码永远同版本，不依赖 CI。
 
 体积实测：入口 `.` 1.7KB（min+gzip），`./console` 9.2KB（含内联页面脚本）。
 

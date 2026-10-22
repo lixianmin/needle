@@ -13,7 +13,6 @@ function fakeAdapter() {
   const logins: Array<{ user: string; password: string }> = [];
   const topicSpecs: string[] = [];
   const openedFiles: string[] = [];
-  let logoutCount = 0;
 
   const adapter: ConsoleAdapter = {
     exec(line) {
@@ -25,9 +24,6 @@ function fakeAdapter() {
     authenticate(user, password) {
       logins.push({ user, password });
       return Promise.resolve({ ok: true as const, user });
-    },
-    logout() {
-      logoutCount += 1;
     },
     setTopics(spec) {
       topicSpecs.push(spec);
@@ -51,7 +47,6 @@ function fakeAdapter() {
     logins,
     topicSpecs,
     openedFiles,
-    logoutCount: () => logoutCount,
     emit: (event: ConsoleEvent) => listener?.(event),
   };
 }
@@ -432,16 +427,29 @@ describe("mountConsole", () => {
     expect(input.value).toBe("");
   });
 
-  test("logout 走适配器，不发命令", () => {
-    const { document, executed, logoutCount } = mount();
+  test("logout 不再被本地拦下，按服务端命令发出", () => {
+    const { document, executed } = mount();
     const input = document.querySelector("input") as unknown as HTMLInputElement;
     const form = document.querySelector("form") as unknown as HTMLFormElement;
 
     input.value = "logout";
     form.dispatchEvent(new window.Event("submit") as unknown as Event);
 
-    expect(logoutCount()).toBe(1);
-    expect(executed).toHaveLength(0);
+    expect(executed).toEqual(["logout"]);
+  });
+
+  test("Tab 不再补全 logout", () => {
+    const { document, emit } = mount();
+    const input = document.querySelector("input") as unknown as HTMLInputElement;
+
+    emit({
+      type: "handshake",
+      info: { title: "t", version: "1", user: null, commands: [], topics: [] },
+    });
+    input.value = "log";
+    input.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Tab" }) as unknown as Event);
+
+    expect(input.value).toBe("log");
   });
 
   test("sub/unsub 改订阅并重建流", () => {
