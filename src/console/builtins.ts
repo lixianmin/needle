@@ -63,11 +63,7 @@ export function createHelpCommand(list: () => readonly Command[]): Command {
   };
 }
 
-function createLogsCommand(deps: {
-  logFiles?: LogFiles;
-  auth: Auth;
-  basePath: string;
-}): Command {
+function createLogsCommand(deps: { logFiles?: LogFiles; basePath: string }): Command {
   return {
     name: "log.list",
     note: "列出日志文件（点文件名看全文）",
@@ -79,9 +75,6 @@ function createLogsCommand(deps: {
       const files = await deps.logFiles.list();
       if (files.length === 0) return { kind: "text", text: "日志目录里还没有文件" };
 
-      // 新窗口打不开自定义头，凭证只能放 URL：签一个一分钟的，够点开一次。
-      const token = await deps.auth.issue(ctx.user ?? "local", 60_000);
-
       return {
         kind: "table",
         columns: ["file", "size", "modified"],
@@ -89,7 +82,7 @@ function createLogsCommand(deps: {
         rows: files.map((file) => [
           {
             text: file.name,
-            href: `${deps.basePath}/log/${encodeURIComponent(file.name)}?t=${token}`,
+            href: `${deps.basePath}/log/${encodeURIComponent(file.name)}`,
           },
           file.size,
           formatTime(file.modified),
@@ -172,7 +165,7 @@ function createLogoutCommand(): Command {
  */
 export function createBuiltinCommands(deps: BuiltinDeps): Command[] {
   const commands: Command[] = [
-    createLogsCommand({ auth: deps.auth, basePath: deps.basePath, ...(deps.logFiles === undefined ? {} : { logFiles: deps.logFiles }) }),
+    createLogsCommand({ basePath: deps.basePath, ...(deps.logFiles === undefined ? {} : { logFiles: deps.logFiles }) }),
     createTopCommand(deps.metrics),
     createAuthCommand(),
     createLogoutCommand(),

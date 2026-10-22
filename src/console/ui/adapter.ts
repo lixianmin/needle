@@ -28,8 +28,18 @@ export type AuthResult = { ok: true; user: string } | { ok: false; error: string
  * `authenticate` 单列一个方法，而不是把密码拼进命令串：命令串会进历史记录、
  * 会显示在输出区、会出现在服务端日志里。密码只走这一个入口。
  */
+export type FileResult = { ok: true; text: string } | { ok: false; error: string };
+
 export interface ConsoleAdapter {
   exec(line: string): Promise<ExecResult>;
+  /**
+   * 取一个文件的全文（日志文件用）。
+   *
+   * 不走 URL 里的 token：链接点开时用 Authorization 头去取，再在本地生成 blob
+   * 打开。这样链接不会因为"签发超过一分钟"而失效，凭证也不会留在地址栏和
+   * 浏览器历史里。
+   */
+  fetchFile(href: string): Promise<FileResult>;
   authenticate(user: string, password: string): Promise<AuthResult>;
   logout(): void;
   /** 订阅的主题变了：重建流，用新的 topics 参数。传空串表示全部退订。 */

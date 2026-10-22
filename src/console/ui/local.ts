@@ -1,6 +1,6 @@
 import type { LogRecord } from "../../core/types.js";
 import type { ConsoleSource } from "../source.js";
-import type { AuthResult, ConsoleAdapter, ConsoleEvent, ExecResult } from "./adapter.js";
+import type { AuthResult, ConsoleAdapter, ConsoleEvent, ExecResult, FileResult } from "./adapter.js";
 
 /**
  * 进程内适配器：浏览器页面、Chrome 扩展里用这个。
@@ -39,6 +39,10 @@ export function createLocalAdapter(source: ConsoleSource): ConsoleAdapter {
     exec(line: string): Promise<ExecResult> {
       // 本地模式没有 token：source 里配了 user，鉴权直接放行。
       return source.exec(line, null);
+    },
+
+    fetchFile(): Promise<FileResult> {
+      return Promise.resolve({ ok: false, error: "浏览器里没有日志文件可读，用 log.list 看不到内容" });
     },
 
     async authenticate(user: string, password: string): Promise<AuthResult> {

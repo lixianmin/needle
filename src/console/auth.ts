@@ -7,13 +7,6 @@ export interface Auth {
   login(user: string, password: string): Promise<string | null>;
   /** 校验通过返回载荷，否则 null。任何畸形输入都返回 null，不抛。 */
   verify(token: string | null): Promise<{ sub: string } | null>;
-  /**
-   * 为指定主体签一个短效 token。
-   *
-   * 用途：`window.open` 没法带 Authorization 头，看日志全文只能把凭证放 URL。
-   * 有效期默认 1 分钟，够点开一次，不够被复制出去复用。
-   */
-  issue(sub: string, ttlMs?: number): Promise<string>;
 }
 
 /**
@@ -86,10 +79,6 @@ export function createAuth(options: AuthOptions & { now?: () => number }): Auth 
   }
 
   return {
-    issue(sub, ttlMs = 60_000) {
-      return signPayload(sub, ttlMs);
-    },
-
     async login(user, password) {
       const expected = credentials.get(user);
       if (expected === undefined) return null;
