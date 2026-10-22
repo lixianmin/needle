@@ -326,6 +326,22 @@ interface Topic {
 
 界面三块：上方输出区（日志与命令结果混排，按类型着色）、中间主题面板（`top` 的表格）、底部输入框（回车发送，上下键翻历史，历史存 localStorage）。
 
+配色用 Solarized Dark（Ethan Schoonover 那套），不自己调色：
+
+| 用途 | 色值 |
+|---|---|
+| 页面背景 | `#002b36` (base03) |
+| 强调块/输入区 | `#073642` (base02) |
+| 次要文字、debug | `#586e75` (base01) |
+| 正文 | `#839496` (base0) |
+| 强调正文 | `#93a1a1` (base1) |
+| info | `#2aa198` (cyan) |
+| warn | `#b58900` (yellow) |
+| error | `#dc322f` (red) |
+| 命令回显/link | `#268bd2` (blue) |
+
+等宽字体栈 `ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`，不下载字体。
+
 前端 JS 约 200 行，同样按教材标准写：一个 `render(record)`、一个 `runCommand(line)`、一个 `connect()` 带指数退避重连。
 
 ## 12. 鉴权
