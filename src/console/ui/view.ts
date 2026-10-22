@@ -252,7 +252,10 @@ export function mountConsole(root: HTMLElement, adapter: ConsoleAdapter): Consol
 
     const value: CommandOutput = result.output;
     if (value.kind === "text") {
-      for (const line of value.text.split("\n")) pushText(line);
+      for (const line of value.text.split("\n")) {
+        // 空行要占一行高：空的 div 高度是 0，help 里分组之间那条空行会被吃掉。
+        pushText(line === "" ? "\u00A0" : line);
+      }
       return;
     }
     if (value.kind === "table") {

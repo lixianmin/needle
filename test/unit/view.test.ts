@@ -335,6 +335,19 @@ describe("mountConsole", () => {
     expect(event.defaultPrevented).toBe(true);
   });
 
+  test("text 输出里的空行保留高度（分组之间能看出间隔）", async () => {
+    const { document, replies } = mount();
+    replies.push({ ok: true, output: { kind: "text", text: "自定义命令\nroom\n\n内置命令\nhelp" } });
+
+    const form = document.querySelector("form") as unknown as HTMLFormElement;
+    (document.querySelector("input") as unknown as HTMLInputElement).value = "help";
+    form.dispatchEvent(new window.Event("submit") as unknown as Event);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const lines = [...document.querySelectorAll(".output > div")].map((node) => node.textContent);
+    expect(lines).toEqual(["$ help", "自定义命令", "room", "\u00A0", "内置命令", "help"]);
+  });
+
   test("上键翻历史", () => {
     const { document } = mount();
     const input = document.querySelector("input") as unknown as HTMLInputElement;
