@@ -4,6 +4,8 @@ import { stdoutSink } from "./sink.js";
 export { newLogger } from "./logo.js";
 export type { Logger, LoggerOptions } from "./logo.js";
 export { stdoutSink } from "./sink.js";
+export { createRingSink } from "./ring.js";
+export type { RingSink } from "./ring.js";
 export { hasStdout } from "./sink.js";
 export { buildRecord, safeStringify } from "./record.js";
 export type { BuildOptions } from "./record.js";

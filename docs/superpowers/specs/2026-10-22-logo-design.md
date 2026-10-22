@@ -442,12 +442,12 @@ src/
       line.ts       # 落盘行格式 + 东八区时间
       sink.ts       # stdout sink + 能力探测
       human.ts      # 人读数字/时长
+      ring.ts       # 环形缓冲（Sink + read，只服务日志）
       types.ts      # Level / LogRecord / Sink
       lark.ts       # 飞书 sink（独立入口 ./lark）
       index.ts      # 汇总 + 默认 logo 实例
-    collections/    # 数据结构
+    collections/    # 与业务无关的通用数据结构
       sorted-table.ts
-      ring.ts
     logger.ts       # logo 门面
     record.ts       # 记录构造与参数归一化
     sink.ts         # Sink 类型、stdout sink
