@@ -145,7 +145,17 @@ sink 是同步函数。抛错被捕获并忽略（一条坏 sink 不能拖垮业
 
 **stdout**（默认）：能拿到 `process.stdout.write` 就一次性把一个 batch 拼成多行写进 stdout，否则逐条 `console.log`。检测是同步能力探测（`typeof process?.stdout?.write`），不 import 任何东西，所以也是 §6.4 判定要不要启定时批量的依据。
 
-**文件**（`./node`）：按大小滚动，单文件默认 10MB，超过后改名归档，保留 7 天。用 `appendFileSync` 一次写一个 batch——反正已经是每 100ms 一次，阻塞时间可以接受，换来的是“warn/error 立即落盘”和“退出前 flush 就能真的写下去”。与 Go 版不同，不做“按级别分流 + 高级别级联写入低级别文件”——那是移动端调试的产物，在服务端只会让人困惑。
+**文件**（`./node`）：按级别分文件，且高级别级联写入低级别文件：
+
+| 文件 | 内容 |
+|---|---|
+| `info.log` | info + warn + error |
+| `warn.log` | warn + error |
+| `error.log` | error |
+
+这样查一个问题不用同时翻三个文件：先扫 `info.log` 看全局，只想看告警就看 `warn.log`。打开 debug 级别时传 `minLevel: "debug"` 才会多一个 `debug.log`；没写过就不建空文件。
+
+按大小滚动，单文件默认 10MB，归档名形如 `info-2026-10-22T12-00-00-000Z.log`，保留 7 天。用 `appendFileSync` 一次写一个 batch——反正已经是每 100ms 一次，阻塞时间可以接受，换来的是「warn/error 立即落盘」和「退出前 flush 就真的写下去了」。
 
 **飞书**（`./lark`）：把 batch 推到群机器人 webhook。默认只推 `error` 级别，超出窗口的记录合并成一条消息，令牌桶限流（默认 20 条/分钟），支持可选签名密钥。用 `fetch`，Workers 可用。
 
@@ -174,7 +184,7 @@ http.createServer(toNodeHandler(debug.handler)).listen(7701)
 Bun.serve({ port: 7701, fetch: debug.handler })
 ```
 
-控制台内部自己建两个 sink：一个环形缓冲（历史，供 `logs` 命令）和一个广播器（实时，供 SSE），两者都由 `logger.addSink` 挂上，`dispose()` 时摘掉。因此日志视图在实现上仍然只是一个 sink，但装配细节不丢给调用方。不引入全局单例，依赖从参数进来，装配关系在调用处一眼看全。
+控制台内部自己建两个 sink：一个环形缓冲（历史，供 `log.list` 命令）和一个广播器（实时，供 SSE），两者都由 `logger.addSink` 挂上，`dispose()` 时摘掉。因此日志视图在实现上仍然只是一个 sink，但装配细节不丢给调用方。不引入全局单例，依赖从参数进来，装配关系在调用处一眼看全。
 
 `basePath` 可选，默认空字符串。挂在子路径上时必须给（Hono 的 `app.all("/console/*")` 里 `c.req.raw.url` 仍带前缀），router 按它剥前缀，页面里的 JS 也用它拼 `/events` 和 `/exec` 的地址。
 
@@ -192,7 +202,7 @@ Bun.serve({ port: 7701, fetch: debug.handler })
 `/exec` 的请求与响应：
 
 ```
-POST /exec   { "line": "logs 20" }
+POST /exec   { "line": "log.list" }
              + Authorization: Bearer <token>
 
 200  { "ok": true,  "output": CommandOutput }
@@ -253,11 +263,11 @@ interface CommandContext {
 
 失败用抛错表示（`throw new CommandError("unknown command: foo")`），router 统一捕获并转成 `{ok:false, error}`。这样 `run` 正常路径只返回输出，不用每层判断 `ok`。
 
-内置：`help`、`logs [n]`、`top`、`auth <user>`、`logout`、`sub`、`unsub`。`login`/`help`/`logout` 是 public，其余默认需要登录。
+内置：`help`、`log.list`、`top`、`auth <user>`、`logout`、`sub`、`unsub`。`login`/`help`/`logout` 是 public，其余默认需要登录。
 
 名字重复时，调用方传入的命令优先于内置命令——内置只是默认值，不是特权层。
 
-输出形态固定三种：`help` 用 `text`，`logs`/`top` 用 `table`（浏览器里渲染成真表格），需要嵌套结构时用 `json`。前端只需处理这三种，不做字符串解析。
+输出形态固定三种：`help` 用 `text`，`log.list`/`top` 用 `table`（浏览器里渲染成真表格），需要嵌套结构时用 `json`。前端只需处理这三种，不做字符串解析。
 
 表格的两条约定：
 

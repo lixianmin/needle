@@ -69,7 +69,7 @@ function createLogsCommand(deps: {
   basePath: string;
 }): Command {
   return {
-    name: "logs",
+    name: "log.list",
     note: "列出日志文件（点文件名看全文）",
     async run(ctx: CommandContext): Promise<CommandOutput> {
       if (deps.logFiles === undefined) {

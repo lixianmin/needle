@@ -22,7 +22,7 @@ describe("createConsoleSource", () => {
     const { source } = setup();
     const result = await source.exec("help", null);
     expect(result.ok).toBe(true);
-    expect((result as { output: { text: string } }).output.text).toContain("logs");
+    expect((result as { output: { text: string } }).output.text).toContain("log.list");
   });
 
   test("受限命令需要 token", async () => {
@@ -47,7 +47,7 @@ describe("createConsoleSource", () => {
     expect(text).toContain("内置命令");
     expect(text.indexOf("room")).toBeLessThan(text.indexOf("内置命令"));
     expect(text).toContain("房间状态");
-    expect(text).toContain("logs");
+    expect(text).toContain("log.list");
   });
 
   test("调用方命令优先于同名内置命令", async () => {
