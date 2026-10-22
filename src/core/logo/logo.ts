@@ -1,5 +1,5 @@
 import { buildRecord } from "./record.js";
-import { hasStdout } from "./runtime.js";
+import { hasStdout } from "./sink.js";
 import { LEVELS, type Level, type LogRecord, type Sink } from "./types.js";
 
 /** 默认 100ms 刷一次。服务端够用；客户端要按帧刷可设成 16~33。 */

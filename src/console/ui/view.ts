@@ -1,6 +1,6 @@
 import { displayNumber, formatDuration, toHuman } from "../../core/logo/human.js";
 import { LEVEL_HINTS } from "../../core/logo/line.js";
-import { formatTime } from "../../core/logo/time.js";
+import { formatTime } from "../../core/logo/line.js";
 import type { LogRecord } from "../../core/logo/types.js";
 import type { Cell, ColumnFormat, CommandOutput, LinkedCell } from "../types.js";
 import type { ConsoleAdapter, ConsoleEvent, ExecResult } from "./adapter.js";

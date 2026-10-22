@@ -436,10 +436,18 @@ package.json exports:
 ```
 src/
   core/         # 运行时无关
-    logo/           # 日志这一摊：门面、记录、行格式、sink、时间、类型
-      logo.ts / record.ts / line.ts / sink.ts / ring.ts
-      time.ts / human.ts / runtime.ts / types.ts / lark.ts
-    collections/    # 数据结构（SortedTable 等）
+    logo/           # 日志：门面、记录、行格式、sink、数字格式、类型
+      logo.ts       # newLogger + 默认实例
+      record.ts     # 记录构造与 JSON 安全化
+      line.ts       # 落盘行格式 + 东八区时间
+      sink.ts       # stdout sink + 能力探测
+      human.ts      # 人读数字/时长
+      types.ts      # Level / LogRecord / Sink
+      lark.ts       # 飞书 sink（独立入口 ./lark）
+      index.ts      # 汇总 + 默认 logo 实例
+    collections/    # 数据结构
+      sorted-table.ts
+      ring.ts
     logger.ts       # logo 门面
     record.ts       # 记录构造与参数归一化
     sink.ts         # Sink 类型、stdout sink
