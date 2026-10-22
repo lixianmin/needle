@@ -1,68 +1,62 @@
 export interface MetricsOptions {
-  /** 动态 import 的实现，测试用它模拟 Workers。 */
-  importer?: (id: string) => Promise<unknown>;
   now?: () => number;
   /** SSE 连接数，由 createConsole 注入。 */
   connections?: () => number;
 }
 
 export interface Metrics {
-  /**
-   * 读取当前指标。
-   *
-   * 是异步的：首次调用要动态 import `node:perf_hooks` 才能判断运行时。
-   * 结果缓存，后续调用只是一次对象组装。
-   */
   read(): Promise<Record<string, unknown>>;
 }
-
-type PerfHooks = {
-  performance?: { eventLoopUtilization?: () => { utilization: number } };
-};
 
 type ProcessLike = {
   memoryUsage?: () => { rss: number; heapUsed: number };
 };
 
+type PerformanceLike = {
+  eventLoopUtilization?: () => { utilization: number };
+};
+
 /**
- * 指标读取，两套实现共用一个入口。
+ * 指标读取。
  *
- * 探测方式：能不能 import 到 `node:perf_hooks`。不用 `typeof window` 之类的
- * 猜测——Workers 里没有 window，但 Node 里也可能没有；能力检测比环境猜测可靠。
+ * 探测方式只看能力，不做 import：`import(变量)` 在 Workers 里是非法的
+ * （workerd 要求静态模块说明符，运行到就报 ERR_MODULE_DYNAMIC_SPEC），
+ * 这一条是 miniflare 集成测试抓出来的，不是猜的。
+ *
+ * 有没有 `process.memoryUsage` 就足以区分：边缘运行时要么没有 process，
+ * 要么只有个残缺的替身。
  */
 export function createMetrics(options: MetricsOptions = {}): Metrics {
-  const importer = options.importer ?? ((id: string) => import(/* @vite-ignore */ id));
   const now = options.now ?? Date.now;
   const startedAt = now();
 
   let cached: Promise<Record<string, unknown>> | undefined;
 
-  async function detect(): Promise<Record<string, unknown>> {
+  function detect(): Record<string, unknown> {
     const base: Record<string, unknown> = {
       uptimeMs: now() - startedAt,
       connections: options.connections?.() ?? 0,
     };
 
-    let perf: PerfHooks;
-    try {
-      perf = (await importer("node:perf_hooks")) as PerfHooks;
-    } catch {
-      // 没有 perf_hooks 就是边缘运行时。那边也没有 memoryUsage，只报自维护的计数。
+    const proc = (globalThis as { process?: ProcessLike }).process;
+    if (typeof proc?.memoryUsage !== "function") {
       return { runtime: "workers", ...base };
     }
 
-    const result: Record<string, unknown> = { runtime: "node", ...base };
+    const usage = proc.memoryUsage();
+    const result: Record<string, unknown> = {
+      runtime: "node",
+      ...base,
+      rss: usage.rss,
+      heapUsed: usage.heapUsed,
+    };
 
-    const memory = (globalThis as { process?: ProcessLike }).process?.memoryUsage;
-    if (typeof memory === "function") {
-      const usage = memory.call((globalThis as { process?: unknown }).process);
-      result.rss = usage.rss;
-      result.heapUsed = usage.heapUsed;
-    }
-
-    const utilization = perf.performance?.eventLoopUtilization;
+    // Node 的全局 performance 带 eventLoopUtilization；Bun 没有就跳过这一项，
+    // 不为了一个可选指标引入 import。
+    const utilization = (globalThis as { performance?: PerformanceLike }).performance
+      ?.eventLoopUtilization;
     if (typeof utilization === "function") {
-      result.loopUtilization = utilization.call(perf.performance)?.utilization;
+      result.loopUtilization = utilization.call(performance)?.utilization;
     }
 
     return result;
@@ -70,7 +64,7 @@ export function createMetrics(options: MetricsOptions = {}): Metrics {
 
   return {
     read() {
-      cached ??= detect();
+      cached ??= Promise.resolve(detect());
       return cached;
     },
   };

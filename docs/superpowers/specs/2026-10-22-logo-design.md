@@ -277,11 +277,26 @@ interface Topic {
 
 每个 SSE 连接持有自己的定时器，连接关闭即清理——不做跨连接的共享 ticker，省掉一套引用计数。
 
+### 8.6 三种宿主
+
+同一份 `source` 上面挂不同的适配器：
+
+| 场景 | 入口 | 传输 |
+|---|---|---|
+| Node / Bun 服务 | `createConsole(options).handler` | HTTP + SSE |
+| Cloudflare Workers | 同上，直接挂到 `export default { fetch }` | HTTP + SSE |
+| 浏览器页面 / Chrome 扩展 | `createBrowserConsole({ element, ... })` | 进程内直调 |
+
+浏览器模式传 `user`，source 跳过 token 鉴权——能看到面板的人本来就能碰到这个进程。
+
 ## 9. 指标
 
-`ps` 和 `top` 读一个内部指标对象，Node 与 Workers 各给一份实现。检测在首次 `read()` 时做一次并缓存（这里可以异步 `import`，它不在同步 sink 的路径上），与 §7 的 stdout 探测是两个独立问题，不共用代码：
+`ps` 和 `top` 读一个内部指标对象，Node 与 Workers 各给一份实现。检测在首次 `read()` 时做一次并缓存。
 
-- Node：`process.memoryUsage()`、`process.cpuUsage()` 差值、`process.uptime()`、事件循环延迟（`node:perf_hooks`，动态 import）、SSE 连接数。
+探测只看能力，**不做任何 import**：`import(变量)` 在 workerd 里是非法的（要求静态模块说明符，运行到就抛 `ERR_MODULE_DYNAMIC_SPEC`）。这条是 miniflare 集成测试跑出来的，不是推测。判定条件就是 `typeof process?.memoryUsage === "function"`：边缘运行时要么没有 `process`，要么只有残缺替身。
+
+
+- Node：`process.memoryUsage()` 的 `rss`/`heapUsed`、事件循环利用率（`globalThis.performance.eventLoopUtilization`，没有就跳过）、运行时长、SSE 连接数。
 - Workers：没有 `process.memoryUsage` 这类读数（Workers 的 `process` 是部分实现，未实现的方法直接抛错）。只能给自维护计数器：启动时间、SSE 连接数。
 
 返回字段固定为 `runtime`（`"node"` | `"workers"`）与 `uptimeMs`；Node 额外有 `rss`、`heapUsed`、`loopDelayMs`。Workers 分支不返回这几个键，前端按存在与否渲染。
@@ -345,7 +360,7 @@ package.json exports:
 
 构建：`tsc`（TypeScript 7.0.2 原生版已验证能产出 `.js` + `.d.ts`）。不做额外打包，`bun build` 只在测体积时用。
 
-体积目标（估计，实现后实测）：入口 `.` ≤ 3KB gzip，`./console` ≤ 8KB gzip，页面 ≤ 10KB。
+体积实测：入口 `.` 1.7KB（min+gzip），`./console` 9.2KB（含内联页面脚本）。
 
 ## 14. 目录
 
