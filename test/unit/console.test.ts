@@ -78,6 +78,8 @@ describe("createConsole", () => {
     const { console: api } = setup();
     const res = await api.handler(post("/exec", { line: "help" }));
     expect(res.status).toBe(200);
+    // 序列化走平台内置的 Response.json；Bun 会额外带 charset，只断言主类型。
+    expect(res.headers.get("content-type")).toContain("application/json");
     expect(((await res.json()) as { ok: boolean }).ok).toBe(true);
   });
 

@@ -11,11 +11,9 @@ type Body =
   | { ok: true; output: unknown }
   | { ok: false; error: string };
 
-function json(body: Body, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { "content-type": "application/json; charset=utf-8" },
-  });
+/** `Body` 在编译期锁住响应形状；序列化交给平台内置的 `Response.json`。 */
+function reply(body: Body, status = 200): Response {
+  return Response.json(body, { status });
 }
 
 function bearerToken(header: string | null): string | null {
@@ -37,32 +35,32 @@ export function createExecHandler(options: ExecHttpOptions): (req: Request) => P
     // 先看声明长度，避免为一个 100MB 的恶意请求把内存读爆。
     const declared = Number(req.headers.get("content-length") ?? "0");
     if (Number.isFinite(declared) && declared > maxBodyBytes) {
-      return json({ ok: false, error: "payload too large" }, 413);
+      return reply({ ok: false, error: "payload too large" }, 413);
     }
 
     const body = await req.text();
     if (new TextEncoder().encode(body).length > maxBodyBytes) {
-      return json({ ok: false, error: "payload too large" }, 413);
+      return reply({ ok: false, error: "payload too large" }, 413);
     }
 
     let parsed: unknown;
     try {
       parsed = JSON.parse(body);
     } catch {
-      return json({ ok: false, error: "body 必须是 JSON" }, 400);
+      return reply({ ok: false, error: "body 必须是 JSON" }, 400);
     }
 
     const line = (parsed as { line?: unknown } | null)?.line;
     if (typeof line !== "string") {
-      return json({ ok: false, error: "line 必须是字符串" }, 400);
+      return reply({ ok: false, error: "line 必须是字符串" }, 400);
     }
     // 空命令是畸形请求，不是业务结果，走 400 而不是 200。
-    if (line.trim() === "") return json({ ok: false, error: "空命令" }, 400);
+    if (line.trim() === "") return reply({ ok: false, error: "空命令" }, 400);
 
     const result = await options.source.exec(line, bearerToken(req.headers.get("authorization")));
-    if (result.ok) return json({ ok: true, output: result.output });
+    if (result.ok) return reply({ ok: true, output: result.output });
     return result.unauthorized === true
-      ? json({ ok: false, error: result.error }, 401)
-      : json({ ok: false, error: result.error });
+      ? reply({ ok: false, error: result.error }, 401)
+      : reply({ ok: false, error: result.error });
   };
 }
