@@ -72,6 +72,8 @@ export interface CommandContext {
 export interface Command {
   name: string;
   note: string;
+  /** 由库提供（help 里单独分组）；宿主注册的命令不带这个标记。 */
+  builtin?: boolean;
   /** 帮助里显示的参数说明，如 "[n]"。 */
   args?: string;
   /** 匿名可执行。默认 false。 */

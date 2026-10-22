@@ -39,12 +39,26 @@ export function createHelpCommand(list: () => readonly Command[]): Command {
     note: "列出所有命令",
     public: true,
     run(): CommandOutput {
-      const width = Math.max(...list().map((command) => command.name.length));
-      const lines = list().map((command) => {
+      const all = list();
+      const width = Math.max(...all.map((command) => command.name.length));
+      const render = (command: Command): string => {
         const signature = command.args ? `${command.name} ${command.args}` : command.name;
         return `${signature.padEnd(width + 8)}${command.note}`;
-      });
-      return { kind: "text", text: lines.join("\n") };
+      };
+
+      const custom = all.filter((command) => command.builtin !== true);
+      const builtin = all.filter((command) => command.builtin === true);
+
+      // 分组不是为了好看：混在一起就分不清哪些是库给的、哪些是这个项目自己加的。
+      const blocks: string[] = [];
+      if (custom.length > 0) {
+        blocks.push("自定义命令", ...custom.map(render));
+      }
+      if (builtin.length > 0) {
+        if (blocks.length > 0) blocks.push("");
+        blocks.push("内置命令", ...builtin.map(render));
+      }
+      return { kind: "text", text: blocks.join("\n") };
     },
   };
 }
