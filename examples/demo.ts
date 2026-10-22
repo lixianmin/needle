@@ -25,7 +25,7 @@ const rooms = new Map<string, Record<string, unknown>>([
 const debug = createConsole({
   logger: logo,
   basePath: "/console",
-  title: "Noodle",
+  title: "Needle",
   logFiles: createLogFiles({ dir: LOG_DIR }),
   version: "0.1.0",
   auth: { users: { xmli: "123456" }, secret: process.env.DBG_SECRET ?? "demo-secret" },

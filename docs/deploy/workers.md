@@ -2,14 +2,14 @@
 
 ## 先看结论
 
-`@noodle/logo` 的核心与控制台在 Workers 上能直接跑，**不需要为 Workers 改代码**，也不需要 Durable Object、不需要额外配置。代价是有几项能力在这类环境里拿不到，下面逐条说明。
+`@needle/logo` 的核心与控制台在 Workers 上能直接跑，**不需要为 Workers 改代码**，也不需要 Durable Object、不需要额外配置。代价是有几项能力在这类环境里拿不到，下面逐条说明。
 
 ## 最小部署
 
 ```ts
 // src/index.ts
-import { createConsole } from "@noodle/logo/console";
-import { logo } from "@noodle/logo";
+import { createConsole } from "@needle/logo/console";
+import { logo } from "@needle/logo";
 
 const debug = createConsole({
   logger: logo,
