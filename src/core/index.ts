@@ -6,6 +6,8 @@ export { createRingSink } from "./ring.js";
 export { stdoutSink } from "./sink.js";
 export { hasStdout } from "./runtime.js";
 export { buildRecord, safeStringify } from "./record.js";
+export { SortedTable, defaultComparer } from "./sorted-table.js";
+export type { Comparer } from "./sorted-table.js";
 export { displayNumber, formatDuration, toHuman } from "./human.js";
 export { UTC_OFFSET_MINUTES, formatTime } from "./time.js";
 export { LEVELS } from "./types.js";
