@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import { createConsole } from "../../src/console/index.js";
-import { createLogger } from "../../src/core/logger.js";
+import { newLogger } from "../../src/core/logo.js";
 import { serve } from "../../src/node/serve.js";
 
 /**
@@ -12,7 +12,7 @@ import { serve } from "../../src/node/serve.js";
  */
 describe("控制台端到端", () => {
   test("登录后能通过 SSE 收到实时日志", async () => {
-    const logger = createLogger({ flushIntervalMs: 0, batch: false });
+    const logger = newLogger({ flushIntervalMs: 0, batch: false });
     const debug = createConsole({
       logger,
       auth: { users: { admin: "secret" }, secret: "e2e-secret" },
@@ -59,7 +59,7 @@ describe("控制台端到端", () => {
   });
 
   test("密码错误时 /auth 返回 401", async () => {
-    const logger = createLogger({ flushIntervalMs: 0, batch: false });
+    const logger = newLogger({ flushIntervalMs: 0, batch: false });
     const debug = createConsole({
       logger,
       auth: { users: { admin: "secret" }, secret: "e2e-secret" },
@@ -80,7 +80,7 @@ describe("控制台端到端", () => {
   });
 
   test("未登录拉事件流被拒", async () => {
-    const logger = createLogger({ flushIntervalMs: 0, batch: false });
+    const logger = newLogger({ flushIntervalMs: 0, batch: false });
     const debug = createConsole({
       logger,
       auth: { users: { admin: "secret" }, secret: "e2e-secret" },

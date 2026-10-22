@@ -3,10 +3,10 @@ import { describe, expect, test } from "bun:test";
 import { createConsoleSource } from "../../src/console/source.js";
 import { createLocalAdapter } from "../../src/console/ui/local.js";
 import type { ConsoleEvent } from "../../src/console/ui/adapter.js";
-import { createLogger } from "../../src/core/logger.js";
+import { newLogger } from "../../src/core/logo.js";
 
 function setup() {
-  const logger = createLogger({ flushIntervalMs: 0, batch: false });
+  const logger = newLogger({ flushIntervalMs: 0, batch: false });
   const source = createConsoleSource({
     logger,
     auth: { users: {} },

@@ -2,10 +2,10 @@ import { describe, expect, test } from "bun:test";
 
 import { createConsoleSource } from "../../src/console/source.js";
 import { createExecHandler } from "../../src/console/exec.js";
-import { createLogger } from "../../src/core/logger.js";
+import { newLogger } from "../../src/core/logo.js";
 
 function setup(timeoutMs = 20) {
-  const logger = createLogger({ flushIntervalMs: 0, batch: false });
+  const logger = newLogger({ flushIntervalMs: 0, batch: false });
   const source = createConsoleSource({
     logger,
     auth: { users: { admin: "secret" }, secret: "s3cret" },

@@ -22,9 +22,29 @@ logo.error("paid failed", err, { userId: 7 });   // 自动带调用栈
 字符串拼成 `msg`，对象合并进字段，`Error` 展开成 `message` + `stack`。`warn`/`error` 立即落盘，`info` 攒批（默认 100ms），一个循环写 1000 条也只产生一次 IO。
 
 ```ts
-const logger = logo.child({ name: "db", traceId: "t1" });
-logger.info("connected");
+const db = logo.child({ name: "db", traceId: "t1" });
+db.info("connected");
 ```
+
+`logo` 是库给的默认实例，开箱写 stdout。要另建一个（换级别、换名字、换 sink 组合）用 `newLogger()`——名字对齐 Go 版 logo 的 `NewLogger`。
+
+## 日志写到哪去
+
+`sinks` 只是**初始**列表，文件、飞书都是事后挂上去的：
+
+```ts
+import { logo } from "@noodle/logo";
+import { createFileSink } from "@noodle/logo/node";
+import { createLarkSink } from "@noodle/logo/lark";
+
+logo.addSink(createFileSink({ dir: "logs" }));                    // 落盘，按级别分文件
+logo.addSink(createLarkSink({ webhook: process.env.LARK_HOOK!,    // 推到飞书
+                              minLevel: "error" }));
+
+process.on("SIGTERM", () => logo.dispose());   // 退出前冲掉缓冲区
+```
+
+`removeSink` 摘掉；`newLogger({ sinks: [...] })` 一步配好。
 
 ## 基础数据结构
 

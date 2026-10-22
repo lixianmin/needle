@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test";
 
 import { createConsole } from "../../src/console/index.js";
-import { createLogger } from "../../src/core/logger.js";
+import { newLogger } from "../../src/core/logo.js";
 
 function setup(basePath?: string) {
-  const logger = createLogger({ flushIntervalMs: 0, batch: false });
+  const logger = newLogger({ flushIntervalMs: 0, batch: false });
   const console_ = createConsole({
     logger,
     auth: { users: { admin: "secret" }, secret: "unit-test-secret" },
@@ -83,7 +83,7 @@ describe("createConsole", () => {
   });
 
   test("logs 列出日志文件，/log 路由能取全文", async () => {
-    const logger = createLogger({ flushIntervalMs: 0, batch: false });
+    const logger = newLogger({ flushIntervalMs: 0, batch: false });
     const files: Record<string, string> = { "info.log": '{"msg":"line1"}\n' };
     const api = createConsole({
       logger,

@@ -9,7 +9,7 @@ const DEFAULT_FLUSH_INTERVAL_MS = 100;
 const DEFAULT_MAX_BUFFER = 10_000;
 
 /** 栈帧里属于本库内部的行，采集时要剪掉，否则看到的全是自己的帧。 */
-const INTERNAL_FRAME = /\/core\/(logger|record)\.(ts|js):/;
+const INTERNAL_FRAME = /\/core\/(logo|record)\.(ts|js):/;
 
 export interface LoggerOptions {
   level?: Level;
@@ -55,7 +55,7 @@ function captureStack(): string {
     .join("\n");
 }
 
-export function createLogger(options: LoggerOptions = {}): Logger {
+export function newLogger(options: LoggerOptions = {}): Logger {
   const now = options.now ?? Date.now;
   const flushIntervalMs = options.flushIntervalMs ?? DEFAULT_FLUSH_INTERVAL_MS;
   const maxBuffer = options.maxBuffer ?? DEFAULT_MAX_BUFFER;
@@ -153,7 +153,7 @@ export function createLogger(options: LoggerOptions = {}): Logger {
 
     child(fields) {
       const { name, ...rest } = fields;
-      return createLogger({
+      return newLogger({
         level,
         name: (name as string | undefined) ?? options.name,
         // 快照父级 sink：之后父级增删 sink 不影响已存在的子 logger。
