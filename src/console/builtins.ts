@@ -66,10 +66,10 @@ function createLogsCommand(records: RingSink): Command {
   };
 }
 
-function createPsCommand(metrics: Metrics): Command {
+function createTopCommand(metrics: Metrics): Command {
   return {
-    name: "ps",
-    note: "查看进程指标",
+    name: "top",
+    note: "看一眼进程指标（要持续刷就 sub top）",
     async run(): Promise<CommandOutput> {
       const snapshot = await metrics.read();
       return {
@@ -122,6 +122,27 @@ function createAuthCommand(): Command {
   };
 }
 
+/**
+ * `sub` / `unsub` 只是在这里登记，好让 `help` 能列出来。
+ *
+ * 订阅是**某一条 SSE 连接**的属性，而 /exec 是另一条请求，拿不到那条流。
+ * 真正的实现在控制台 UI 里：改订阅集合、重建流。
+ */
+function createSubCommand(name: "sub" | "unsub"): Command {
+  return {
+    name,
+    note:
+      name === "sub"
+        ? "订阅主题（如 sub top 2000）"
+        : "取消订阅（如 unsub top，留空取消全部）",
+    args: name === "sub" ? "<topic> [interval-ms]" : "[topic]",
+    public: true,
+    run(): CommandOutput {
+      throw new CommandError(`${name} 在控制台里用：订阅属于浏览器那条流，/exec 拿不到它`);
+    },
+  };
+}
+
 function createLogoutCommand(): Command {
   return {
     name: "logout",
@@ -149,10 +170,12 @@ export function createBuiltinCommands(deps: BuiltinDeps): Command[] {
 
   const commands: Command[] = [
     createLogsCommand(deps.records),
-    createPsCommand(deps.metrics),
+    createTopCommand(deps.metrics),
     createEnvCommand(resolveEnv),
     createAuthCommand(),
     createLogoutCommand(),
+    createSubCommand("sub"),
+    createSubCommand("unsub"),
   ];
 
   // help 要列出包括自己在内的全部命令，所以最后插入并持有同一个数组的引用。

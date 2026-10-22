@@ -32,6 +32,17 @@ function clock(time: number): string {
   return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.${pad(date.getMilliseconds(), 3)}`;
 }
 
+/** 指标值的人话格式：字节转 MB、毫秒转秒，别让人自己数零。 */
+function formatMetric(key: string, value: unknown): string {
+  if (typeof value !== "number") {
+    if (typeof value === "string") return value;
+    return JSON.stringify(value) ?? "";
+  }
+  if (key === "rss" || key === "heapUsed") return `${(value / 1024 / 1024).toFixed(1)}MB`;
+  if (key === "uptimeMs") return `${(value / 1000).toFixed(0)}s`;
+  return Number.isInteger(value) ? String(value) : value.toFixed(2);
+}
+
 function readHistory(): string[] {
   try {
     const raw = localStorage.getItem(HISTORY_KEY);
@@ -74,7 +85,6 @@ export function mountConsole(root: HTMLElement, adapter: ConsoleAdapter): Consol
   header.append(title, user);
 
   const output = el(doc, "div", "output");
-  const topics = el(doc, "div", "topics");
   const form = el(doc, "form");
   const prompt = el(doc, "span", "prompt");
   prompt.textContent = "$";
@@ -83,10 +93,8 @@ export function mountConsole(root: HTMLElement, adapter: ConsoleAdapter): Consol
   input.autocomplete = "off";
   form.append(prompt, input);
 
-  wrap.append(header, output, topics, form);
+  wrap.append(header, output, form);
   root.append(wrap);
-
-  const topicPanels = new Map<string, HTMLElement>();
 
   function push(node: HTMLElement): void {
     output.append(node);
@@ -114,14 +122,16 @@ export function mountConsole(root: HTMLElement, adapter: ConsoleAdapter): Consol
 
   function table(columns: string[], rows: Array<Array<string | number | null>>): HTMLElement {
     const grid = el(doc, "table", "grid");
-    const head = el(doc, "tr");
+    const head = el(doc, "thead");
+    const headRow = el(doc, "tr");
     for (const column of columns) {
       const cell = el(doc, "th");
       cell.textContent = column;
-      head.append(cell);
+      headRow.append(cell);
     }
-    grid.append(head);
+    head.append(headRow);
 
+    const body = el(doc, "tbody");
     for (const row of rows) {
       const tr = el(doc, "tr");
       for (const value of row) {
@@ -129,52 +139,56 @@ export function mountConsole(root: HTMLElement, adapter: ConsoleAdapter): Consol
         cell.textContent = value === null ? "" : String(value);
         tr.append(cell);
       }
-      grid.append(tr);
+      body.append(tr);
     }
+
+    grid.append(head, body);
     return grid;
   }
 
   function renderOutput(result: ExecResult): void {
     if (!result.ok) {
-      pushText(result.unauthorized === true ? `未登录：先执行 login <user> <password>` : result.error, "status");
+      pushText(result.unauthorized === true ? "未登录：先执行 auth <user>" : result.error, "status");
       return;
     }
 
-    const outputValue: CommandOutput = result.output;
-    if (outputValue.kind === "text") {
-      for (const line of outputValue.text.split("\n")) pushText(line);
+    const value: CommandOutput = result.output;
+    if (value.kind === "text") {
+      for (const line of value.text.split("\n")) pushText(line);
       return;
     }
-    if (outputValue.kind === "table") {
-      push(table(outputValue.columns, outputValue.rows));
+    if (value.kind === "table") {
+      push(table(value.columns, value.rows));
       return;
     }
-    pushText(JSON.stringify(outputValue.value, null, 2), "raw");
+    pushText(JSON.stringify(value.value, null, 2), "raw");
   }
 
+  /** 主题推送落成一行：`[top] rss=36.3MB heap=1.6MB …`。不常驻面板。 */
   function renderTopic(name: string, data: unknown): void {
-    let panel = topicPanels.get(name);
-    if (panel === undefined) {
-      panel = el(doc, "div", "topic");
-      const heading = el(doc, "h3");
-      heading.textContent = name;
-      panel.append(heading);
-      topics.append(panel);
-      topicPanels.set(name, panel);
-    }
-
-    panel.querySelector("table")?.remove();
-    if (typeof data === "object" && data !== null && !Array.isArray(data)) {
-      const rows = Object.entries(data as Record<string, unknown>).map(([key, value]) => [
-        key,
-        typeof value === "object" ? JSON.stringify(value) : String(value),
-      ]);
-      panel.append(table(["", ""], rows));
+    if (typeof data !== "object" || data === null || Array.isArray(data)) {
+      pushText(`[${name}] ${JSON.stringify(data)}`, "topic-line");
       return;
     }
-    const pre = el(doc, "div");
-    pre.textContent = JSON.stringify(data);
-    panel.append(pre);
+
+    const pairs = Object.entries(data as Record<string, unknown>).map(
+      ([key, value]) => `${key}=${formatMetric(key, value)}`,
+    );
+    pushText(`[${name}] ${pairs.join("  ")}`, "topic-line");
+  }
+
+  // ---- 订阅状态（属于这条流，由 UI 维护） ----
+  const subscriptions = new Map<string, number | undefined>();
+  let availableTopics: Array<{ name: string; intervalMs: number }> = [];
+
+  function topicSpec(): string {
+    return [...subscriptions.entries()]
+      .map(([name, interval]) => (interval === undefined ? name : `${name}:${interval}`))
+      .join(",");
+  }
+
+  function applySubscriptions(): void {
+    adapter.setTopics(topicSpec());
   }
 
   const unsubscribe = adapter.subscribe((event: ConsoleEvent) => {
@@ -182,6 +196,7 @@ export function mountConsole(root: HTMLElement, adapter: ConsoleAdapter): Consol
       case "hello":
         title.textContent = `logo · v${event.info.version}`;
         user.textContent = event.info.user ?? "未登录";
+        availableTopics = event.info.topics;
         break;
       case "log":
         renderLog(event.record);
@@ -218,14 +233,11 @@ export function mountConsole(root: HTMLElement, adapter: ConsoleAdapter): Consol
 
   doc.addEventListener("keydown", focusOnEnter);
 
-  const history = readHistory();
-  let cursor = history.length;
-
   /** 正在等密码的账号。非空时下一次回车的内容当密码处理。 */
   let pendingUser: string | null = null;
 
-  function enterPasswordMode(user: string): void {
-    pendingUser = user;
+  function enterPasswordMode(nextUser: string): void {
+    pendingUser = nextUser;
     input.type = "password";
     input.value = "";
     input.placeholder = "密码（输入不回显）";
@@ -240,17 +252,90 @@ export function mountConsole(root: HTMLElement, adapter: ConsoleAdapter): Consol
     input.value = "";
   }
 
+  const history = readHistory();
+  let cursor = history.length;
+
+  function remember(line: string): void {
+    history.push(line);
+    writeHistory(history);
+    cursor = history.length;
+  }
+
+  /** 本地命令：不发 /exec，因为它们要么属于这条连接，要么属于浏览器。 */
+  function runLocal(name: string, args: string[]): boolean {
+    switch (name) {
+      case "auth": {
+        const target = args[0];
+        if (target === undefined) {
+          pushText("用法: auth <user>", "status");
+          return true;
+        }
+        enterPasswordMode(target);
+        return true;
+      }
+
+      case "logout":
+        adapter.logout();
+        pushText("已退出", "status");
+        return true;
+
+      case "sub": {
+        const topic = args[0];
+        if (topic === undefined) {
+          pushText(
+            `用法: sub <topic> [interval-ms]，可订阅：${availableTopics.map((item) => item.name).join(" ") || "（无）"}`,
+            "status",
+          );
+          return true;
+        }
+        if (availableTopics.length > 0 && !availableTopics.some((item) => item.name === topic)) {
+          pushText(`没有这个主题：${topic}`, "status");
+          return true;
+        }
+        const interval = args[1] === undefined ? undefined : Number(args[1]);
+        if (interval !== undefined && !Number.isFinite(interval)) {
+          pushText("interval-ms 必须是数字", "status");
+          return true;
+        }
+        subscriptions.set(topic, interval);
+        applySubscriptions();
+        pushText(`已订阅 ${topic}`, "status");
+        return true;
+      }
+
+      case "unsub": {
+        const topic = args[0];
+        if (topic === undefined) {
+          subscriptions.clear();
+          applySubscriptions();
+          pushText("已取消全部订阅", "status");
+          return true;
+        }
+        if (!subscriptions.delete(topic)) {
+          pushText(`没订阅过 ${topic}`, "status");
+          return true;
+        }
+        applySubscriptions();
+        pushText(`已取消订阅 ${topic}`, "status");
+        return true;
+      }
+
+      default:
+        return false;
+    }
+  }
+
   form.addEventListener("submit", (event) => {
     event.preventDefault();
 
     // 密码这一步：不回显、不进历史、不发命令，只走 authenticate。
     if (pendingUser !== null) {
       const password = input.value;
-      const user = pendingUser;
+      const target = pendingUser;
       leavePasswordMode();
       if (password === "") return;
 
-      void adapter.authenticate(user, password).then((result) => {
+      void adapter.authenticate(target, password).then((result) => {
         if (result.ok) pushText(`已登录：${result.user}`, "status");
         else pushText(result.error, "status");
       });
@@ -259,36 +344,15 @@ export function mountConsole(root: HTMLElement, adapter: ConsoleAdapter): Consol
 
     const line = input.value.trim();
     if (line === "") return;
-
     input.value = "";
 
-    // auth 与 logout 是控制台自己的动作，不发给服务端。
     const [name, ...args] = line.split(/\s+/);
-    if (name === "auth") {
-      const user = args[0];
-      if (user === undefined) {
-        pushText("用法: auth <user>", "status");
-        return;
-      }
-      history.push(line);
-      writeHistory(history);
-      cursor = history.length;
-      pushText(`$ ${line}`, "echo");
-      enterPasswordMode(user);
-      return;
-    }
-
-    if (name === "logout") {
-      adapter.logout();
-      pushText("已退出", "status");
-      return;
-    }
-
-    history.push(line);
-    writeHistory(history);
-    cursor = history.length;
+    if (name === undefined) return;
 
     pushText(`$ ${line}`, "echo");
+    remember(line);
+
+    if (runLocal(name, args)) return;
     void adapter.exec(line).then(renderOutput);
   });
 

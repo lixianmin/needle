@@ -64,9 +64,9 @@ describe("内置命令", () => {
     await expect(run("logs", ["-3"])).rejects.toBeInstanceOf(CommandError);
   });
 
-  test("ps 返回表格", async () => {
+  test("top 返回表格", async () => {
     const { run } = setup();
-    const output = await run("ps");
+    const output = await run("top");
     expect(output.kind).toBe("table");
     expect((output as { rows: unknown[] }).rows.length).toBeGreaterThan(0);
   });
@@ -98,6 +98,12 @@ describe("内置命令", () => {
     await expect(run("auth", [])).rejects.toBeInstanceOf(CommandError);
   });
 
+  test("sub/unsub 只为 help 登记，直接执行会提示去控制台", async () => {
+    const { run } = setup();
+    await expect(run("sub", ["top"])).rejects.toBeInstanceOf(CommandError);
+    await expect(run("unsub", [])).rejects.toBeInstanceOf(CommandError);
+  });
+
   test("logout 返回文本", async () => {
     const { run } = setup();
     expect((await run("logout")).kind).toBe("text");
@@ -106,7 +112,7 @@ describe("内置命令", () => {
   test("只有 help/auth/logout 可以匿名执行", () => {
     const { commands } = setup();
     const publicNames = commands.filter((command) => command.public).map((command) => command.name);
-    expect(publicNames.sort()).toEqual(["auth", "help", "logout"]);
+    expect(publicNames.sort()).toEqual(["auth", "help", "logout", "sub", "unsub"]);
   });
 
   test("logs 把记录渲染成表", async () => {

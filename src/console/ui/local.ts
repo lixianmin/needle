@@ -11,6 +11,7 @@ import type { AuthResult, ConsoleAdapter, ConsoleEvent, ExecResult } from "./ada
 export function createLocalAdapter(source: ConsoleSource): ConsoleAdapter {
   const listeners = new Set<(event: ConsoleEvent) => void>();
   let attached = false;
+  let timers: Array<ReturnType<typeof setInterval>> = [];
 
   const emit = (event: ConsoleEvent): void => {
     for (const listener of listeners) listener(event);
@@ -49,6 +50,34 @@ export function createLocalAdapter(source: ConsoleSource): ConsoleAdapter {
       // 本地模式没有 token 可清，保留接口是为了让 UI 不用分支。
     },
 
+    setTopics(spec: string) {
+      for (const timer of timers) clearInterval(timer);
+      timers = [];
+      if (spec === "") return;
+
+      // 本地模式没有 SSE，订阅就自己起定时器——行为跟服务端一致。
+      for (const part of spec.split(",")) {
+        const [name, rawInterval] = part.split(":");
+        const topic = source.topics.find((candidate) => candidate.name === name?.trim());
+        if (topic === undefined) continue;
+
+        const requested = rawInterval === undefined ? topic.intervalMs : Number(rawInterval);
+        const intervalMs = Number.isFinite(requested)
+          ? Math.min(60_000, Math.max(1_000, requested))
+          : topic.intervalMs;
+
+        timers.push(
+          setInterval(() => {
+            void Promise.resolve(topic.read())
+              .then((data) => emit({ type: "topic", name: topic.name, data }))
+              .catch((error: unknown) =>
+                emit({ type: "topic", name: topic.name, data: { error: String(error) } }),
+              );
+          }, intervalMs),
+        );
+      }
+    },
+
     subscribe(listener) {
       listeners.add(listener);
       attach();
@@ -62,6 +91,11 @@ export function createLocalAdapter(source: ConsoleSource): ConsoleAdapter {
             name: command.name,
             note: command.note,
             args: command.args ?? null,
+          })),
+          topics: source.topics.map((topic) => ({
+            name: topic.name,
+            note: topic.note,
+            intervalMs: topic.intervalMs,
           })),
         },
       });

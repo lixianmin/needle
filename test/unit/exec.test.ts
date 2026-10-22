@@ -42,19 +42,19 @@ describe("/exec 适配器", () => {
   });
 
   test("受限命令无 token 返回 401", async () => {
-    const res = await setup()(post(JSON.stringify({ line: "ps" })));
+    const res = await setup()(post(JSON.stringify({ line: "top" })));
     expect(res.status).toBe(401);
     expect(await res.json()).toEqual({ ok: false, error: "unauthorized" });
   });
 
   test("垃圾 token 返回 401 而不是 500", async () => {
-    const res = await setup()(post(JSON.stringify({ line: "ps" }), "garbage"));
+    const res = await setup()(post(JSON.stringify({ line: "top" }), "garbage"));
     expect(res.status).toBe(401);
   });
 
   test("无效 token 无法执行受限命令（伪造 payload）", async () => {
     const forged = `${btoa('{"sub":"admin","exp":9999999999999}')}.AAAA`;
-    const res = await setup()(post(JSON.stringify({ line: "ps" }), forged));
+    const res = await setup()(post(JSON.stringify({ line: "top" }), forged));
     expect(res.status).toBe(401);
   });
 

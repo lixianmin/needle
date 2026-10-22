@@ -64,7 +64,7 @@ describe("Cloudflare Workers 兼容性", () => {
     const res = await mf.dispatchFetch("http://x/exec", {
       method: "POST",
       headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
-      body: JSON.stringify({ line: "ps" }),
+      body: JSON.stringify({ line: "top" }),
     });
     const body = (await res.json()) as { output: { rows: Array<[string, string]> } };
     const runtime = body.output.rows.find(([key]) => key === "runtime");
