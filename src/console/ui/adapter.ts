@@ -1,7 +1,7 @@
 import type { LogRecord } from "../../core/types.js";
 import type { CommandOutput } from "../types.js";
 
-export interface HelloInfo {
+export interface HandshakeInfo {
   title: string;
   version: string;
   user: string | null;
@@ -10,7 +10,7 @@ export interface HelloInfo {
 }
 
 export type ConsoleEvent =
-  | { type: "hello"; info: HelloInfo }
+  | { type: "handshake"; info: HandshakeInfo }
   | { type: "log"; record: LogRecord }
   | { type: "topic"; name: string; data: unknown }
   /** 连接状态、鉴权失败之类的提示，由适配器发出。 */

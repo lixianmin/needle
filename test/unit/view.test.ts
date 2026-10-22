@@ -71,7 +71,7 @@ describe("mountConsole", () => {
   test("hello 之后显示版本与用户", () => {
     const { root, emit, document } = mount();
     emit({
-      type: "hello",
+      type: "handshake",
       info: {
         title: "node",
         version: "1.2.3",
@@ -184,6 +184,95 @@ describe("mountConsole", () => {
     expect(sizes()).toEqual(["c1.00M", "a4.88K", "b200"]);
   });
 
+  test("Tab 补全命令名，焦点不动", () => {
+    const { document, emit } = mount();
+    emit({
+      type: "handshake",
+      info: {
+        title: "node",
+        version: "1",
+        user: "admin",
+        commands: [
+          { name: "help", note: "", args: null },
+          { name: "logs", note: "", args: "[n]" },
+          { name: "slow", note: "", args: null },
+        ],
+        topics: [{ name: "top", note: "", intervalMs: 1000 }],
+      },
+    });
+
+    const input = document.querySelector("input") as unknown as HTMLInputElement;
+    input.focus();
+    input.value = "he";
+    input.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Tab" }) as unknown as Event);
+
+    expect(input.value).toBe("help ");
+    expect(document.activeElement).toBe(input);
+  });
+
+  test("Tab 补全主题名", () => {
+    const { document, emit } = mount();
+    emit({
+      type: "handshake",
+      info: {
+        title: "node",
+        version: "1",
+        user: "admin",
+        commands: [],
+        topics: [
+          { name: "top", note: "", intervalMs: 1000 },
+          { name: "mem", note: "", intervalMs: 5000 },
+        ],
+      },
+    });
+
+    const input = document.querySelector("input") as unknown as HTMLInputElement;
+    input.value = "sub t";
+    input.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Tab" }) as unknown as Event);
+
+    expect(input.value).toBe("sub top ");
+  });
+
+  test("多个候选时列出候选，不改输入", () => {
+    const { document, root, emit } = mount();
+    emit({
+      type: "handshake",
+      info: {
+        title: "node",
+        version: "1",
+        user: "admin",
+        commands: [
+          { name: "slow", note: "", args: null },
+          { name: "sub", note: "", args: null },
+        ],
+        topics: [],
+      },
+    });
+
+    const input = document.querySelector("input") as unknown as HTMLInputElement;
+    input.value = "s";
+    input.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Tab" }) as unknown as Event);
+
+    expect(input.value).toBe("s");
+    expect((root as unknown as HTMLElement).textContent).toContain("候选:");
+  });
+
+  test("密码框里 Tab 不补全也不跳焦点", () => {
+    const { document } = mount();
+    const input = document.querySelector("input") as unknown as HTMLInputElement;
+    const form = document.querySelector("form") as unknown as HTMLFormElement;
+
+    input.value = "auth xmli";
+    form.dispatchEvent(new window.Event("submit") as unknown as Event);
+    expect(input.type).toBe("password");
+
+    input.value = "12";
+    input.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Tab" }) as unknown as Event);
+
+    expect(input.value).toBe("12");
+    expect(document.activeElement).toBe(input);
+  });
+
   test("上键翻历史", () => {
     const { document } = mount();
     const input = document.querySelector("input") as unknown as HTMLInputElement;
@@ -277,7 +366,7 @@ describe("mountConsole", () => {
   test("sub/unsub 改订阅并重建流", () => {
     const { document, emit, topicSpecs } = mount();
     emit({
-      type: "hello",
+      type: "handshake",
       info: {
         title: "node",
         version: "1",
@@ -311,7 +400,7 @@ describe("mountConsole", () => {
   test("订阅不存在的主题会提示", () => {
     const { document, root, emit, topicSpecs } = mount();
     emit({
-      type: "hello",
+      type: "handshake",
       info: { title: "node", version: "1", user: "admin", commands: [], topics: [{ name: "top", note: "", intervalMs: 1000 }] },
     });
 

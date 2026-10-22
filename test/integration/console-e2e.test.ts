@@ -37,7 +37,7 @@ describe("控制台端到端", () => {
       const reader = events.body?.getReader();
       const decoder = new TextDecoder();
       let text = decoder.decode((await reader?.read())?.value);
-      expect(text).toContain("event: hello");
+      expect(text).toContain("event: handshake");
 
       logger.info("live-line");
       logger.flush();

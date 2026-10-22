@@ -119,7 +119,7 @@ describe("createSseResponse", () => {
     expect(response.headers.get("content-type")).toContain("text/event-stream");
 
     const text = await readFor(response, 100);
-    expect(text.startsWith("event: hello")).toBe(true);
+    expect(text.startsWith("event: handshake")).toBe(true);
     expect(text).toContain('"user":"admin"');
     expect(text).toContain('"name":"help"');
   });

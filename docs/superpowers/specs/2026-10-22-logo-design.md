@@ -214,8 +214,8 @@ POST /exec   { "line": "logs 20" }
 每条消息一个 `event` + 一行 JSON `data`：
 
 ```
-event: hello
-data: {"version":"0.1.0","user":"admin","commands":[...]}
+event: handshake
+data: {"title":"Noodle","version":"0.1.0","user":"admin","commands":[...],"topics":[...]}
 
 event: log
 data: {"time":...,"level":"info","msg":"..."}
@@ -226,7 +226,7 @@ data: {"name":"top","data":{...}}
 
 **`/events` 必须带合法 token，否则 401。** 日志流是这套东西里最敏感的数据，匿名只应该能拿到页面和 `help`。页面加载时若没有 token 或 token 已失效，显示"先 login"，不反复重试；`login` 成功后再建立连接。
 
-`hello` 在连接建立后立即发送，前端用它拿命令列表和当前身份。`topics` 用查询参数声明，断线重连时自动重新订阅（`fetch`+`ReadableStream` 读流，不用原生 `EventSource`，因为要带 `Authorization` 头）。
+`handshake` 在连接建立后立即发送，前端用它拿项目名、命令表、主题表和当前身份。名字照 gonsole `road` 层的握手语义：连接建立后服务端先发一帧配置，客户端据此决定怎么渲染和补全。`topics` 用查询参数声明，断线重连时自动重新订阅（`fetch`+`ReadableStream` 读流，不用原生 `EventSource`，因为要带 `Authorization` 头）。
 
 ### 8.4 命令
 
@@ -350,7 +350,11 @@ interface Topic {
 
 等宽字体栈 `ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`，不下载字体。
 
-前端 JS 约 200 行，同样按教材标准写：一个 `render(record)`、一个 `runCommand(line)`、一个 `connect()` 带指数退避重连。
+前端 JS 同样按教材标准写：`renderLog` / `runCommand` / `connect` 各管一件事。
+
+**Tab 补全**：只按行尾补全，候选来自 handshake 的命令表（所以服务器上自定义的命令一样能补），加上 `auth`/`logout`/`sub`/`unsub` 这几个客户端命令；`sub`/`unsub` 的第二个词补主题名。唯一候选直接补全，多个候选先补公共前缀，再按一次列出候选。Tab 永远 `preventDefault`，不会把焦点移走。
+
+**头栏**：项目名（`title`，默认 `console`）+ 版本 + 当前用户，全部靠左。项目名同时用作浏览器标签页标题。
 
 ## 12. 鉴权
 

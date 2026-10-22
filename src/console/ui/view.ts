@@ -220,6 +220,10 @@ export function mountConsole(root: HTMLElement, adapter: ConsoleAdapter): Consol
   // ---- 订阅状态（属于这条流，由 UI 维护） ----
   const subscriptions = new Map<string, number | undefined>();
   let availableTopics: Array<{ name: string; intervalMs: number }> = [];
+  let availableCommands: Array<{ name: string; note: string; args: string | null }> = [];
+
+  /** 控制台自己的命令，不在服务端命令表里也照样能补全。 */
+  const LOCAL_COMMANDS = ["auth", "logout", "sub", "unsub"] as const;
 
   function topicSpec(): string {
     return [...subscriptions.entries()]
@@ -233,12 +237,13 @@ export function mountConsole(root: HTMLElement, adapter: ConsoleAdapter): Consol
 
   const unsubscribe = adapter.subscribe((event: ConsoleEvent) => {
     switch (event.type) {
-      case "hello":
+      case "handshake":
         // 头栏显示"谁的控制台"：项目名 + 版本 + 当前账号，全部靠左。
         title.textContent = event.info.title;
         version.textContent = `v${event.info.version}`;
         user.textContent = event.info.user ?? "未登录";
         availableTopics = event.info.topics;
+        availableCommands = event.info.commands;
         break;
       case "log":
         renderLog(event.record);
@@ -292,6 +297,63 @@ export function mountConsole(root: HTMLElement, adapter: ConsoleAdapter): Consol
     input.type = "text";
     input.placeholder = "";
     input.value = "";
+  }
+
+  function commonPrefix(values: string[]): string {
+    if (values.length === 0) return "";
+    let prefix = values[0] ?? "";
+    for (const value of values) {
+      while (!value.startsWith(prefix)) prefix = prefix.slice(0, -1);
+    }
+    return prefix;
+  }
+
+  function commandNames(prefix: string): string[] {
+    const names = new Set(availableCommands.map((command) => command.name));
+    for (const name of LOCAL_COMMANDS) names.add(name);
+    return [...names].filter((name) => name.startsWith(prefix)).sort();
+  }
+
+  function topicNames(prefix: string): string[] {
+    return availableTopics
+      .map((topic) => topic.name)
+      .filter((name) => name.startsWith(prefix))
+      .sort();
+  }
+
+  /**
+   * Tab 补全。
+   *
+   * 只看行尾补全（控制台里 Tab 基本都在行尾按），这样不用跟 selectionStart
+   * 的浏览器差异打交道。命令名来自服务端的 handshake，所以用户在服务器上
+   * 自定义的命令一样能被补全；`sub`/`unsub` 的第二个词补主题名。
+   */
+  function complete(): void {
+    const tokens = input.value.split(/\s+/);
+    const last = tokens[tokens.length - 1] ?? "";
+    const pool =
+      tokens.length === 1
+        ? commandNames(last)
+        : tokens[0] === "sub" || tokens[0] === "unsub"
+          ? topicNames(last)
+          : [];
+
+    if (pool.length === 0) return;
+
+    if (pool.length === 1) {
+      const before = tokens.slice(0, -1).join(" ");
+      input.value = `${before === "" ? "" : `${before} `}${pool[0]} `;
+      return;
+    }
+
+    const prefix = commonPrefix(pool);
+    if (prefix.length > last.length) {
+      const before = tokens.slice(0, -1).join(" ");
+      input.value = `${before === "" ? "" : `${before} `}${prefix}`;
+      return;
+    }
+
+    pushText(`候选: ${pool.join("  ")}`, "status");
   }
 
   const history = readHistory();
@@ -405,6 +467,13 @@ export function mountConsole(root: HTMLElement, adapter: ConsoleAdapter): Consol
       pushText("已取消", "status");
       return;
     }
+    // Tab 补全：永远 preventDefault，否则焦点会跳到别的控件上。
+    if (event.key === "Tab") {
+      event.preventDefault();
+      if (!event.shiftKey && pendingUser === null) complete();
+      return;
+    }
+
     if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
     if (history.length === 0) return;
 

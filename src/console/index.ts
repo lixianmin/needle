@@ -6,7 +6,7 @@ import { createSseResponse } from "./sse.js";
 import type { AuthOptions, Command, CommandContext, CommandOutput, Topic } from "./types.js";
 import { createLocalAdapter } from "./ui/local.js";
 import { mountConsole, type ConsoleView } from "./ui/view.js";
-import type { ConsoleAdapter, ConsoleEvent, HelloInfo } from "./ui/adapter.js";
+import type { ConsoleAdapter, ConsoleEvent, HandshakeInfo } from "./ui/adapter.js";
 
 export interface ConsoleOptions extends ConsoleSourceOptions {
   /** 挂载前缀，如 "/console"。默认挂在根路径。 */
@@ -141,5 +141,5 @@ export { createConsoleSource } from "./source.js";
 export { mountConsole } from "./ui/view.js";
 export { createLocalAdapter } from "./ui/local.js";
 export type { ConsoleSource, ConsoleSourceOptions, ExecResult } from "./source.js";
-export type { ConsoleAdapter, ConsoleEvent, HelloInfo, AuthResult } from "./ui/adapter.js";
+export type { ConsoleAdapter, ConsoleEvent, HandshakeInfo, AuthResult } from "./ui/adapter.js";
 export type { AuthOptions, Command, CommandContext, CommandOutput, Topic } from "./types.js";
