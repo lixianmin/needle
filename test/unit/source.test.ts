@@ -42,7 +42,10 @@ describe("createConsoleSource", () => {
     const result = await source.exec("help", null);
     const text = (result as { output: { text: string } }).output.text;
 
-    expect(text).toContain("room");
+    // 分两段：自定义在前，内置在后，一眼能分清谁给的。
+    expect(text).toContain("自定义命令");
+    expect(text).toContain("内置命令");
+    expect(text.indexOf("room")).toBeLessThan(text.indexOf("内置命令"));
     expect(text).toContain("房间状态");
     expect(text).toContain("logs");
   });

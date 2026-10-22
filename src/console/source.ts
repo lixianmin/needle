@@ -111,7 +111,10 @@ export function createConsoleSource(options: ConsoleSourceOptions): ConsoleSourc
   const shadowed = new Set(custom.map((command) => command.name));
   const merged: Command[] = [
     ...custom,
-    ...builtins.filter((command) => !shadowed.has(command.name)),
+    // 内置命令打标：help 据此分组，也方便调用方判断某个名字是不是库提供的。
+    ...builtins
+      .filter((command) => !shadowed.has(command.name))
+      .map((command) => ({ ...command, builtin: true })),
   ];
 
   // help 要列全量（含自定义命令），所以先建空数组再插 —— 让它持有最终引用。
