@@ -1,4 +1,4 @@
-import { safeStringify } from "./record.js";
+import { formatLine } from "./line.js";
 import { hasStdout } from "./runtime.js";
 import type { Sink } from "./types.js";
 
@@ -16,12 +16,12 @@ export const stdoutSink: Sink = (batch) => {
   if (batch.length === 0) return;
 
   if (hasStdout()) {
-    const text = batch.map(safeStringify).join("\n");
+    const text = batch.map(formatLine).join("\n");
     process.stdout.write(`${text}\n`);
     return;
   }
 
   for (const record of batch) {
-    console.log(safeStringify(record));
+    console.log(formatLine(record));
   }
 };

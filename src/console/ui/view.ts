@@ -1,4 +1,5 @@
 import { displayNumber, formatDuration, toHuman } from "../../core/human.js";
+import { LEVEL_HINTS } from "../../core/line.js";
 import { formatTime } from "../../core/time.js";
 import type { LogRecord } from "../../core/types.js";
 import type { Cell, ColumnFormat, CommandOutput, LinkedCell } from "../types.js";
@@ -28,13 +29,6 @@ function injectStyle(doc: Document): void {
   doc.head.append(style);
 }
 
-/** 级别缩写，与 Go 版 logo 的 [D]/[I]/[W]/[E] 对齐。 */
-const LEVEL_HINTS: Record<string, string> = {
-  debug: "[D]",
-  info: "[I]",
-  warn: "[W]",
-  error: "[E]",
-};
 
 /** 主题行的人话格式：字节走 toHuman，毫秒转秒，比率原样。 */
 function formatMetric(key: string, value: unknown): string {

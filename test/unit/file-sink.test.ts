@@ -27,7 +27,9 @@ describe("createFileSink", () => {
     const dir = tempDir();
     createFileSink({ dir })([record("info", "i"), record("warn", "w"), record("error", "e")]);
 
-    const messages = (name: string) => read(dir, name).map((line) => JSON.parse(line).msg);
+    // 每行是"时间 [I] {json}"，取 json 段解析
+    const messages = (name: string) =>
+      read(dir, name).map((line) => JSON.parse(line.slice(line.indexOf("] ") + 2)).msg);
 
     // info.log 收全部，warn.log 收 warn+error，error.log 只收 error
     expect(messages("info.log")).toEqual(["i", "w", "e"]);

@@ -1,7 +1,7 @@
 import { appendFileSync, existsSync, mkdirSync, readdirSync, renameSync, statSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 
-import { safeStringify } from "../core/record.js";
+import { formatLine } from "../core/line.js";
 import { LEVELS, type Level, type LogRecord, type Sink } from "../core/types.js";
 
 const DEFAULT_MAX_BYTES = 10 * 1024 * 1024;
@@ -106,7 +106,7 @@ export function createFileSink(options: FileSinkOptions): FileSink {
       for (const target of fileLevels) {
         if (LEVELS[record.level] < LEVELS[target]) continue;
         const lines = buckets.get(target) ?? [];
-        lines.push(safeStringify(record));
+        lines.push(formatLine(record));
         buckets.set(target, lines);
       }
     }
