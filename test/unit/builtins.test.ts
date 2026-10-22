@@ -39,7 +39,7 @@ function setup() {
 describe("内置命令", () => {
   test("logs 列出日志文件，文件名带链接", async () => {
     const { run } = setup();
-    const output = await run("logs");
+    const output = await run("log.list");
 
     expect(output.kind).toBe("table");
     const table = output as {

@@ -96,7 +96,7 @@ describe("createConsole", () => {
     });
 
     const token = (await api.source.auth.login("admin", "secret")) as string;
-    const res = await api.handler(post("/console/exec", { line: "logs" }, token));
+    const res = await api.handler(post("/console/exec", { line: "log.list" }, token));
     const body = (await res.json()) as {
       output: { rows: Array<Array<{ text: string; href: string } | number | string>> };
     };

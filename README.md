@@ -64,7 +64,7 @@ $ auth xmli
 
 $ he<Tab>         # Tab 补全命令名（候选来自服务端命令表，自定义命令也在内）
 $ sub t<Tab>     # 第二个词补主题名
-$ logs 20
+$ log.list
 ```
 
 未登录时只能跑 `help` / `auth` / `logout`。日志流本身也要鉴权——那里什么都有。
@@ -118,6 +118,7 @@ Chrome 扩展的 popup / devtools 面板同样适用——UI 是 DOM 构建，�
 import { createFileSink } from "@noodle/logo/node";
 import { createLarkSink } from "@noodle/logo/lark";
 
+// 按级别分文件并级联：info.log 收 info/warn/error，warn.log 收 warn/error，error.log 只收 error
 logo.addSink(createFileSink({ dir: "logs", maxBytes: 10 * 1024 * 1024 }));
 logo.addSink(createLarkSink({ webhook: process.env.LARK_HOOK!, minLevel: "error" }));
 ```
@@ -132,7 +133,7 @@ bun examples/demo.ts
 
 打开 <http://127.0.0.1:1234/console>，账号 `xmli` / `123456`。
 
-- `logs 20` 看历史，`top` 看进程指标，`room` 看演示业务状态，`io` 演示表格排序，`burst 200` 连写 200 条看批量与实时推送。
+- `log.list` 列出日志文件，`top` 看进程指标，`room` 看演示业务状态，`io` 演示表格排序，`burst 200` 连写 200 条看批量与实时推送。
 - `sub top 2000` 订阅指标（每条落一行，不是常驻面板），`unsub top` 取消，`unsub` 取消全部。
 - `boom` 故意抛错：服务端 stderr 里能看到"info 抢在 error 之前写出去"，且 error 带调用栈。
 - `slow` 睡 12 秒，会被 10 秒超时截断。

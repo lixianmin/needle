@@ -25,7 +25,7 @@ describe("createLocalAdapter", () => {
     expect(events[0]?.type).toBe("handshake");
     const hello = events[0] as Extract<ConsoleEvent, { type: "handshake" }>;
     expect(hello.info.user).toBe("local-dev");
-    expect(hello.info.commands.map((command) => command.name)).toContain("logs");
+    expect(hello.info.commands.map((command) => command.name)).toContain("log.list");
   });
 
   test("本地身份跳过鉴权，受限命令可直接执行", async () => {
