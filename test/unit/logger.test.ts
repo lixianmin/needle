@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import { newLogger } from "../../src/core/logo/logo.js";
-import { createRingSink } from "../../src/core/logo/ring.js";
+import { createRingSink } from "../../src/core/collections/ring.js";
 import type { LogRecord } from "../../src/core/logo/types.js";
 
 /** 收集 sink 的调用，用来断言"调了几次""每次几条"。保留原始 batch 引用。 */
