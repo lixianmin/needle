@@ -35,6 +35,7 @@
   },
   "devDependencies": {
     "@types/bun": "^1.4.3",
+    "happy-dom": "^21.0.4",
     "miniflare": "^4.20260730.0",
     "typescript": "7.0.2"
   }
