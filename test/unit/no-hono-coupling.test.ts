@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { Glob } from "bun";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -8,34 +9,34 @@ function source(rel: string): string {
   return readFileSync(join(ROOT, rel), "utf8");
 }
 
-describe("needle 不把 Hono 变成依赖", () => {
-  // 要求：Demo 里没装 Hono 也要能跑，功能一模一样。
-  // 判据：核心入口的**运行时代码**里不能出现对 hono 的 import。
-  test.each([
-    "src/core/index.ts",
-    "src/console/index.ts",
-    "src/node/index.ts",
-    "src/core/logo/index.ts",
-  ])("%s 不 import hono", (file) => {
-    expect(source(file)).not.toMatch(/from\s+["']hono["']/);
-    expect(source(file)).not.toMatch(/from\s+["']hono\//);
-  });
+/** 递归列出代码文件，供"整个仓库不许出现 hono"这类扫描用。 */
+function codeFiles(dir: string): string[] {
+  const cwd = join(ROOT, dir);
+  return [...new Glob("**/*.{ts,js,mjs}").scanSync({ cwd })].map((rel) => join(dir, rel));
+}
 
-  test("package.json 的 dependencies 里没有 hono", () => {
+describe("needle 自己不依赖 Hono", () => {
+  // 要求：客户用 Hono 时由客户的应用代码挂 handler（两行），needle 不提供
+  // 框架适配层，也不把任何框架放进依赖表——装了 Hono 的人跟没装的人拿到
+  // 的是同一个包。
+  test("package.json 的 dependencies 与 devDependencies 里都没有 hono", () => {
     const pkg = JSON.parse(source("package.json")) as {
       dependencies?: Record<string, string>;
+      devDependencies?: Record<string, string>;
     };
     expect(Object.keys(pkg.dependencies ?? {})).not.toContain("hono");
+    expect(Object.keys(pkg.devDependencies ?? {})).not.toContain("hono");
   });
 
-  test("hono 适配层只引入类型（不产生运行时代码依赖）", () => {
-    const adapter = source("src/hono/index.ts");
-    // 只允许 `import type`
-    const valueImports = adapter
-      .split("\n")
-      .filter((line) => /^import\s/.test(line) && !/^import\s+type\s/.test(line));
-    for (const line of valueImports) {
-      expect(line).not.toContain("hono");
-    }
+  test("package.json 不导出框架适配入口", () => {
+    const pkg = JSON.parse(source("package.json")) as { exports: Record<string, unknown> };
+    expect(Object.keys(pkg.exports)).toEqual([".", "./console", "./node", "./lark"]);
+  });
+
+  test("src 与 examples 里不出现 from \"hono\"", () => {
+    const offenders = [...codeFiles("src"), ...codeFiles("examples")].filter((rel) =>
+      /from\s+["']hono(\/|["'])/.test(source(rel)),
+    );
+    expect(offenders).toEqual([]);
   });
 });

@@ -88,6 +88,13 @@ await serve((req) =>
 );
 ```
 
+用 Hono 的话，挂载是应用侧的两行代码（needle 不提供框架适配入口，也不依赖 Hono）：
+
+```ts
+app.all("/console", (c) => debug.handler(c.req.raw));
+app.all("/console/*", (c) => debug.handler(c.req.raw));
+```
+
 打开 `http://localhost:3000/console`：
 
 ```

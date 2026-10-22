@@ -212,6 +212,8 @@ http.createServer(toNodeHandler(debug.handler)).listen(7701)
 Bun.serve({ port: 7701, fetch: debug.handler })
 ```
 
+不提供框架适配入口：没有 `./hono`、`./koa` 这类 subpath。框架集成就是上面那两行调用方代码，needle 的依赖表里不出现任何框架（`hono` 连 devDependency 都不进，否则"装了 Hono 的人"和"没装的人"拿到的就不是同一个包）。
+
 控制台内部自己建两个 sink：一个环形缓冲（历史，供 `log.list` 命令）和一个广播器（实时，供 SSE），两者都由 `logger.addSink` 挂上，`dispose()` 时摘掉。因此日志视图在实现上仍然只是一个 sink，但装配细节不丢给调用方。不引入全局单例，依赖从参数进来，装配关系在调用处一眼看全。
 
 `basePath` 可选，默认空字符串。挂在子路径上时必须给（Hono 的 `app.all("/console/*")` 里 `c.req.raw.url` 仍带前缀），router 按它剥前缀，页面里的 JS 也用它拼 `/events` 和 `/exec` 的地址。
