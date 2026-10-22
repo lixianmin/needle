@@ -5,6 +5,7 @@ export interface HelloInfo {
   version: string;
   user: string | null;
   commands: Array<{ name: string; note: string; args: string | null }>;
+  topics: Array<{ name: string; note: string; intervalMs: number }>;
 }
 
 export type ConsoleEvent =
@@ -30,5 +31,7 @@ export interface ConsoleAdapter {
   exec(line: string): Promise<ExecResult>;
   authenticate(user: string, password: string): Promise<AuthResult>;
   logout(): void;
+  /** 订阅的主题变了：重建流，用新的 topics 参数。传空串表示全部退订。 */
+  setTopics(spec: string): void;
   subscribe(listener: (event: ConsoleEvent) => void): () => void;
 }

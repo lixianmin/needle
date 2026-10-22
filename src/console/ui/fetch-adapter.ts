@@ -58,6 +58,8 @@ function createFrameParser(onFrame: (event: string, data: string) => void) {
  */
 export function createFetchAdapter(options: FetchAdapterOptions): ConsoleAdapter {
   const listeners = new Set<(event: ConsoleEvent) => void>();
+  // 订阅集合属于这条流，sub/unsub 改的就是它。
+  let topicSpec = options.topics ?? "";
   let controller: AbortController | undefined;
   let retry = 0;
   let disposed = false;
@@ -76,7 +78,7 @@ export function createFetchAdapter(options: FetchAdapterOptions): ConsoleAdapter
     controller = new AbortController();
 
     const token = readToken();
-    const query = options.topics ? `?topics=${encodeURIComponent(options.topics)}` : "";
+    const query = topicSpec === "" ? "" : `?topics=${encodeURIComponent(topicSpec)}`;
     const headers: Record<string, string> = {};
     if (token !== null) headers.authorization = `Bearer ${token}`;
 
@@ -177,6 +179,11 @@ export function createFetchAdapter(options: FetchAdapterOptions): ConsoleAdapter
     logout() {
       writeToken(null);
       // 不断开现有流：服务端不追踪会话，下一个请求开始就是匿名了。
+    },
+
+    setTopics(spec: string) {
+      topicSpec = spec;
+      if (listeners.size > 0) void connect();
     },
 
     subscribe(listener) {

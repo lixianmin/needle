@@ -11,6 +11,7 @@ function fakeAdapter() {
   const replies: Array<Awaited<ReturnType<ConsoleAdapter["exec"]>>> = [];
 
   const logins: Array<{ user: string; password: string }> = [];
+  const topicSpecs: string[] = [];
   let logoutCount = 0;
 
   const adapter: ConsoleAdapter = {
@@ -27,6 +28,9 @@ function fakeAdapter() {
     logout() {
       logoutCount += 1;
     },
+    setTopics(spec) {
+      topicSpecs.push(spec);
+    },
     subscribe(next) {
       listener = next;
       return () => {
@@ -40,6 +44,7 @@ function fakeAdapter() {
     executed,
     replies,
     logins,
+    topicSpecs,
     logoutCount: () => logoutCount,
     emit: (event: ConsoleEvent) => listener?.(event),
   };
@@ -67,7 +72,12 @@ describe("mountConsole", () => {
     const { root, emit, document } = mount();
     emit({
       type: "hello",
-      info: { version: "1.2.3", user: "admin", commands: [] },
+      info: {
+        version: "1.2.3",
+        user: "admin",
+        commands: [],
+        topics: [{ name: "top", note: "", intervalMs: 1000 }],
+      },
     });
 
     expect((root as unknown as HTMLElement).textContent).toContain("v1.2.3");
@@ -127,13 +137,14 @@ describe("mountConsole", () => {
     expect((root as unknown as HTMLElement).textContent).toContain("未登录");
   });
 
-  test("topic 事件渲染成面板", () => {
+  test("topic 事件落成一行，不常驻面板", () => {
     const { document, emit } = mount();
-    emit({ type: "topic", name: "top", data: { rss: 123, heapUsed: 45 } });
+    emit({ type: "topic", name: "top", data: { rss: 1024 * 1024, connections: 1 } });
 
-    const panel = document.querySelector(".topic");
-    expect(panel?.querySelector("h3")?.textContent).toBe("top");
-    expect(panel?.textContent).toContain("rss");
+    const line = document.querySelector(".topic-line");
+    expect(line?.textContent).toContain("[top]");
+    expect(line?.textContent).toContain("rss=1.0MB");
+    expect(document.querySelector(".topics")).toBeNull();
   });
 
   test("上键翻历史", () => {
@@ -224,6 +235,55 @@ describe("mountConsole", () => {
 
     expect(logoutCount()).toBe(1);
     expect(executed).toHaveLength(0);
+  });
+
+  test("sub/unsub 改订阅并重建流", () => {
+    const { document, emit, topicSpecs } = mount();
+    emit({
+      type: "hello",
+      info: {
+        version: "1",
+        user: "admin",
+        commands: [],
+        topics: [
+          { name: "top", note: "", intervalMs: 1000 },
+          { name: "mem", note: "", intervalMs: 5000 },
+        ],
+      },
+    });
+
+    const input = document.querySelector("input") as unknown as HTMLInputElement;
+    const form = document.querySelector("form") as unknown as HTMLFormElement;
+    const run = (line: string) => {
+      input.value = line;
+      form.dispatchEvent(new window.Event("submit") as unknown as Event);
+    };
+
+    run("sub top 2000");
+    run("sub mem");
+    expect(topicSpecs.at(-1)).toBe("top:2000,mem");
+
+    run("unsub top");
+    expect(topicSpecs.at(-1)).toBe("mem");
+
+    run("unsub");
+    expect(topicSpecs.at(-1)).toBe("");
+  });
+
+  test("订阅不存在的主题会提示", () => {
+    const { document, root, emit, topicSpecs } = mount();
+    emit({
+      type: "hello",
+      info: { version: "1", user: "admin", commands: [], topics: [{ name: "top", note: "", intervalMs: 1000 }] },
+    });
+
+    const input = document.querySelector("input") as unknown as HTMLInputElement;
+    const form = document.querySelector("form") as unknown as HTMLFormElement;
+    input.value = "sub nope";
+    form.dispatchEvent(new window.Event("submit") as unknown as Event);
+
+    expect((root as unknown as HTMLElement).textContent).toContain("没有这个主题");
+    expect(topicSpecs).toHaveLength(0);
   });
 
   test("dispose 之后移除面板", () => {

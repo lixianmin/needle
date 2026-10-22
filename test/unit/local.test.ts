@@ -30,7 +30,7 @@ describe("createLocalAdapter", () => {
 
   test("本地身份跳过鉴权，受限命令可直接执行", async () => {
     const { adapter } = setup();
-    const result = await adapter.exec("ps");
+    const result = await adapter.exec("top");
     expect(result.ok).toBe(true);
   });
 

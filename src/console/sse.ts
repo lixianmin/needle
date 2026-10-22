@@ -119,10 +119,13 @@ export function createSseResponse(init: SseInit): Response {
 
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
+      let lastWrite = Date.now();
+
       const write = (chunk: string) => {
         if (closed) return;
         try {
           controller.enqueue(encoder.encode(chunk));
+          lastWrite = Date.now();
         } catch {
           closed = true;
         }
@@ -153,6 +156,11 @@ export function createSseResponse(init: SseInit): Response {
           note: command.note,
           args: command.args ?? null,
         })),
+        topics: init.topics.map((topic) => ({
+          name: topic.name,
+          note: topic.note,
+          intervalMs: topic.intervalMs,
+        })),
       });
 
       for (const { topic, intervalMs } of specs) {
@@ -177,7 +185,15 @@ export function createSseResponse(init: SseInit): Response {
         );
       }
 
-      timers.push(setInterval(() => write(": ping\n\n"), heartbeatMs));
+      // 只在真正空闲时才发注释心跳：有日志或主题在推的时候不需要它。
+      // 中间层（nginx 默认 60s、多数负载均衡 30s）按"无数据"计算超时，
+      // 这一行是给它们看的，控制台里不会显示。
+      timers.push(
+        setInterval(() => {
+          if (Date.now() - lastWrite < heartbeatMs) return;
+          write(": ping\n\n");
+        }, heartbeatMs),
+      );
       for (const timer of timers) (timer as unknown as { unref?: () => void }).unref?.();
     },
 

@@ -54,7 +54,7 @@ await serve((req) =>
 $ help
 help              列出所有命令
 logs [n]          查看最近的日志
-ps                查看进程指标
+top               看一眼进程指标
 env [pattern]     查看环境变量（默认打码）
 auth <user>       登录（下一步提示输密码，输入不回显）
 logout            清除本地登录态
@@ -129,8 +129,8 @@ bun examples/demo.ts
 
 打开 <http://127.0.0.1:1234/console>，账号 `xmli` / `123456`。
 
-- 页面每秒滚一条 `heartbeat` —— 证明 SSE 活着。
-- `logs 20` 看历史，`ps` 看进程指标，`room` 看演示业务状态。
+- `logs 20` 看历史，`top` 看进程指标，`room` 看演示业务状态，`burst 200` 连写 200 条看批量与实时推送。
+- `sub top 2000` 订阅指标（每条落一行，不是常驻面板），`unsub top` 取消，`unsub` 取消全部。
 - `boom` 故意抛错：服务端 stderr 里能看到"info 抢在 error 之前写出去"，且 error 带调用栈。
 - `slow` 睡 12 秒，会被 10 秒超时截断。
 - 未登录时只有 `help` / `login` / `logout` 可用，日志流也拉不到——这是设计，不是 bug。

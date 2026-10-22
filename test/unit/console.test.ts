@@ -67,10 +67,10 @@ describe("createConsole", () => {
 
   test("exec 受限命令需要 token", async () => {
     const { console: api } = setup();
-    expect((await api.handler(post("/exec", { line: "ps" }))).status).toBe(401);
+    expect((await api.handler(post("/exec", { line: "top" }))).status).toBe(401);
 
     const token = (await api.source.auth.login("admin", "secret")) as string;
-    expect((await api.handler(post("/exec", { line: "ps" }, token))).status).toBe(200);
+    expect((await api.handler(post("/exec", { line: "top" }, token))).status).toBe(200);
   });
 
   test("basePath 生效，其它路径 404", async () => {

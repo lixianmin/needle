@@ -23,7 +23,6 @@ const debug = createConsole({
   logger: logo,
   basePath: "/console",
   version: "0.1.0",
-  topicSpec: "top:2000",
   auth: { users: { xmli: "123456" }, secret: process.env.DBG_SECRET ?? "demo-secret" },
   commands: [
     {
@@ -47,6 +46,16 @@ const debug = createConsole({
       },
     },
     {
+      name: "burst",
+      note: "连写 n 条日志（看批量与实时推送）",
+      args: "[n]",
+      run: ({ args }) => {
+        const count = Number(args[0] ?? 20);
+        for (let i = 1; i <= count; i += 1) logo.info("burst", { seq: i, total: count });
+        return { kind: "text", text: `已写 ${count} 条` };
+      },
+    },
+    {
       name: "slow",
       note: "睡 12 秒，验证命令超时（默认 10 秒）",
       run: async () => {
@@ -57,11 +66,6 @@ const debug = createConsole({
   ],
 });
 
-// 周期性业务日志：页面上会看到它持续滚动。
-const timer = setInterval(() => {
-  logo.info("heartbeat", { rooms: rooms.size, pending: Math.round(Math.random() * 10) });
-}, 1000);
-
 const server = await serve((req) => {
   const { pathname } = new URL(req.url);
   if (pathname === "/" || pathname.startsWith("/console")) return debug.handler(req);
@@ -70,14 +74,14 @@ const server = await serve((req) => {
 
 console.log(`控制台: http://127.0.0.1:${server.port}/console`);
 console.log("账号:   xmli / 123456");
-console.log("试试:   auth xmli → 密码 123456 → logs 20 · ps · room · boom · slow");
+console.log("试试:   auth xmli → 密码 123456 → logs 20 · top · room · burst · boom · slow");
+console.log("订阅:   sub top 2000 · unsub top");
 
 let closing = false;
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.on(signal, () => {
     if (closing) return;
     closing = true;
-    clearInterval(timer);
     logo.info("收到退出信号，flush 后退出");
     // 顺序很重要：先冲日志，再关连接。
     logo.dispose();
