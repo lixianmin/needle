@@ -46,6 +46,10 @@ describe("createConsoleSource", () => {
     expect(text).toContain("自定义命令");
     expect(text).toContain("内置命令");
     expect(text.indexOf("room")).toBeLessThan(text.indexOf("内置命令"));
+    // help 是库提供的，应该出现在内置组里
+    expect(text.indexOf("内置命令")).toBeLessThan(text.indexOf("help"));
+    // help 也是库给的，应该出现在内置组里
+    expect(text.indexOf("help")).toBeGreaterThan(text.indexOf("内置命令"));
     expect(text).toContain("房间状态");
     expect(text).toContain("log.list");
   });

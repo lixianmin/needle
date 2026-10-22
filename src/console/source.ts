@@ -120,9 +120,10 @@ export function createConsoleSource(options: ConsoleSourceOptions): ConsoleSourc
   // help 要列全量（含自定义命令），所以先建空数组再插 —— 让它持有最终引用。
   // 调用方自己定义了 help 就用它的，不硬塞一个内置版本。
   const commands: Command[] = [];
+  // help 是库提供的，跟其他内置命令一样打标——它属于"内置"，不是"自定义"。
   const help = merged.some((command) => command.name === "help")
     ? []
-    : [createHelpCommand(() => commands)];
+    : [{ ...createHelpCommand(() => commands), builtin: true }];
   commands.push(...help, ...merged);
 
   const customTopics = options.topics ?? [];
