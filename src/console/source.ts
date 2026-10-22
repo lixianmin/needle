@@ -27,6 +27,11 @@ export interface ConsoleSourceOptions {
   topics?: Topic[];
   historySize?: number;
   version?: string;
+  /**
+   * 本地身份。设了它就跳过 token 鉴权——浏览器页面和扩展里，能看到控制台
+   * 的人本来就能碰到这个进程，再要一次 token 只是仪式。
+   */
+  user?: string;
   env?: Record<string, string | undefined>;
   timeoutMs?: number;
 }
@@ -44,6 +49,8 @@ export interface ConsoleSource {
   broadcast: Broadcast;
   auth: Auth;
   version: string;
+  /** 本地身份；服务端模式为 null。 */
+  user: string | null;
   exec(line: string, token: string | null): Promise<ExecResult>;
   dispose(): void;
 }
@@ -74,6 +81,7 @@ export function createConsoleSource(options: ConsoleSourceOptions): ConsoleSourc
   const historySize = options.historySize ?? DEFAULT_HISTORY;
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const version = options.version ?? "unknown";
+  const localUser = options.user ?? null;
 
   const records = createRingSink(historySize);
   const broadcast = createBroadcast();
@@ -117,8 +125,8 @@ export function createConsoleSource(options: ConsoleSourceOptions): ConsoleSourc
     const command = findCommand(commands, name);
     if (command === undefined) return { ok: false, error: `unknown command: ${name}` };
 
-    let user: string | null = null;
-    if (command.public !== true) {
+    let user: string | null = localUser;
+    if (localUser === null && command.public !== true) {
       const verified = await auth.verify(token);
       if (verified === null) return { ok: false, error: "unauthorized", unauthorized: true };
       user = verified.sub;
@@ -165,6 +173,7 @@ export function createConsoleSource(options: ConsoleSourceOptions): ConsoleSourc
     broadcast,
     auth,
     version,
+    user: localUser,
 
     exec,
 
