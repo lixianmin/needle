@@ -83,8 +83,13 @@ export function createConsole(options: ConsoleOptions): Console {
       if (req.method === "GET" && path === "/health") return json({ ok: true });
 
       if (req.method === "GET" && path.startsWith("/log/")) {
-        const verified = await source.auth.verify(bearer(req.headers.get("authorization")));
-        if (verified === null) return new Response("unauthorized", { status: 401 });
+        // 本地模式（配了 user）跳过 token：能看到控制台的人本来就能碰到这个进程，
+        // 再要一次 token 只是仪式——这条口径必须和 exec 一致，否则本地模式下
+        // 命令能跑、日志却 401。
+        if (source.user === null) {
+          const verified = await source.auth.verify(bearer(req.headers.get("authorization")));
+          if (verified === null) return new Response("unauthorized", { status: 401 });
+        }
 
         const name = decodeURIComponent(path.slice("/log/".length));
         const body = await source.logFiles?.read(name);
@@ -104,11 +109,16 @@ export function createConsole(options: ConsoleOptions): Console {
 
       if (req.method === "GET" && path === "/events") {
         // 事件流必须鉴权：日志里什么都有，匿名不该看到。
-        const verified = await source.auth.verify(bearer(req.headers.get("authorization")));
-        if (verified === null) return json({ ok: false, error: "unauthorized" }, 401);
+        // 本地模式（配了 user）是唯一的例外，理由同 /log/。
+        let user = source.user;
+        if (user === null) {
+          const verified = await source.auth.verify(bearer(req.headers.get("authorization")));
+          if (verified === null) return json({ ok: false, error: "unauthorized" }, 401);
+          user = verified.sub;
+        }
 
         return createSseResponse({
-          user: verified.sub,
+          user,
           title: source.title,
           version: source.version,
           commands: source.commands,
