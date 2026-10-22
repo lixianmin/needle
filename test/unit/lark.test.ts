@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { createLarkSink } from "../../src/core/logo/lark.js";
+import { createLarkSink } from "../../src/core/logo/sinks/lark.js";
 import type { LogRecord } from "../../src/core/logo/types.js";
 
 function setup(overrides: Partial<Parameters<typeof createLarkSink>[0]> = {}) {

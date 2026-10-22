@@ -1,5 +1,5 @@
-import { formatLine } from "./line.js";
-import type { Sink } from "./types.js";
+import { formatLine } from "../line.js";
+import type { Sink } from "../types.js";
 
 /**
  * 能不能同步写 stdout。

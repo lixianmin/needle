@@ -19,8 +19,8 @@
       "default": "./dist/node/index.js"
     },
     "./lark": {
-      "types": "./dist/core/logo/lark.d.ts",
-      "default": "./dist/core/logo/lark.js"
+      "types": "./dist/core/logo/sinks/lark.d.ts",
+      "default": "./dist/core/logo/sinks/lark.js"
     }
   },
   "files": [
