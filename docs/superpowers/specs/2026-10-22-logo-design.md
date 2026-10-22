@@ -436,6 +436,7 @@ package.json exports:
 ```
 src/
   core/         # 运行时无关
+    collections/    # 数据结构（SortedTable 等）
     logger.ts       # logo 门面
     record.ts       # 记录构造与参数归一化
     sink.ts         # Sink 类型、stdout sink
