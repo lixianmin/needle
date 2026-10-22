@@ -73,6 +73,7 @@ describe("mountConsole", () => {
     emit({
       type: "hello",
       info: {
+        title: "node",
         version: "1.2.3",
         user: "admin",
         commands: [],
@@ -81,7 +82,10 @@ describe("mountConsole", () => {
     });
 
     expect((root as unknown as HTMLElement).textContent).toContain("v1.2.3");
+    expect(document.querySelector(".title")?.textContent).toBe("node");
     expect(document.querySelector(".who")?.textContent).toBe("admin");
+    // 头栏顺序：项目名 → 版本 → 用户，全部靠左。
+    expect(document.querySelector("header")?.textContent).toBe("nodev1.2.3admin");
   });
 
   test("日志按级别上色", () => {
@@ -275,6 +279,7 @@ describe("mountConsole", () => {
     emit({
       type: "hello",
       info: {
+        title: "node",
         version: "1",
         user: "admin",
         commands: [],
@@ -307,7 +312,7 @@ describe("mountConsole", () => {
     const { document, root, emit, topicSpecs } = mount();
     emit({
       type: "hello",
-      info: { version: "1", user: "admin", commands: [], topics: [{ name: "top", note: "", intervalMs: 1000 }] },
+      info: { title: "node", version: "1", user: "admin", commands: [], topics: [{ name: "top", note: "", intervalMs: 1000 }] },
     });
 
     const input = document.querySelector("input") as unknown as HTMLInputElement;

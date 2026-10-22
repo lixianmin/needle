@@ -21,7 +21,9 @@ export const STYLE = `
   padding: 8px 12px; background: var(--bg-alt); color: var(--text-strong);
   border-bottom: 1px solid var(--line);
 }
-.logo-console header .who { margin-left: auto; color: var(--dim); }
+.logo-console header .title { color: var(--text-strong); }
+.logo-console header .version { color: var(--dim); }
+.logo-console header .who { color: var(--cyan); }
 .logo-console .output { flex: 1; overflow-y: auto; padding: 8px 12px; white-space: pre-wrap; }
 .logo-console .line { display: flex; gap: 8px; }
 .logo-console .line .t { color: var(--dim); flex: none; }

@@ -94,6 +94,7 @@ export function parseTopicSpecs(spec: string | null, topics: readonly Topic[]): 
 
 export interface SseInit {
   user: string;
+  title: string;
   version: string;
   commands: readonly Command[];
   topics: readonly Topic[];
@@ -149,6 +150,7 @@ export function createSseResponse(init: SseInit): Response {
       detach = init.broadcast.attach(connection);
 
       connection.send("hello", {
+        title: init.title,
         version: init.version,
         user: init.user,
         commands: init.commands.map((command) => ({

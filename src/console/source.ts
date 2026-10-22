@@ -26,6 +26,8 @@ export interface ConsoleSourceOptions {
   commands?: Command[];
   topics?: Topic[];
   historySize?: number;
+  /** 头栏显示的项目名，默认 "console"。 */
+  title?: string;
   version?: string;
   /**
    * 本地身份。设了它就跳过 token 鉴权——浏览器页面和扩展里，能看到控制台
@@ -48,6 +50,7 @@ export interface ConsoleSource {
   records: RingSink;
   broadcast: Broadcast;
   auth: Auth;
+  title: string;
   version: string;
   /** 本地身份；服务端模式为 null。 */
   user: string | null;
@@ -85,6 +88,7 @@ export function createConsoleSource(options: ConsoleSourceOptions): ConsoleSourc
   const historySize = options.historySize ?? DEFAULT_HISTORY;
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const version = options.version ?? "unknown";
+  const title = options.title ?? "console";
   const localUser = options.user ?? null;
 
   const records = createRingSink(historySize);
@@ -176,6 +180,7 @@ export function createConsoleSource(options: ConsoleSourceOptions): ConsoleSourc
     records,
     broadcast,
     auth,
+    title,
     version,
     user: localUser,
 

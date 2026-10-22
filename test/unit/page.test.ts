@@ -3,7 +3,7 @@ import { describe, expect, test } from "bun:test";
 import { renderPage } from "../../src/console/page.js";
 
 describe("renderPage", () => {
-  const page = renderPage({ basePath: "/__dbg", version: "1.2.3", topicSpec: "top:5000" });
+  const page = renderPage({ basePath: "/__dbg", title: "node", version: "1.2.3", topicSpec: "top:5000" });
 
   test("是一个完整的 HTML 文档", () => {
     expect(page.startsWith("<!doctype html>")).toBe(true);
@@ -32,7 +32,7 @@ describe("renderPage", () => {
   });
 
   test("空 basePath 时不带前缀", () => {
-    const bare = renderPage({ basePath: "", version: "x" });
+    const bare = renderPage({ basePath: "", title: "node", version: "x" });
     expect(bare).toContain('data-base-path=""');
     expect(bare).not.toContain("data-topics");
   });
