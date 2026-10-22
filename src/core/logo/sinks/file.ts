@@ -1,8 +1,10 @@
+// 这个 sink 依赖 node:fs：虽然放在 core/logo/sinks/ 下，但它只从 ./node 入口导出，
+// `.` 入口不会引入它，Workers 打包时也就碰不到 node: 模块。
 import { appendFileSync, existsSync, mkdirSync, readdirSync, renameSync, statSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 
-import { formatLine } from "../core/logo/line.js";
-import { LEVELS, type Level, type LogRecord, type Sink } from "../core/logo/types.js";
+import { formatLine } from "../line.js";
+import { LEVELS, type Level, type LogRecord, type Sink } from "../types.js";
 
 const DEFAULT_MAX_BYTES = 10 * 1024 * 1024;
 const DEFAULT_KEEP_DAYS = 7;

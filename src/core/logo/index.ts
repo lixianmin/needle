@@ -1,12 +1,9 @@
 import { newLogger } from "./logo.js";
-import { stdoutSink } from "./sink.js";
+import { stdoutSink } from "./sinks/stdout.js";
 
 export { newLogger } from "./logo.js";
 export type { Logger, LoggerOptions } from "./logo.js";
-export { stdoutSink } from "./sink.js";
-export { createRingSink } from "./ring.js";
-export type { RingSink } from "./ring.js";
-export { hasStdout } from "./sink.js";
+export { stdoutSink, hasStdout } from "./sinks/stdout.js";
 export { buildRecord, safeStringify } from "./record.js";
 export type { BuildOptions } from "./record.js";
 export { LEVEL_HINTS, formatLine, parseLine } from "./line.js";

@@ -62,7 +62,7 @@ mountConsole(el, source) → 直接挂到页面 DOM，给浏览器与扩展
 
 UI 只有一份实现（`src/console/ui/view.ts`，DOM 构建 + Solarized Dark 样式）。服务端要吐 HTML，所以构建时用 `scripts/build-ui.mjs` 把 `ui/app.ts` 打包成字符串常量（`ui/script.generated.ts`），页面模板直接内联它。浏览器/扩展场景直接 import `mountConsole`，不走字符串、不走 eval——扩展的 CSP 不允许内联脚本，这条路必须干净。
 
-`core` 只使用 `fetch`、`crypto.subtle`、`TextEncoder` 这些跨运行时 API。`node` 入口里的 `node:fs` 用静态 import——那个入口本来就只有 Node 会加载。
+`core` 的入口只使用 `fetch`、`crypto.subtle`、`TextEncoder` 这些跨运行时 API。唯一的例外是 `core/logo/sinks/file.ts`：它依赖 `node:fs`，因此**只从 `./node` 入口导出**，`.  ` 入口不会把它拉进包里（Workers 集成测试会断言产物里没有 `node:`）。`node` 入口里的 `node:fs` 用静态 import——那个入口本来就只有 Node 会加载。
 
 ## 6. 日志 API
 
@@ -434,17 +434,18 @@ package.json exports:
 
 ```
 src/
-  core/         # 运行时无关
-    logo/           # 日志：门面、记录、行格式、sink、数字格式、类型
+  core/
+    logo/
       logo.ts       # newLogger + 默认实例
       record.ts     # 记录构造与 JSON 安全化
       line.ts       # 落盘行格式 + 东八区时间
-      sink.ts       # stdout sink + 能力探测
       human.ts      # 人读数字/时长
-      ring.ts       # 环形缓冲（Sink + read，只服务日志）
       types.ts      # Level / LogRecord / Sink
-      lark.ts       # 飞书 sink（独立入口 ./lark）
       index.ts      # 汇总 + 默认 logo 实例
+      sinks/
+        stdout.ts   # stdout sink + 能力探测
+        file.ts     # 文件 sink（依赖 node:fs，只从 ./node 导出）
+        lark.ts     # 飞书 sink（独立入口 ./lark）
     collections/    # 与业务无关的通用数据结构
       sorted-table.ts
     logger.ts       # logo 门面

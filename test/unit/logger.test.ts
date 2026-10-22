@@ -1,7 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
 import { newLogger } from "../../src/core/logo/logo.js";
-import { createRingSink } from "../../src/core/logo/ring.js";
 import type { LogRecord } from "../../src/core/logo/types.js";
 
 /** 收集 sink 的调用，用来断言"调了几次""每次几条"。保留原始 batch 引用。 */
@@ -198,38 +197,5 @@ describe("newLogger", () => {
 
     expect(calls[0]?.[0]?.msg).toBe("last");
     expect(() => logger.info("after")).not.toThrow();
-  });
-});
-
-describe("createRingSink", () => {
-  test("容量 3 写 5 条，读到最后 3 条", () => {
-    const ring = createRingSink(3);
-    ring([1, 2, 3, 4, 5] as unknown as LogRecord[]);
-    expect(ring.read()).toEqual([3, 4, 5] as unknown as LogRecord[]);
-  });
-
-  test("read(n) 取最近 n 条", () => {
-    const ring = createRingSink(5);
-    ring([1, 2, 3, 4, 5] as unknown as LogRecord[]);
-    expect(ring.read(2)).toEqual([4, 5] as unknown as LogRecord[]);
-  });
-
-  test("写 10000 条不抛，长度等于容量", () => {
-    const ring = createRingSink(3);
-    for (let i = 0; i < 10000; i += 1) {
-      ring([{ i } as unknown as LogRecord]);
-    }
-    expect(ring.read()).toHaveLength(3);
-    expect((ring.read()[2] as unknown as { i: number }).i).toBe(9999);
-  });
-
-  test("能作为 sink 挂在 logger 上", () => {
-    const ring = createRingSink(10);
-    const logger = newLogger({ ...base, sinks: [ring] });
-
-    logger.info("a");
-    logger.flush();
-
-    expect(ring.read()[0]?.msg).toBe("a");
   });
 });
