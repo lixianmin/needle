@@ -1,0 +1,78 @@
+import { describe, expect, test } from "bun:test";
+
+import { createConsole } from "../../src/console/index.js";
+import { createLogger } from "../../src/core/logger.js";
+import { serve } from "../../src/node/serve.js";
+
+/**
+ * 端到端：真起一个 node:http 服务，走真实 HTTP + SSE。
+ *
+ * 单测里 console.handler 是直接调用的，绕过了序列化、分块、连接生命周期。
+ * 这个用例证明"装进一个真服务里能用"。
+ */
+describe("控制台端到端", () => {
+  test("登录后能通过 SSE 收到实时日志", async () => {
+    const logger = createLogger({ flushIntervalMs: 0, batch: false });
+    const debug = createConsole({
+      logger,
+      auth: { users: { admin: "secret" }, secret: "e2e-secret" },
+      version: "0.1.0",
+    });
+    const server = await serve(debug.handler, { port: 0 });
+    const base = `http://127.0.0.1:${server.port}`;
+
+    try {
+      const login = await fetch(`${base}/exec`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ line: "login admin secret" }),
+      });
+      const token = ((await login.json()) as { output: { value: { token: string } } }).output.value
+        .token;
+
+      const events = await fetch(`${base}/events`, {
+        headers: { authorization: `Bearer ${token}` },
+      });
+      expect(events.status).toBe(200);
+
+      const reader = events.body?.getReader();
+      const decoder = new TextDecoder();
+      let text = decoder.decode((await reader?.read())?.value);
+      expect(text).toContain("event: hello");
+
+      logger.info("live-line");
+      logger.flush();
+
+      // 继续读，直到看到那条日志（最多 50 帧）。
+      for (let i = 0; i < 50 && !text.includes("live-line"); i += 1) {
+        const chunk = await reader?.read();
+        if (chunk?.done === true) break;
+        text += decoder.decode(chunk?.value);
+      }
+
+      expect(text).toContain("event: log");
+      expect(text).toContain("live-line");
+      await reader?.cancel();
+    } finally {
+      await server.close();
+      debug.dispose();
+    }
+  });
+
+  test("未登录拉事件流被拒", async () => {
+    const logger = createLogger({ flushIntervalMs: 0, batch: false });
+    const debug = createConsole({
+      logger,
+      auth: { users: { admin: "secret" }, secret: "e2e-secret" },
+    });
+    const server = await serve(debug.handler, { port: 0 });
+
+    try {
+      const res = await fetch(`http://127.0.0.1:${server.port}/events`);
+      expect(res.status).toBe(401);
+    } finally {
+      await server.close();
+      debug.dispose();
+    }
+  });
+});
