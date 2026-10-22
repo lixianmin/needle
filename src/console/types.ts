@@ -42,5 +42,5 @@ export interface Topic {
   name: string;
   note: string;
   intervalMs: number;
-  read(): Record<string, unknown>;
+  read(): Record<string, unknown> | Promise<Record<string, unknown>>;
 }

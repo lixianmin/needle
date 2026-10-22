@@ -46,12 +46,23 @@
 
 ```
 .             → logo 日志门面（默认入口）
-./console     → 控制台 handler + 命令注册
+./console     → 控制台：kernel + HTTP/SSE 适配器 + 可挂载的 UI
 ./node        → 文件 sink、Node HTTP 挂载助手、Node 指标
 ./lark        → 飞书 sink
 ```
 
-`core` 只使用 `fetch`、`crypto.subtle`、`TextEncoder` 这些跨运行时 API。`node` 入口里的 `node:fs` 一律动态 `import()`，Workers 打包时不会被拉到图里。`./console` 不含任何 Workers 专用代码——同一份 handler 在 Workers 上直接可用，只是能力降级（§10）。
+控制台分两层，因为它的宿主不止服务器：
+
+```
+createConsoleSource()   → 纯逻辑：命令注册、exec、主题、环形缓冲、鉴权
+      ↓ 同一个 source
+createConsole(source)   → (Request) => Response，给 Node / Bun / Workers
+mountConsole(el, source) → 直接挂到页面 DOM，给浏览器与扩展
+```
+
+UI 只有一份实现（`src/console/ui/view.ts`，DOM 构建 + Solarized Dark 样式）。服务端要吐 HTML，所以构建时用 `scripts/build-ui.mjs` 把 `ui/app.ts` 打包成字符串常量（`ui/script.generated.ts`），页面模板直接内联它。浏览器/扩展场景直接 import `mountConsole`，不走字符串、不走 eval——扩展的 CSP 不允许内联脚本，这条路必须干净。
+
+`core` 只使用 `fetch`、`crypto.subtle`、`TextEncoder` 这些跨运行时 API。`node` 入口里的 `node:fs` 用静态 import——那个入口本来就只有 Node 会加载。
 
 ## 6. 日志 API
 
