@@ -1,5 +1,5 @@
 import type { LogRecord } from "../../core/types.js";
-import type { AuthResult, ConsoleAdapter, ConsoleEvent, ExecResult, HandshakeInfo } from "./adapter.js";
+import type { AuthResult, ConsoleAdapter, ConsoleEvent, ExecResult, FileResult, HandshakeInfo } from "./adapter.js";
 
 const TOKEN_KEY = "logo.console.token";
 
@@ -150,6 +150,21 @@ export function createFetchAdapter(options: FetchAdapterOptions): ConsoleAdapter
       }
 
       return (await response.json()) as ExecResult;
+    },
+
+    async fetchFile(href: string): Promise<FileResult> {
+      const token = readToken();
+      const headers: Record<string, string> = {};
+      if (token !== null) headers.authorization = `Bearer ${token}`;
+
+      try {
+        const response = await fetch(href, { headers });
+        if (response.status === 401) return { ok: false, error: "未登录：先执行 auth <user>" };
+        if (!response.ok) return { ok: false, error: `读取失败（HTTP ${response.status}）` };
+        return { ok: true, text: await response.text() };
+      } catch (error) {
+        return { ok: false, error: String(error) };
+      }
     },
 
     async authenticate(user: string, password: string): Promise<AuthResult> {

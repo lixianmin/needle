@@ -85,8 +85,7 @@ export function createConsole(options: ConsoleOptions): Console {
       if (req.method === "GET" && path === "/health") return json({ ok: true });
 
       if (req.method === "GET" && path.startsWith("/log/")) {
-        // 新窗口没法带 Authorization 头，凭证走 ?t=（短效 token，1 分钟）。
-        const verified = await source.auth.verify(url.searchParams.get("t"));
+        const verified = await source.auth.verify(bearer(req.headers.get("authorization")));
         if (verified === null) return new Response("unauthorized", { status: 401 });
 
         const name = decodeURIComponent(path.slice("/log/".length));

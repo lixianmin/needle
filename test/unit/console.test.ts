@@ -103,14 +103,12 @@ describe("createConsole", () => {
     const cell = body.output.rows[0]?.[0] as { text: string; href: string };
     expect(cell.text).toBe("info.log");
 
-    // 链接里的 token 能直接取全文
-    const url = new URL(cell.href, "http://x");
-    expect((await api.handler(get(`${url.pathname}${url.search}`))).status).toBe(200);
+    // 带 Authorization 头能取全文
+    expect((await api.handler(get(cell.href, token))).status).toBe(200);
 
-    // 没有 token 401，名字不存在 404
+    // 没有头 401，名字不存在 404
     expect((await api.handler(get("/console/log/info.log"))).status).toBe(401);
-    const fileToken = url.searchParams.get("t") as string;
-    expect((await api.handler(get(`/console/log/nope.log?t=${fileToken}`))).status).toBe(404);
+    expect((await api.handler(get("/console/log/nope.log", token))).status).toBe(404);
 
     api.dispose();
   });

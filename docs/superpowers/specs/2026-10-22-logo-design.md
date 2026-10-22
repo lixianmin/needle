@@ -196,6 +196,7 @@ Bun.serve({ port: 7701, fetch: debug.handler })
 | GET | `/events?topics=top:5000` | SSE 流：日志、主题推送。需鉴权 |
 | POST | `/exec` | 执行一条命令，同步返回结果 |
 | GET | `/health` | `{"ok":true}` |
+| GET | `/log/<name>` | 日志文件全文，需 `Authorization: Bearer` |
 
 命令结果走 POST 的响应体，不走 SSE。理由：请求/响应本身是天然的一问一答，同步返回比"发出去再等推送"少一套 id 对账和超时清理。SSE 只负责服务端主动推的东西。
 
@@ -218,6 +219,7 @@ POST /exec   { "line": "log.list" }
 - 单条命令默认超时 10 秒，超时返回 `{ok:false, error:"timeout"}`，防止一个卡住的命令占死连接。
 - SSE 空闲时才发注释心跳（`: ping`，默认 15 秒一次，期间有数据就不发）。反向代理按"无数据"计超时（nginx 默认 60 秒），这一行是给中间层看的，控制台里不显示。
 - 页面和接口必须同源（都在 `basePath` 下）。不做 CORS，因为控制台本来就不应该跨域暴露。
+- 日志文件链接不带凭证：点击时用 `Authorization` 头取回全文，再用 blob URL 在新窗口打开。把 token 放进 URL 会进地址栏、历史记录和访问日志，而且一旦签发就有时效——用户过一会儿再点就是 401。
 
 ### 8.3 SSE 协议
 

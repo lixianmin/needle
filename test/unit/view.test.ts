@@ -12,6 +12,7 @@ function fakeAdapter() {
 
   const logins: Array<{ user: string; password: string }> = [];
   const topicSpecs: string[] = [];
+  const openedFiles: string[] = [];
   let logoutCount = 0;
 
   const adapter: ConsoleAdapter = {
@@ -31,6 +32,10 @@ function fakeAdapter() {
     setTopics(spec) {
       topicSpecs.push(spec);
     },
+    fetchFile(href) {
+      openedFiles.push(href);
+      return Promise.resolve({ ok: true as const, text: "line1\nline2" });
+    },
     subscribe(next) {
       listener = next;
       return () => {
@@ -45,6 +50,7 @@ function fakeAdapter() {
     replies,
     logins,
     topicSpecs,
+    openedFiles,
     logoutCount: () => logoutCount,
     emit: (event: ConsoleEvent) => listener?.(event),
   };
@@ -302,6 +308,31 @@ describe("mountConsole", () => {
       ["/a", "57.7s"],
       ["/b", "5m 12s"],
     ]);
+  });
+
+  test("点日志文件名：不跳转，改用 adapter.fetchFile 取全文", async () => {
+    const { document, replies, openedFiles } = mount();
+    replies.push({
+      ok: true,
+      output: {
+        kind: "table",
+        columns: ["file", "size"],
+        rows: [[{ text: "info.log", href: "/console/log/info.log" }, 1024]],
+      },
+    });
+
+    const form = document.querySelector("form") as unknown as HTMLFormElement;
+    (document.querySelector("input") as unknown as HTMLInputElement).value = "log.list";
+    form.dispatchEvent(new window.Event("submit") as unknown as Event);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const link = document.querySelector("table.grid a") as unknown as HTMLElement;
+    const event = new window.MouseEvent("click", { bubbles: true, cancelable: true });
+    link.dispatchEvent(event as unknown as Event);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(openedFiles).toEqual(["/console/log/info.log"]);
+    expect(event.defaultPrevented).toBe(true);
   });
 
   test("上键翻历史", () => {

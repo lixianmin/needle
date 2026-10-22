@@ -114,6 +114,29 @@ export function mountConsole(root: HTMLElement, adapter: ConsoleAdapter): Consol
     push(line);
   }
 
+  /** 点日志文件名：取回全文，用 blob 在新窗口打开（链接里不带凭证）。 */
+  async function openFile(href: string): Promise<void> {
+    const result = await adapter.fetchFile(href);
+    if (!result.ok) {
+      pushText(result.error, "status");
+      return;
+    }
+
+    const page = doc.defaultView;
+    if (page === null) return;
+
+    if (typeof URL.createObjectURL !== "function") {
+      // 极端环境（部分扩展沙箱）没有 blob URL：退化成带凭证的直连会 401，不如说清楚。
+      pushText("当前环境不支持在新窗口打开文件", "status");
+      return;
+    }
+
+    const url = URL.createObjectURL(new Blob([result.text], { type: "text/plain;charset=utf-8" }));
+    page.open(url, "_blank", "noopener");
+    // 新窗口已经把内容读进内存，稍后回收即可，立刻 revoke 会让空白页。
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  }
+
   function renderLog(record: LogRecord): void {
     const line = el(doc, "div", "line");
     const time = el(doc, "span", "t");
@@ -154,12 +177,17 @@ export function mountConsole(root: HTMLElement, adapter: ConsoleAdapter): Consol
         row.forEach((value, index) => {
           const cell = el(doc, "td");
           if (isLink(value)) {
-            // 日志文件这类：点开新窗口看全文。noopener 是必须的，别让新页面拿到 opener。
+            // 日志文件这类：不直接跳转，先带 header 取回内容再开 blob。
+            // href 留着，悬停/右键复制地址仍然能用。
             const link = el(doc, "a");
             link.href = value.href;
             link.target = "_blank";
             link.rel = "noopener";
             link.textContent = value.text;
+            link.addEventListener("click", (event) => {
+              event.preventDefault();
+              void openFile(value.href);
+            });
             cell.append(link);
           } else {
             cell.textContent = show(index, value);

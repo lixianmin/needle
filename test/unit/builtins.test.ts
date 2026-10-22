@@ -13,7 +13,7 @@ function setup() {
   const records = createRingSink(100);
   const commands = createBuiltinCommands({
     metrics,
-    auth: { login: async () => null, verify: async () => null, issue: async () => "tok" },
+    auth: { login: async () => null, verify: async () => null },
     basePath: "/console",
     logFiles: {
       list: async () => [
@@ -51,7 +51,7 @@ describe("内置命令", () => {
 
     const first = table.rows[0]?.[0] as { text: string; href: string };
     expect(first.text).toBe("info.log");
-    expect(first.href).toBe("/console/log/info.log?t=tok");
+    expect(first.href).toBe("/console/log/info.log");
     // 大小是数字（排序用），不是字符串
     expect(table.rows[0]?.[1]).toBe(2048);
   });
