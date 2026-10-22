@@ -56,7 +56,6 @@ $ help
 help              列出所有命令
 logs [n]          查看最近的日志
 top               看一眼进程指标
-env [pattern]     查看环境变量（默认打码）
 auth <user>       登录（下一步提示输密码，输入不回显）
 logout            清除本地登录态
 

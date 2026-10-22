@@ -10,8 +10,6 @@ export interface BuiltinDeps {
   metrics: Metrics;
   /** 读历史前先把缓冲写出来，否则刚写下的日志要等 100ms 才看得到。 */
   flush?: () => void;
-  /** 默认读 globalThis.process?.env ?? {}，Workers 上是空表。 */
-  env?: Record<string, string | undefined>;
 }
 
 /** ISO 字符串截到毫秒。日志视图不需要时区后缀，浏览器按本地时区展示。 */
@@ -86,29 +84,6 @@ function createTopCommand(metrics: Metrics): Command {
   };
 }
 
-function createEnvCommand(resolveEnv: () => Record<string, string | undefined>): Command {
-  return {
-    name: "env",
-    note: "查看环境变量（默认打码）",
-    args: "[pattern] [--show]",
-    run(ctx: CommandContext): CommandOutput {
-      const show = ctx.args.includes("--show");
-      const pattern = ctx.args.find((arg) => !arg.startsWith("--"));
-      const entries = Object.entries(resolveEnv()).filter(([key]) =>
-        pattern === undefined ? true : key.includes(pattern),
-      );
-
-      return {
-        kind: "table",
-        columns: ["key", "value"],
-        rows: entries
-          .sort(([a], [b]) => a.localeCompare(b))
-          .map(([key, value]) => [key, show ? (value ?? "") : "***"]),
-      };
-    },
-  };
-}
-
 function createAuthCommand(): Command {
   return {
     name: "auth",
@@ -166,17 +141,9 @@ function createLogoutCommand(): Command {
  * "新增一个命令"这件事只有一种写法。
  */
 export function createBuiltinCommands(deps: BuiltinDeps): Command[] {
-  const resolveEnv =
-    deps.env === undefined
-      ? () =>
-          (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env ??
-          {}
-      : () => deps.env as Record<string, string | undefined>;
-
   const commands: Command[] = [
     createLogsCommand(deps.records, deps.flush ?? (() => {})),
     createTopCommand(deps.metrics),
-    createEnvCommand(resolveEnv),
     createAuthCommand(),
     createLogoutCommand(),
     createSubCommand("sub"),

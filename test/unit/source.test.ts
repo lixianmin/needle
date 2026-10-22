@@ -11,7 +11,6 @@ function setup(extra: { commands?: Command[]; topics?: Topic[]; timeoutMs?: numb
   const source = createConsoleSource({
     logger,
     auth,
-    env: { A: "1" },
     timeoutMs: 20,
     ...extra,
   });

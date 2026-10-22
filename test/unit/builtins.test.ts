@@ -11,11 +11,7 @@ const metrics = { read: async () => ({ runtime: "node", uptimeMs: 1234 }) };
 
 function setup() {
   const records = createRingSink(100);
-  const commands = createBuiltinCommands({
-    records,
-    metrics,
-    env: { HOME: "/root", PATH: "/bin", SECRET_KEY: "hunter2" },
-  });
+  const commands = createBuiltinCommands({ records, metrics });
   const context = (args: string[]): CommandContext => ({
     args,
     user: "admin",
@@ -64,7 +60,6 @@ describe("内置命令", () => {
       records,
       metrics,
       flush: () => logger.flush(),
-      env: {},
     });
     const logs = findCommand(commands, "logs");
 
@@ -88,25 +83,6 @@ describe("内置命令", () => {
     const output = await run("top");
     expect(output.kind).toBe("table");
     expect((output as { rows: unknown[] }).rows.length).toBeGreaterThan(0);
-  });
-
-  test("env 默认打码，--show 显真值", async () => {
-    const { run } = setup();
-
-    const masked = await run("env");
-    const maskedRows = (masked as { rows: Array<Array<string | number | null>> }).rows;
-    expect(maskedRows.map((row) => row[1])).toEqual(["***", "***", "***"]);
-
-    const shown = await run("env", ["SECRET_KEY", "--show"]);
-    expect((shown as { rows: Array<Array<string | number | null>> }).rows).toEqual([
-      ["SECRET_KEY", "hunter2"],
-    ]);
-  });
-
-  test("env 没有匹配项时返回空表而不抛", async () => {
-    const { run } = setup();
-    const output = await run("env", ["NOPE"]);
-    expect((output as { rows: unknown[] }).rows).toEqual([]);
   });
 
   test("auth 不接收密码，只提示走密码输入框", async () => {
