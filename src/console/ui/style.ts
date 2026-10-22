@@ -62,6 +62,9 @@ export const STYLE = `
   vertical-align: top; white-space: nowrap;
 }
 .logo-console table.grid th.sortable { cursor: pointer; user-select: none; }
+.logo-console table.grid th .mark { margin-left: 6px; color: var(--dim); opacity: .55; }
+.logo-console table.grid th:hover .mark { opacity: 1; }
+.logo-console table.grid th .mark.active { color: var(--cyan); opacity: 1; }
 .logo-console table.grid th.sortable:hover { background: rgba(38,139,210,0.16); }
 .logo-console table.grid tbody tr:last-child td { border-bottom: 0; }
 .logo-console table.grid tbody tr:nth-child(even) { background: rgba(147,161,161,0.04); }

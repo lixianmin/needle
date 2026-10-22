@@ -204,8 +204,14 @@ export function mountConsole(root: HTMLElement, adapter: ConsoleAdapter): Consol
 
     const headers = columns.map((column, index) => {
       const cell = el(doc, "th");
-      cell.textContent = column;
       cell.classList.add("sortable");
+      const label = el(doc, "span", "col");
+      label.textContent = column;
+      const mark = el(doc, "span", "mark");
+      // 常驻一个 ⇅，否则表头看起来就是普通文字，没人知道能点。
+      mark.textContent = "⇅";
+      cell.append(label, mark);
+
       cell.addEventListener("click", () => {
         if (sortIndex === index) direction = -direction;
         else {
@@ -217,8 +223,10 @@ export function mountConsole(root: HTMLElement, adapter: ConsoleAdapter): Consol
         );
         renderBody(sorted);
         headers.forEach((header, i) => {
-          const base = columns[i] ?? "";
-          header.textContent = i === sortIndex ? `${base} ${direction === 1 ? "▲" : "▼"}` : base;
+          const mark = header.querySelector(".mark");
+          if (mark === null) return;
+          mark.textContent = i === sortIndex ? (direction === 1 ? "▲" : "▼") : "⇅";
+          mark.classList.toggle("active", i === sortIndex);
         });
       });
       headRow.append(cell);

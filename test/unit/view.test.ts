@@ -182,14 +182,20 @@ describe("mountConsole", () => {
     const sizes = () => [...document.querySelectorAll("table.grid tbody tr")].map((tr) => tr.textContent);
     expect(sizes()).toEqual(["a4.88K", "b200", "c1.00M"]);
 
+    // 表头常驻 ⇅ 提示可排序
+    expect(document.querySelector("table.grid th .mark")?.textContent).toBe("⇅");
+
     // 点 size 表头：按数值升序，不是按字符串。
     const headers = document.querySelectorAll("table.grid th");
     (headers[1] as unknown as HTMLElement).dispatchEvent(new window.Event("click") as unknown as Event);
     expect(sizes()).toEqual(["b200", "a4.88K", "c1.00M"]);
 
+    expect(document.querySelectorAll("table.grid th .mark")[1]?.textContent).toBe("▲");
+
     // 再点一次反向。
     (headers[1] as unknown as HTMLElement).dispatchEvent(new window.Event("click") as unknown as Event);
     expect(sizes()).toEqual(["c1.00M", "a4.88K", "b200"]);
+    expect(document.querySelectorAll("table.grid th .mark")[1]?.textContent).toBe("▼");
   });
 
   test("Tab 补全命令名，焦点不动", () => {
