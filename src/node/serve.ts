@@ -1,9 +1,19 @@
-import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { Readable } from "node:stream";
 
 export interface ServeOptions {
   port: number;
   hostname?: string;
+}
+
+export interface AttachOptions {
+  /** 控制台挂载前缀，如 "/console"；省略表示接管全部请求。 */
+  basePath?: string;
+}
+
+/** 只要求一个 Fetch 形态的 handler，避免把 console 包的类型拖进 node 入口。 */
+export interface ConsoleLike {
+  handler(req: Request): Promise<Response>;
 }
 
 export interface RunningServer {
@@ -67,6 +77,18 @@ async function handle(
   await writeResponse(response, res);
 }
 
+/** 把一个 node:http 请求交给 Fetch 形态的 handler；转不了就回 500，不让进程崩。 */
+function respond(
+  handler: (req: Request) => Promise<Response>,
+  req: IncomingMessage,
+  res: ServerResponse,
+): void {
+  void handle(handler, req, res).catch((error: unknown) => {
+    if (!res.headersSent) res.statusCode = 500;
+    res.end(String(error));
+  });
+}
+
 /**
  * 把 `(Request) => Response` 挂到一个 node:http 服务上。
  *
@@ -77,12 +99,7 @@ export async function serve(
   handler: (req: Request) => Promise<Response>,
   options: ServeOptions,
 ): Promise<RunningServer> {
-  const server = createServer((req, res) => {
-    void handle(handler, req, res).catch((error: unknown) => {
-      if (!res.headersSent) res.statusCode = 500;
-      res.end(String(error));
-    });
-  });
+  const server = createServer((req, res) => respond(handler, req, res));
 
   await new Promise<void>((resolve, reject) => {
     server.once("error", reject);
@@ -102,4 +119,50 @@ export async function serve(
         server.close((error) => (error === undefined || error === null ? resolve() : reject(error)));
       }),
   };
+}
+
+function normalizeBasePath(value: string | undefined): string {
+  if (value === undefined || value === "" || value === "/") return "";
+  const trimmed = value.replace(/\/+$/, "");
+  return trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
+}
+
+/** 按路径段匹配：`/console` 命中 `/console` 与 `/console/...`，不命中 `/consolefoo`。 */
+function matchesBasePath(pathname: string, base: string): boolean {
+  if (base === "") return true;
+  return pathname === base || pathname.startsWith(`${base}/`);
+}
+
+/**
+ * 把控制台挂到一个已经在跑的 node:http 服务上（裸 Node、Express、Fastify 底层都是它）。
+ *
+ * 做法是接管 `request` 事件：控制台前缀内的请求交给 Fetch handler，前缀外按注册
+ * 顺序原样交回给原来的 listener——所以已经挂好的 app 一行都不用改。
+ *
+ * 注意语义：控制台在原来的路由/中间件**之前**处理自己的路径，不经过它们（也不受
+ * 它们的 body 解析、鉴权中间件影响）。这正是控制台要的：它自己的 /exec 和 /events
+ * 有独立的鉴权。
+ */
+export function attach(server: Server, target: ConsoleLike, options: AttachOptions = {}): void {
+  const base = normalizeBasePath(options.basePath);
+  const previous = server.listeners("request") as Array<
+    (this: Server, req: IncomingMessage, res: ServerResponse) => void
+  >;
+  server.removeAllListeners("request");
+
+  server.on("request", (req, res) => {
+    const pathname = new URL(req.url ?? "/", "http://localhost").pathname;
+    if (matchesBasePath(pathname, base)) {
+      respond(target.handler, req, res);
+      return;
+    }
+
+    // 没有原 handler 时不能什么都不做：请求会挂到超时。
+    if (previous.length === 0) {
+      res.statusCode = 404;
+      res.end();
+      return;
+    }
+    for (const listener of previous) listener.call(server, req, res);
+  });
 }

@@ -205,18 +205,23 @@ const debug = createConsole({
 })
 
 // Hono
+app.all("/console", (c) => debug.handler(c.req.raw))
 app.all("/console/*", (c) => debug.handler(c.req.raw))
-// 裸 Node
-http.createServer(toNodeHandler(debug.handler)).listen(7701)
+// 已有 node:http server（裸 Node / Express / Fastify 底层都是它）
+attach(server, debug, { basePath: "/console" })
+// 自己起一个端口
+const running = await serve(debug.handler, { port: 7701 })
 // Bun（本地开发）
 Bun.serve({ port: 7701, fetch: debug.handler })
 ```
+
+对外只有一个接口：`handler` 是 `(Request) => Response`。所以挂载分两类：Fetch 形态（Hono、Bun、Workers、React Router 资源路由的 `loader`/`action`）直接接这个函数；Node 形态用 `attach(server, debug, { basePath })`，它接管 `request` 事件，前缀内交给控制台、前缀外交回原 listener，Express/Fastify 一行不改。`attach` 在原来的路由/中间件之前处理自己的路径，不经过它们。
 
 不提供框架适配入口：没有 `./hono`、`./koa` 这类 subpath。框架集成就是上面那两行调用方代码，needle 的依赖表里不出现任何框架（`hono` 连 devDependency 都不进，否则"装了 Hono 的人"和"没装的人"拿到的就不是同一个包）。
 
 控制台内部自己建两个 sink：一个环形缓冲（历史，供 `log.list` 命令）和一个广播器（实时，供 SSE），两者都由 `logger.addSink` 挂上，`dispose()` 时摘掉。因此日志视图在实现上仍然只是一个 sink，但装配细节不丢给调用方。不引入全局单例，依赖从参数进来，装配关系在调用处一眼看全。
 
-`basePath` 可选，默认空字符串。挂在子路径上时必须给（Hono 的 `app.all("/console/*")` 里 `c.req.raw.url` 仍带前缀），router 按它剥前缀，页面里的 JS 也用它拼 `/events` 和 `/exec` 的地址。
+`basePath` 可选，默认空字符串。挂在子路径上时必须给（Hono 的 `app.all("/console/*")` 里 `c.req.raw.url` 仍带前缀，`attach` 也要靠它区分前缀），router 按它剥前缀，页面里的 JS 也用它拼 `/events` 和 `/exec` 的地址。
 
 ### 8.2 路由
 
@@ -473,7 +478,7 @@ src/
   node/
     index.ts
     file-sink.ts    # 滚动文件
-    serve.ts        # (Request)=>Response 挂到 node:http
+    serve.ts        # (Request)=>Response 挂到 node:http（serve 起新端口 / attach 接管已有 server）
 test/
   unit/...
   integration/...
