@@ -253,13 +253,11 @@ interface CommandContext {
 
 失败用抛错表示（`throw new CommandError("unknown command: foo")`），router 统一捕获并转成 `{ok:false, error}`。这样 `run` 正常路径只返回输出，不用每层判断 `ok`。
 
-内置：`help`、`logs [n]`、`ps`、`env <pattern>`、`login <user> <pass>`、`logout`。`login`/`help`/`logout` 是 public，其余默认需要登录。
+内置：`help`、`logs [n]`、`top`、`auth <user>`、`logout`、`sub`、`unsub`。`login`/`help`/`logout` 是 public，其余默认需要登录。
 
 名字重复时，调用方传入的命令优先于内置命令——内置只是默认值，不是特权层。
 
-`env` 默认把值打码成 `***`，只有 `env KEY --show` 才显值——控制台页面是浏览器里的，环境变量会进浏览器历史、截图、屏幕分享。
-
-输出形态固定三种：`help` 用 `text`，`logs`/`top`/`env` 用 `table`（浏览器里渲染成真表格），需要嵌套结构时用 `json`。前端只需处理这三种，不做字符串解析。
+输出形态固定三种：`help` 用 `text`，`logs`/`top` 用 `table`（浏览器里渲染成真表格），需要嵌套结构时用 `json`。前端只需处理这三种，不做字符串解析。
 
 表格的两条约定：
 

@@ -34,7 +34,6 @@ export interface ConsoleSourceOptions {
    * 的人本来就能碰到这个进程，再要一次 token 只是仪式。
    */
   user?: string;
-  env?: Record<string, string | undefined>;
   timeoutMs?: number;
 }
 
@@ -104,7 +103,6 @@ export function createConsoleSource(options: ConsoleSourceOptions): ConsoleSourc
     records,
     metrics,
     flush: () => options.logger.flush(),
-    ...(options.env === undefined ? {} : { env: options.env }),
   });
 
   // 调用方传入的命令优先：内置只是默认值，不是特权层。
