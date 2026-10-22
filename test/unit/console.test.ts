@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import { createConsole } from "../../src/console/index.js";
-import { newLogger } from "../../src/core/logo.js";
+import { newLogger } from "../../src/core/logo/logo.js";
 
 function setup(basePath?: string) {
   const logger = newLogger({ flushIntervalMs: 0, batch: false });

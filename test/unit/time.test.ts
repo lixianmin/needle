@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { formatTime } from "../../src/core/time.js";
+import { formatTime } from "../../src/core/logo/time.js";
 
 describe("formatTime", () => {
   test("固定东八区，精确到秒", () => {

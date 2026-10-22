@@ -7,7 +7,7 @@ import {
   type Connection,
 } from "../../src/console/sse.js";
 import type { Command, Topic } from "../../src/console/types.js";
-import type { LogRecord } from "../../src/core/types.js";
+import type { LogRecord } from "../../src/core/logo/types.js";
 
 const commands: Command[] = [
   { name: "help", note: "列出命令", public: true, run: () => ({ kind: "text", text: "" }) },

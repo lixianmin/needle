@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { formatLine, parseLine } from "../../src/core/line.js";
+import { formatLine, parseLine } from "../../src/core/logo/line.js";
 
 // 2026-10-22T00:00:00Z = 东八区 08:00:00
 const at = Date.UTC(2026, 9, 22, 0, 0, 0);

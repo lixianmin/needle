@@ -1,8 +1,8 @@
 import { appendFileSync, existsSync, mkdirSync, readdirSync, renameSync, statSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 
-import { formatLine } from "../core/line.js";
-import { LEVELS, type Level, type LogRecord, type Sink } from "../core/types.js";
+import { formatLine } from "../core/logo/line.js";
+import { LEVELS, type Level, type LogRecord, type Sink } from "../core/logo/types.js";
 
 const DEFAULT_MAX_BYTES = 10 * 1024 * 1024;
 const DEFAULT_KEEP_DAYS = 7;

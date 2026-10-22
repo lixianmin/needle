@@ -3,9 +3,9 @@ import { describe, expect, test } from "bun:test";
 import { createBuiltinCommands } from "../../src/console/builtins.js";
 import { CommandError, findCommand } from "../../src/console/commands.js";
 import type { CommandContext, CommandOutput } from "../../src/console/types.js";
-import { createRingSink } from "../../src/core/ring.js";
-import { newLogger } from "../../src/core/logo.js";
-import type { LogRecord } from "../../src/core/types.js";
+import { createRingSink } from "../../src/core/logo/ring.js";
+import { newLogger } from "../../src/core/logo/logo.js";
+import type { LogRecord } from "../../src/core/logo/types.js";
 
 const metrics = { read: async () => ({ runtime: "node", uptimeMs: 1234 }) };
 

@@ -1,5 +1,5 @@
-import { safeStringify } from "../core/record.js";
-import type { Sink } from "../core/types.js";
+import { safeStringify } from "../core/logo/record.js";
+import type { Sink } from "../core/logo/types.js";
 import type { Command, Topic } from "./types.js";
 
 /** 主题最短间隔。前端传什么都打不死进程。 */

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { displayNumber, formatDuration, toHuman } from "../../src/core/human.js";
+import { displayNumber, formatDuration, toHuman } from "../../src/core/logo/human.js";
 
 describe("toHuman", () => {
   test("与 got/convert.ToHuman 对齐", () => {

@@ -1,4 +1,4 @@
-import type { Logger } from "../core/logo.js";
+import type { Logger } from "../core/logo/logo.js";
 import { createAuth, type Auth } from "./auth.js";
 import { createBuiltinCommands, createHelpCommand } from "./builtins.js";
 import { CommandError, findCommand, splitArgs } from "./commands.js";

@@ -1,4 +1,4 @@
-import type { LogRecord } from "../../core/types.js";
+import type { LogRecord } from "../../core/logo/types.js";
 import type { AuthResult, ConsoleAdapter, ConsoleEvent, ExecResult, FileResult, HandshakeInfo } from "./adapter.js";
 
 const TOKEN_KEY = "logo.console.token";

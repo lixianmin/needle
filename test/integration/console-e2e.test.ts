@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import { createConsole } from "../../src/console/index.js";
-import { newLogger } from "../../src/core/logo.js";
+import { newLogger } from "../../src/core/logo/logo.js";
 import { serve } from "../../src/node/serve.js";
 
 /**

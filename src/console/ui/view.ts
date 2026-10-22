@@ -1,7 +1,7 @@
-import { displayNumber, formatDuration, toHuman } from "../../core/human.js";
-import { LEVEL_HINTS } from "../../core/line.js";
-import { formatTime } from "../../core/time.js";
-import type { LogRecord } from "../../core/types.js";
+import { displayNumber, formatDuration, toHuman } from "../../core/logo/human.js";
+import { LEVEL_HINTS } from "../../core/logo/line.js";
+import { formatTime } from "../../core/logo/time.js";
+import type { LogRecord } from "../../core/logo/types.js";
 import type { Cell, ColumnFormat, CommandOutput, LinkedCell } from "../types.js";
 import type { ConsoleAdapter, ConsoleEvent, ExecResult } from "./adapter.js";
 import { STYLE, STYLE_ID } from "./style.js";
