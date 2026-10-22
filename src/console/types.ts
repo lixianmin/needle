@@ -35,7 +35,7 @@ export interface LogFileEntry {
  * 日志文件的读取端口。
  *
  * 控制台本身不认识 fs —— 浏览器/Workers 里没有文件系统。Node 入口提供实现，
- * 没注入时 logs 命令会明确说"未配置"。
+ * 没注入时 log.list 会明确说“未配置”。
  */
 export interface LogFiles {
   list(): Promise<LogFileEntry[]>;

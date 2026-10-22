@@ -1,4 +1,3 @@
-import { safeStringify } from "./record.js";
 import { LEVELS, type Level, type Sink } from "./types.js";
 
 const DEFAULT_BATCH_MS = 1000;

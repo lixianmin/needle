@@ -84,4 +84,4 @@ Node 里所有请求共享一个进程，日志进同一块环形缓冲。Worker
 
 ## 验证过什么
 
-`test/integration/workers.test.ts` 用 miniflare（真实的 workerd）跑过：页面渲染、公开命令、登录、`ps` 返回 `runtime: "workers"`、SSE 鉴权与建流。不是"文档说可以"，是跑过的。
+`test/integration/workers.test.ts` 用 miniflare（真实的 workerd）跑过：页面渲染、公开命令、登录、`top` 返回 `runtime: "workers"`、SSE 鉴权与建流。不是"文档说可以"，是跑过的。

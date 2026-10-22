@@ -1,6 +1,11 @@
 import type { LogRecord, Sink } from "./types.js";
 
-/** 既是 sink（能被 logger 收下），又能被控制台按时间顺序读出来。 */
+/**
+ * 既是 sink（能被 logger 收下），又能按时间顺序读出来。
+ *
+ * 控制台不再用它（历史去磁盘看）。留着是给宿主的：想自己保住“最近 N 条”
+ * 来做自定义命令时，`logo.addSink(createRingSink(500))` 即可。
+ */
 export type RingSink = Sink & { read(count?: number): LogRecord[] };
 
 /**

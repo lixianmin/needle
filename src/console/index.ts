@@ -3,10 +3,8 @@ import { createExecHandler } from "./exec.js";
 import { renderPage } from "./page.js";
 import { createConsoleSource, type ConsoleSource, type ConsoleSourceOptions } from "./source.js";
 import { createSseResponse } from "./sse.js";
-import type { AuthOptions, Command, CommandContext, CommandOutput, Topic } from "./types.js";
 import { createLocalAdapter } from "./ui/local.js";
 import { mountConsole, type ConsoleView } from "./ui/view.js";
-import type { ConsoleAdapter, ConsoleEvent, HandshakeInfo } from "./ui/adapter.js";
 
 export interface ConsoleOptions extends ConsoleSourceOptions {
   /** 挂载前缀，如 "/console"。默认挂在根路径。 */

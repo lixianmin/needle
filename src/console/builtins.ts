@@ -5,8 +5,6 @@ import type { Metrics } from "./metrics.js";
 import type { Auth } from "./auth.js";
 import type { Command, CommandContext, CommandOutput, LogFiles } from "./types.js";
 
-const DEFAULT_LOG_COUNT = 20;
-
 export interface BuiltinDeps {
   metrics: Metrics;
   auth: Auth;
@@ -65,13 +63,13 @@ export function createHelpCommand(list: () => readonly Command[]): Command {
   };
 }
 
-function createLogsCommand(deps: { logFiles?: LogFiles; basePath: string }): Command {
+function createLogListCommand(deps: { logFiles?: LogFiles; basePath: string }): Command {
   return {
     name: "log.list",
     note: "列出日志文件（点文件名看全文）",
-    async run(ctx: CommandContext): Promise<CommandOutput> {
+    async run(): Promise<CommandOutput> {
       if (deps.logFiles === undefined) {
-        throw new CommandError("没有配置日志目录，logs 不可用（Node 侧用 createLogFiles 传进来）");
+        throw new CommandError("没有配置日志目录，log.list 不可用（Node 侧用 createLogFiles 传进来）");
       }
 
       const files = await deps.logFiles.list();
@@ -167,7 +165,7 @@ function createLogoutCommand(): Command {
  */
 export function createBuiltinCommands(deps: BuiltinDeps): Command[] {
   const commands: Command[] = [
-    createLogsCommand({ basePath: deps.basePath, ...(deps.logFiles === undefined ? {} : { logFiles: deps.logFiles }) }),
+    createLogListCommand({ basePath: deps.basePath, ...(deps.logFiles === undefined ? {} : { logFiles: deps.logFiles }) }),
     createTopCommand(deps.metrics),
     createAuthCommand(),
     createLogoutCommand(),
