@@ -8,6 +8,8 @@ const DEFAULT_LOG_COUNT = 20;
 export interface BuiltinDeps {
   records: RingSink;
   metrics: Metrics;
+  /** 读历史前先把缓冲写出来，否则刚写下的日志要等 100ms 才看得到。 */
+  flush?: () => void;
   /** 默认读 globalThis.process?.env ?? {}，Workers 上是空表。 */
   env?: Record<string, string | undefined>;
 }
@@ -39,7 +41,7 @@ function createHelpCommand(list: () => readonly Command[]): Command {
   };
 }
 
-function createLogsCommand(records: RingSink): Command {
+function createLogsCommand(records: RingSink, flush: () => void): Command {
   return {
     name: "logs",
     note: "查看最近的日志",
@@ -52,6 +54,8 @@ function createLogsCommand(records: RingSink): Command {
       if (!Number.isInteger(count) || count <= 0) {
         throw new CommandError(`logs 需要一个正整数，收到: ${requested}`);
       }
+
+      flush();
 
       return {
         kind: "table",
@@ -169,7 +173,7 @@ export function createBuiltinCommands(deps: BuiltinDeps): Command[] {
       : () => deps.env as Record<string, string | undefined>;
 
   const commands: Command[] = [
-    createLogsCommand(deps.records),
+    createLogsCommand(deps.records, deps.flush ?? (() => {})),
     createTopCommand(deps.metrics),
     createEnvCommand(resolveEnv),
     createAuthCommand(),

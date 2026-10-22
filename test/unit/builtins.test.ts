@@ -57,6 +57,25 @@ describe("内置命令", () => {
     expect((five as { rows: unknown[] }).rows).toHaveLength(5);
   });
 
+  test("logs 先 flush，刚写下的日志立刻可见", async () => {
+    const records = createRingSink(10);
+    const logger = createLogger({ flushIntervalMs: 10_000, batch: false, sinks: [records] });
+    const commands = createBuiltinCommands({
+      records,
+      metrics,
+      flush: () => logger.flush(),
+      env: {},
+    });
+    const logs = findCommand(commands, "logs");
+
+    logger.info("written just now");
+    const output = (await logs?.run({ args: [], user: "admin", log: logger })) as {
+      rows: unknown[][];
+    };
+
+    expect(output.rows[0]?.[2]).toBe("written just now");
+  });
+
   test("logs 参数非法时抛 CommandError", async () => {
     const { run } = setup();
     await expect(run("logs", ["abc"])).rejects.toBeInstanceOf(CommandError);
