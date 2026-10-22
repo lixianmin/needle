@@ -67,11 +67,14 @@ table.tryGet(9);                      // undefined
 
 ## 挂一个控制台
 
+控制台对外只有一个接口：`debug.handler`，签名为 `(req: Request) => Promise<Response>`。
+挂载就是把这一个函数接到你的服务器上，两条路：**自己起端口**或 **挂到已有 server**。
+
+先建控制台（`basePath` 要和下面路由前缀一致，handler 内部按它剥前缀）：
+
 ```ts
-import http from "node:http";
 import { logo } from "@needle/logo";
 import { createConsole } from "@needle/logo/console";
-import { serve } from "@needle/logo/node";
 
 const debug = createConsole({
   logger: logo,
@@ -79,23 +82,70 @@ const debug = createConsole({
   basePath: "/console",
   auth: { users: { xmli: "123456" }, secret: process.env.DBG_SECRET },
 });
-
-// 复用现有服务：handler 就是一个 (Request) => Response
-declare const yourHandler: (req: Request) => Promise<Response>;
-await serve((req) =>
-  new URL(req.url).pathname.startsWith("/console") ? debug.handler(req) : yourHandler(req),
-  { port: 3000 },
-);
 ```
 
-用 Hono 的话，挂载是应用侧的两行代码（needle 不提供框架适配入口，也不依赖 Hono）：
+**1. 自己起一个端口**（纯 Node，不碰你现有的服务）：
+
+```ts
+import { serve } from "@needle/logo/node";
+
+const running = await serve(debug.handler, { port: 7701 });   // 打开 :7701/console
+```
+
+**2. 挂到已有的 node:http server** —— 裸 Node、Express、Fastify 底层都是它：
+
+```ts
+import { attach } from "@needle/logo/node";
+
+attach(server, debug, { basePath: "/console" });   // server = http.createServer(app)
+server.listen(3000);
+```
+
+`attach` 接管 `request` 事件：`/console` 与 `/console/*` 交给控制台，其余请求按原顺序交回
+你原来的 listener，所以已有的 app / 中间件一行都不用改。控制台不经过它们（也不受它们的
+body 解析、鉴权影响）——`/exec`、`/events` 有自己的 token 校验。
+
+**3. Hono** —— 两行，不需要 needle 提供入口，也不依赖 Hono：
 
 ```ts
 app.all("/console", (c) => debug.handler(c.req.raw));
 app.all("/console/*", (c) => debug.handler(c.req.raw));
 ```
 
-打开 `http://localhost:3000/console`：
+**4. Bun.serve / Cloudflare Workers** —— 它们本来就收 `fetch`，判断一下前缀：
+
+```ts
+const isConsole = (request: Request) => {
+  const path = new URL(request.url).pathname;
+  return path === "/console" || path.startsWith("/console/");
+};
+
+Bun.serve({ fetch: (req) => (isConsole(req) ? debug.handler(req) : app.fetch(req)) });
+
+export default {
+  fetch: (req, env, ctx) => (isConsole(req) ? debug.handler(req) : app.fetch(req, env, ctx)),
+};
+```
+
+**5. React Router v7（框架模式）** —— 建两个资源路由，`/console` 与 `/console/*` 各一个
+（`app/routes/console.ts` 和 `app/routes/console.$.ts`），两个文件内容一样：
+
+```ts
+export function loader({ request }: { request: Request }) {
+  return debug.handler(request);      // GET：页面、SSE、日志文件
+}
+
+export function action({ request }: { request: Request }) {
+  return debug.handler(request);      // POST：/exec、/auth
+}
+```
+
+`loader` 和 `action` 缺一不可：只写 `loader` 的话页面能打开，但登录和控制台命令（POST）全是 405。
+
+任何能拿到 `(Request) => Response` 的地方（Deno、Netlify、Vercel Functions 等）同理，直接把
+`debug.handler` 接上去就行。
+
+打开控制台（上面各例的端口 + `basePath`，例如 `http://localhost:3000/console`）：
 
 ```
 $ help
