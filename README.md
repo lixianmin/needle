@@ -92,7 +92,7 @@ createConsole({
 });
 ```
 
-输出只有三种形态：`text` / `table` / `json`，前端照着渲染，不用解析字符串。表格里的数字按人话显示（`36290560` → `34.61M`，行为对齐 got 的 `convert.ToHuman`），点表头按原始数值排序，再点一次反向。
+输出只有三种形态：`text` / `table` / `json`，前端照着渲染，不用解析字符串。表格可以给每列声明语义（`auto` / `bytes` / `duration` / `number`）：字节走 `toHuman`（`36290560` → `34.61M`，对齐 got 的 `convert.ToHuman`），毫秒走 `formatDuration`（`57720` → `57.7s`），点表头按原始数值排序。
 
 ## 浏览器与 Chrome 扩展
 

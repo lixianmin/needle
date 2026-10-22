@@ -261,7 +261,9 @@ interface CommandContext {
 
 表格的两条约定：
 
-- **数字传原始值，不预格式化**。`table.rows` 允许 `number`，展示层负责转成人话（整数且 ≥1024 时用 `toHuman`，如 `36290560` → `34.61M`，与 got 的 `convert.ToHuman` 一致），排序也按原始数值而不是字符串。
+- **数字传原始值，不预格式化**。`table.rows` 允许 `number`，展示层负责转成人话，排序也按原始数值而不是字符串。
+- **列语义用 `formats` 声明**，不是靠猜。`auto`（缺省）：整数且 ≥1024 用 `toHuman`；`bytes`：字节，永远走 `toHuman`；`duration`：毫秒，走 `formatDuration`（`57720` → `57.7s`）；`number`：计数原样。
+  这一条是修 bug 修出来的：曾经把 `uptimeMs` 当普通整数套 `toHuman`，显示成 `57.72K`——毫秒不是字节，单位错了就是错。
 - **表头可点击排序**，再点一次反向（照 gonsole `JsonTable` 的交互）。
 
 ### 8.5 主题（周期性推送）

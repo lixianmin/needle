@@ -1,6 +1,6 @@
-import { displayNumber, toHuman } from "../../core/human.js";
+import { displayNumber, formatDuration, toHuman } from "../../core/human.js";
 import type { LogRecord } from "../../core/types.js";
-import type { CommandOutput } from "../types.js";
+import type { ColumnFormat, CommandOutput } from "../types.js";
 import type { ConsoleAdapter, ConsoleEvent, ExecResult } from "./adapter.js";
 import { STYLE, STYLE_ID } from "./style.js";
 
@@ -40,7 +40,8 @@ function formatMetric(key: string, value: unknown): string {
     return JSON.stringify(value) ?? "";
   }
   if (key === "rss" || key === "heapUsed") return toHuman(value);
-  if (key === "uptimeMs") return `${(value / 1000).toFixed(0)}s`;
+  // 约定：以 Ms 结尾的字段是毫秒数（uptimeMs、latencyMs…），按时长渲染。
+  if (key.endsWith("Ms")) return formatDuration(value);
   return displayNumber(value);
 }
 
@@ -122,24 +123,37 @@ export function mountConsole(root: HTMLElement, adapter: ConsoleAdapter): Consol
     push(line);
   }
 
-  function table(columns: string[], rows: Array<Array<string | number | null>>): HTMLElement {
+  function table(
+    columns: string[],
+    rows: Array<Array<string | number | null>>,
+    formats: ColumnFormat[] = [],
+  ): HTMLElement {
     const grid = el(doc, "table", "grid");
     const head = el(doc, "thead");
     const headRow = el(doc, "tr");
     const body = el(doc, "tbody");
 
-    const show = (value: string | number | null): string =>
-      value === null ? "" : typeof value === "number" ? displayNumber(value) : String(value);
+    const render = (format: ColumnFormat, value: string | number | null): string => {
+      if (value === null) return "";
+      if (typeof value !== "number") return String(value);
+      if (format === "duration") return formatDuration(value);
+      if (format === "bytes") return toHuman(value);
+      if (format === "number") return String(value);
+      return displayNumber(value);
+    };
+
+    const show = (index: number, value: string | number | null): string =>
+      render(formats[index] ?? "auto", value);
 
     const renderBody = (sorted: Array<Array<string | number | null>>): void => {
       body.replaceChildren();
       for (const row of sorted) {
         const tr = el(doc, "tr");
-        for (const value of row) {
+        row.forEach((value, index) => {
           const cell = el(doc, "td");
-          cell.textContent = show(value);
+          cell.textContent = show(index, value);
           tr.append(cell);
-        }
+        });
         body.append(tr);
       }
     };
@@ -198,7 +212,7 @@ export function mountConsole(root: HTMLElement, adapter: ConsoleAdapter): Consol
       return;
     }
     if (value.kind === "table") {
-      push(table(value.columns, value.rows));
+      push(table(value.columns, value.rows, value.formats));
       return;
     }
     pushText(JSON.stringify(value.value, null, 2), "raw");

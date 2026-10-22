@@ -40,3 +40,33 @@ export function displayNumber(value: number): string {
   if (!Number.isInteger(value) || Math.abs(value) < 1024) return String(value);
   return toHuman(value);
 }
+
+/**
+ * 毫秒转时长。跟 toHuman 分开，因为"57 秒"和"57K 字节"是两种东西，
+ * 用同一把尺子量就会得到 uptime = 57.72K 这种没意义的读数。
+ *
+ *   123     → "123ms"
+ *   12_300  → "12.3s"
+ *   312_000 → "5m 12s"
+ *   7_980_000 → "2h 13m"
+ *   277_200_000 → "3d 5h"
+ */
+export function formatDuration(ms: number): string {
+  if (!Number.isFinite(ms)) return String(ms);
+
+  const sign = ms < 0 ? "-" : "";
+  const value = Math.abs(ms);
+
+  if (value < 1000) return `${sign}${Math.round(value)}ms`;
+  if (value < 60_000) return `${sign}${(value / 1000).toFixed(1)}s`;
+
+  const totalSeconds = Math.floor(value / 1000);
+  const days = Math.floor(totalSeconds / 86_400);
+  const hours = Math.floor((totalSeconds % 86_400) / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  if (days > 0) return `${sign}${days}d ${hours}h`;
+  if (hours > 0) return `${sign}${hours}h ${String(minutes).padStart(2, "0")}m`;
+  return `${sign}${minutes}m ${String(seconds).padStart(2, "0")}s`;
+}

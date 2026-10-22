@@ -15,9 +15,23 @@ export interface AuthOptions {
  * 固定形态的理由：前端要渲染、测试要断言、自定义命令要能无损表达。
  * 允许任意结构就得让前端猜，猜错就渲染成 [object Object]。
  */
+/**
+ * 表格某一列的显示语义。缺省 `auto`：整数且 ≥1024 才按 K/M 缩。
+ * - `bytes`：字节，永远走 toHuman（512 → 512B）
+ * - `duration`：毫秒数，走 formatDuration（57720 → 57.7s）
+ * - `number`：计数，原样显示（不缩写成 K）
+ */
+export type ColumnFormat = "auto" | "bytes" | "duration" | "number";
+
 export type CommandOutput =
   | { kind: "text"; text: string }
-  | { kind: "table"; columns: string[]; rows: Array<Array<string | number | null>> }
+  | {
+      kind: "table";
+      columns: string[];
+      rows: Array<Array<string | number | null>>;
+      /** 与 columns 等长；省略则全部按 auto 处理。 */
+      formats?: ColumnFormat[];
+    }
   | { kind: "json"; value: unknown };
 
 export interface CommandContext {
