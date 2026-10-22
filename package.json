@@ -1,6 +1,6 @@
 {
   "name": "@needle/logo",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "内置调试控制台的 TypeScript 日志库：浏览器里看日志、敲命令、订指标",
   "type": "module",
   "sideEffects": false,
@@ -21,10 +21,6 @@
     "./lark": {
       "types": "./dist/core/logo/sinks/lark.d.ts",
       "default": "./dist/core/logo/sinks/lark.js"
-    },
-    "./hono": {
-      "types": "./dist/hono/index.d.ts",
-      "default": "./dist/hono/index.js"
     }
   },
   "files": [
@@ -32,7 +28,7 @@
   ],
   "scripts": {
     "build:ui": "bun scripts/build-ui.mjs",
-    "build": "bun run build:ui && tsc -p tsconfig.build.json",
+    "build": "bun run build:ui && rm -rf dist && tsc -p tsconfig.build.json",
     "test": "bun test",
     "typecheck": "tsc --noEmit",
     "size": "bun build src/core/index.ts --minify --target=browser | gzip -c | wc -c && bun build src/console/index.ts --minify --target=browser | gzip -c | wc -c"
@@ -40,7 +36,6 @@
   "devDependencies": {
     "@types/bun": "^1.4.3",
     "happy-dom": "^21.0.4",
-    "hono": "^4.13.13",
     "miniflare": "^4.20260730.0",
     "typescript": "7.0.2"
   }
