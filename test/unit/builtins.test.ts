@@ -1,7 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
 import { createBuiltinCommands } from "../../src/console/builtins.js";
-import type { Auth } from "../../src/console/auth.js";
 import { CommandError, findCommand } from "../../src/console/commands.js";
 import type { CommandContext, CommandOutput } from "../../src/console/types.js";
 import { createRingSink } from "../../src/core/ring.js";
@@ -10,17 +9,11 @@ import type { LogRecord } from "../../src/core/types.js";
 
 const metrics = { read: async () => ({ runtime: "node", uptimeMs: 1234 }) };
 
-const auth: Auth = {
-  login: async (user, password) => (user === "admin" && password === "secret" ? "tok" : null),
-  verify: async () => ({ sub: "admin" }),
-};
-
 function setup() {
   const records = createRingSink(100);
   const commands = createBuiltinCommands({
     records,
     metrics,
-    auth,
     env: { HOME: "/root", PATH: "/bin", SECRET_KEY: "hunter2" },
   });
   const context = (args: string[]): CommandContext => ({
@@ -97,15 +90,12 @@ describe("内置命令", () => {
     expect((output as { rows: unknown[] }).rows).toEqual([]);
   });
 
-  test("login 成功返回 token，失败与缺参抛错", async () => {
+  test("auth 不接收密码，只提示走密码输入框", async () => {
     const { run } = setup();
 
-    const output = await run("login", ["admin", "secret"]);
-    expect(output.kind).toBe("json");
-    expect((output as { value: { token: string } }).value.token).toBe("tok");
-
-    await expect(run("login", ["admin", "wrong"])).rejects.toBeInstanceOf(CommandError);
-    await expect(run("login", ["admin"])).rejects.toBeInstanceOf(CommandError);
+    await expect(run("auth", ["xmli", "123456"])).rejects.toBeInstanceOf(CommandError);
+    await expect(run("auth", ["xmli", "123456"])).rejects.toThrow(/密码不能走命令行/);
+    await expect(run("auth", [])).rejects.toBeInstanceOf(CommandError);
   });
 
   test("logout 返回文本", async () => {
@@ -113,10 +103,10 @@ describe("内置命令", () => {
     expect((await run("logout")).kind).toBe("text");
   });
 
-  test("只有 help/login/logout 可以匿名执行", () => {
+  test("只有 help/auth/logout 可以匿名执行", () => {
     const { commands } = setup();
     const publicNames = commands.filter((command) => command.public).map((command) => command.name);
-    expect(publicNames.sort()).toEqual(["help", "login", "logout"]);
+    expect(publicNames.sort()).toEqual(["auth", "help", "logout"]);
   });
 
   test("logs 把记录渲染成表", async () => {

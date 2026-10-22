@@ -52,8 +52,12 @@ export interface ConsoleSource {
   /** 本地身份；服务端模式为 null。 */
   user: string | null;
   exec(line: string, token: string | null): Promise<ExecResult>;
+  /** 校验口令并签发 token。密码不走命令行，所以单独开一个入口。 */
+  authenticate(user: string, password: string): Promise<AuthResult>;
   dispose(): void;
 }
+
+export type AuthResult = { ok: true; user: string; token: string } | { ok: false; error: string };
 
 /** 指标命令与主题共用一次读取，避免同一秒内重复探测运行时。 */
 function createDefaultTopics(metrics: ReturnType<typeof createMetrics>): Topic[] {
@@ -95,7 +99,6 @@ export function createConsoleSource(options: ConsoleSourceOptions): ConsoleSourc
   const builtins = createBuiltinCommands({
     records,
     metrics,
-    auth,
     ...(options.env === undefined ? {} : { env: options.env }),
   });
 
@@ -176,6 +179,12 @@ export function createConsoleSource(options: ConsoleSourceOptions): ConsoleSourc
     user: localUser,
 
     exec,
+
+    async authenticate(user, password) {
+      const token = await auth.login(user, password);
+      if (token === null) return { ok: false, error: "用户名或密码错误" };
+      return { ok: true, user, token };
+    },
 
     dispose() {
       if (disposed) return;

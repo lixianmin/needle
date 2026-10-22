@@ -18,13 +18,17 @@ export type ExecResult =
   | { ok: true; output: CommandOutput }
   | { ok: false; error: string; unauthorized?: boolean };
 
+export type AuthResult = { ok: true; user: string } | { ok: false; error: string };
+
 /**
  * UI 需要的全部能力。
  *
- * 只有两个方法，因为控制台本来就只做两件事：执行一条命令、接收服务端推来的东西。
- * 传输方式（HTTP+SSE 还是进程内直调）由适配器决定，UI 不关心。
+ * `authenticate` 单列一个方法，而不是把密码拼进命令串：命令串会进历史记录、
+ * 会显示在输出区、会出现在服务端日志里。密码只走这一个入口。
  */
 export interface ConsoleAdapter {
   exec(line: string): Promise<ExecResult>;
+  authenticate(user: string, password: string): Promise<AuthResult>;
+  logout(): void;
   subscribe(listener: (event: ConsoleEvent) => void): () => void;
 }

@@ -56,14 +56,17 @@ help              列出所有命令
 logs [n]          查看最近的日志
 ps                查看进程指标
 env [pattern]     查看环境变量（默认打码）
-login <user> <pwd> 登录以获取完整权限
+auth <user>       登录（下一步提示输密码，输入不回显）
 logout            清除本地登录态
 
-$ login xmli 123456
+$ auth xmli
+密码:            # 这里输入不回显，不进历史
 $ logs 20
 ```
 
-未登录时只能跑 `help` / `login` / `logout`。日志流本身也要鉴权——那里什么都有。
+未登录时只能跑 `help` / `auth` / `logout`。日志流本身也要鉴权——那里什么都有。
+
+口令是两步的：`auth <user>` 回车后输入框切成 `type=password`，密码不回显、不进历史、也不作为命令行内容发给服务端（走独立的 `POST /auth`）。这是把它和密码分开的唯一理由。
 
 自定义命令：
 

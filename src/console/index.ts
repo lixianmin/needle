@@ -1,3 +1,4 @@
+import { createAuthRoute } from "./authenticate.js";
 import { createExecHandler } from "./exec.js";
 import { renderPage } from "./page.js";
 import { createConsoleSource, type ConsoleSource, type ConsoleSourceOptions } from "./source.js";
@@ -49,6 +50,7 @@ export function createConsole(options: ConsoleOptions): Console {
   const source = createConsoleSource(options);
   const basePath = normalizeBasePath(options.basePath ?? "");
   const exec = createExecHandler({ source });
+  const authenticate = createAuthRoute({ source });
 
   const page = renderPage({
     basePath,
@@ -82,6 +84,8 @@ export function createConsole(options: ConsoleOptions): Console {
       if (req.method === "GET" && path === "/health") return json({ ok: true });
 
       if (req.method === "POST" && path === "/exec") return exec(req);
+
+      if (req.method === "POST" && path === "/auth") return authenticate(req);
 
       if (req.method === "GET" && path === "/events") {
         // 事件流必须鉴权：日志里什么都有，匿名不该看到。
@@ -135,5 +139,5 @@ export { createConsoleSource } from "./source.js";
 export { mountConsole } from "./ui/view.js";
 export { createLocalAdapter } from "./ui/local.js";
 export type { ConsoleSource, ConsoleSourceOptions, ExecResult } from "./source.js";
-export type { ConsoleAdapter, ConsoleEvent, HelloInfo } from "./ui/adapter.js";
+export type { ConsoleAdapter, ConsoleEvent, HelloInfo, AuthResult } from "./ui/adapter.js";
 export type { AuthOptions, Command, CommandContext, CommandOutput, Topic } from "./types.js";

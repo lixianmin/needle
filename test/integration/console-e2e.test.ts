@@ -22,13 +22,12 @@ describe("控制台端到端", () => {
     const base = `http://127.0.0.1:${server.port}`;
 
     try {
-      const login = await fetch(`${base}/exec`, {
+      const login = await fetch(`${base}/auth`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ line: "login admin secret" }),
+        body: JSON.stringify({ user: "admin", password: "secret" }),
       });
-      const token = ((await login.json()) as { output: { value: { token: string } } }).output.value
-        .token;
+      const token = ((await login.json()) as { token: string }).token;
 
       const events = await fetch(`${base}/events`, {
         headers: { authorization: `Bearer ${token}` },
@@ -53,6 +52,27 @@ describe("控制台端到端", () => {
       expect(text).toContain("event: log");
       expect(text).toContain("live-line");
       await reader?.cancel();
+    } finally {
+      await server.close();
+      debug.dispose();
+    }
+  });
+
+  test("密码错误时 /auth 返回 401", async () => {
+    const logger = createLogger({ flushIntervalMs: 0, batch: false });
+    const debug = createConsole({
+      logger,
+      auth: { users: { admin: "secret" }, secret: "e2e-secret" },
+    });
+    const server = await serve(debug.handler, { port: 0 });
+
+    try {
+      const res = await fetch(`http://127.0.0.1:${server.port}/auth`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ user: "admin", password: "nope" }),
+      });
+      expect(res.status).toBe(401);
     } finally {
       await server.close();
       debug.dispose();

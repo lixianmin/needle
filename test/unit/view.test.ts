@@ -10,12 +10,22 @@ function fakeAdapter() {
   const executed: string[] = [];
   const replies: Array<Awaited<ReturnType<ConsoleAdapter["exec"]>>> = [];
 
+  const logins: Array<{ user: string; password: string }> = [];
+  let logoutCount = 0;
+
   const adapter: ConsoleAdapter = {
     exec(line) {
       executed.push(line);
       return Promise.resolve(
         replies.shift() ?? { ok: true as const, output: { kind: "text" as const, text: "" } },
       );
+    },
+    authenticate(user, password) {
+      logins.push({ user, password });
+      return Promise.resolve({ ok: true as const, user });
+    },
+    logout() {
+      logoutCount += 1;
     },
     subscribe(next) {
       listener = next;
@@ -29,6 +39,8 @@ function fakeAdapter() {
     adapter,
     executed,
     replies,
+    logins,
+    logoutCount: () => logoutCount,
     emit: (event: ConsoleEvent) => listener?.(event),
   };
 }
@@ -112,7 +124,7 @@ describe("mountConsole", () => {
     form.dispatchEvent(new window.Event("submit") as unknown as Event);
     await new Promise((resolve) => setTimeout(resolve, 0));
 
-    expect((root as unknown as HTMLElement).textContent).toContain("先执行 login");
+    expect((root as unknown as HTMLElement).textContent).toContain("未登录");
   });
 
   test("topic 事件渲染成面板", () => {
@@ -161,6 +173,57 @@ describe("mountConsole", () => {
     );
 
     expect(document.activeElement).toBe(other as unknown as Element);
+  });
+
+  test("auth 两步：先输用户名，再进遮罩密码框，密码不回显也不进历史", async () => {
+    const { document, root, logins } = mount();
+    const input = document.querySelector("input") as unknown as HTMLInputElement;
+    const form = document.querySelector("form") as unknown as HTMLFormElement;
+
+    input.value = "auth xmli";
+    form.dispatchEvent(new window.Event("submit") as unknown as Event);
+
+    expect(input.type).toBe("password");
+    expect(logins).toHaveLength(0);
+
+    input.value = "123456";
+    form.dispatchEvent(new window.Event("submit") as unknown as Event);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(logins).toEqual([{ user: "xmli", password: "123456" }]);
+    expect(input.type).toBe("text");
+    expect((root as unknown as HTMLElement).textContent).not.toContain("123456");
+    expect((root as unknown as HTMLElement).textContent).toContain("已登录");
+
+    // 历史里只有 auth xmli，没有密码。
+    input.dispatchEvent(new window.KeyboardEvent("keydown", { key: "ArrowUp" }) as unknown as Event);
+    expect(input.value).toBe("auth xmli");
+  });
+
+  test("密码框里按 Esc 取消", () => {
+    const { document } = mount();
+    const input = document.querySelector("input") as unknown as HTMLInputElement;
+    const form = document.querySelector("form") as unknown as HTMLFormElement;
+
+    input.value = "auth xmli";
+    form.dispatchEvent(new window.Event("submit") as unknown as Event);
+    expect(input.type).toBe("password");
+
+    input.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Escape" }) as unknown as Event);
+    expect(input.type).toBe("text");
+    expect(input.value).toBe("");
+  });
+
+  test("logout 走适配器，不发命令", () => {
+    const { document, executed, logoutCount } = mount();
+    const input = document.querySelector("input") as unknown as HTMLInputElement;
+    const form = document.querySelector("form") as unknown as HTMLFormElement;
+
+    input.value = "logout";
+    form.dispatchEvent(new window.Event("submit") as unknown as Event);
+
+    expect(logoutCount()).toBe(1);
+    expect(executed).toHaveLength(0);
   });
 
   test("dispose 之后移除面板", () => {

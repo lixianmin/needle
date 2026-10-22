@@ -1,5 +1,4 @@
 import type { RingSink } from "../core/ring.js";
-import type { Auth } from "./auth.js";
 import { CommandError } from "./commands.js";
 import type { Metrics } from "./metrics.js";
 import type { Command, CommandContext, CommandOutput } from "./types.js";
@@ -9,7 +8,6 @@ const DEFAULT_LOG_COUNT = 20;
 export interface BuiltinDeps {
   records: RingSink;
   metrics: Metrics;
-  auth: Auth;
   /** 默认读 globalThis.process?.env ?? {}，Workers 上是空表。 */
   env?: Record<string, string | undefined>;
 }
@@ -106,22 +104,20 @@ function createEnvCommand(resolveEnv: () => Record<string, string | undefined>):
   };
 }
 
-function createLoginCommand(auth: Auth): Command {
+function createAuthCommand(): Command {
   return {
-    name: "login",
-    note: "登录以获取完整权限",
-    args: "<user> <password>",
+    name: "auth",
+    note: "登录：输入用户名后，下一步会提示输入密码",
+    args: "<user>",
     public: true,
-    async run(ctx: CommandContext): Promise<CommandOutput> {
-      const [user, password] = ctx.args;
-      if (user === undefined || password === undefined) {
-        throw new CommandError("用法: login <user> <password>");
+    run(ctx: CommandContext): CommandOutput {
+      const user = ctx.args[0];
+      if (user === undefined) {
+        throw new CommandError("用法: auth <user>，密码会在下一步提示输入");
       }
-
-      const token = await auth.login(user, password);
-      if (token === null) throw new CommandError("用户名或密码错误");
-
-      return { kind: "json", value: { token } };
+      // 走到这里说明有人绕过控制台直接调 /exec（例如 curl）。密码不能拼在
+      // 命令行里——那会被历史记录、输出区和访问日志原样留下。
+      throw new CommandError("密码不能走命令行：控制台里输入 `auth <user>` 后会切换成密码输入框");
     },
   };
 }
@@ -155,7 +151,7 @@ export function createBuiltinCommands(deps: BuiltinDeps): Command[] {
     createLogsCommand(deps.records),
     createPsCommand(deps.metrics),
     createEnvCommand(resolveEnv),
-    createLoginCommand(deps.auth),
+    createAuthCommand(),
     createLogoutCommand(),
   ];
 

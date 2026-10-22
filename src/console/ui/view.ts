@@ -221,12 +221,69 @@ export function mountConsole(root: HTMLElement, adapter: ConsoleAdapter): Consol
   const history = readHistory();
   let cursor = history.length;
 
+  /** 正在等密码的账号。非空时下一次回车的内容当密码处理。 */
+  let pendingUser: string | null = null;
+
+  function enterPasswordMode(user: string): void {
+    pendingUser = user;
+    input.type = "password";
+    input.value = "";
+    input.placeholder = "密码（输入不回显）";
+    input.focus();
+    pushText("密码:", "echo");
+  }
+
+  function leavePasswordMode(): void {
+    pendingUser = null;
+    input.type = "text";
+    input.placeholder = "";
+    input.value = "";
+  }
+
   form.addEventListener("submit", (event) => {
     event.preventDefault();
+
+    // 密码这一步：不回显、不进历史、不发命令，只走 authenticate。
+    if (pendingUser !== null) {
+      const password = input.value;
+      const user = pendingUser;
+      leavePasswordMode();
+      if (password === "") return;
+
+      void adapter.authenticate(user, password).then((result) => {
+        if (result.ok) pushText(`已登录：${result.user}`, "status");
+        else pushText(result.error, "status");
+      });
+      return;
+    }
+
     const line = input.value.trim();
     if (line === "") return;
 
     input.value = "";
+
+    // auth 与 logout 是控制台自己的动作，不发给服务端。
+    const [name, ...args] = line.split(/\s+/);
+    if (name === "auth") {
+      const user = args[0];
+      if (user === undefined) {
+        pushText("用法: auth <user>", "status");
+        return;
+      }
+      history.push(line);
+      writeHistory(history);
+      cursor = history.length;
+      pushText(`$ ${line}`, "echo");
+      enterPasswordMode(user);
+      return;
+    }
+
+    if (name === "logout") {
+      adapter.logout();
+      pushText("已退出", "status");
+      return;
+    }
+
     history.push(line);
     writeHistory(history);
     cursor = history.length;
@@ -236,6 +293,12 @@ export function mountConsole(root: HTMLElement, adapter: ConsoleAdapter): Consol
   });
 
   input.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && pendingUser !== null) {
+      event.preventDefault();
+      leavePasswordMode();
+      pushText("已取消", "status");
+      return;
+    }
     if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
     if (history.length === 0) return;
 
