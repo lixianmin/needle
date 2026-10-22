@@ -26,18 +26,6 @@ function setup() {
 }
 
 describe("内置命令", () => {
-  test("help 列出所有命令及其说明", async () => {
-    const { commands, run } = setup();
-    const output = await run("help");
-
-    expect(output.kind).toBe("text");
-    const text = (output as { text: string }).text;
-    for (const command of commands) {
-      expect(text).toContain(command.name);
-      expect(text).toContain(command.note);
-    }
-  });
-
   test("logs 默认 20 条，可指定条数", async () => {
     const { records, run } = setup();
     const logger = createLogger({ flushIntervalMs: 0, batch: false, sinks: [records] });
@@ -107,7 +95,7 @@ describe("内置命令", () => {
   test("只有 help/auth/logout 可以匿名执行", () => {
     const { commands } = setup();
     const publicNames = commands.filter((command) => command.public).map((command) => command.name);
-    expect(publicNames.sort()).toEqual(["auth", "help", "logout", "sub", "unsub"]);
+    expect(publicNames.sort()).toEqual(["auth", "logout", "sub", "unsub"]);
   });
 
   test("logs 把记录渲染成表", async () => {
