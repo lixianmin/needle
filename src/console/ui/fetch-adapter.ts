@@ -4,7 +4,7 @@ import type { ConsoleAdapter, ConsoleEvent, ExecResult, HelloInfo } from "./adap
 const TOKEN_KEY = "logo.console.token";
 
 interface FetchAdapterOptions {
-  /** 控制台挂载前缀，如 "/__dbg"。空字符串表示挂在根路径。 */
+  /** 控制台挂载前缀，如 "/console"。空字符串表示挂在根路径。 */
   basePath: string;
   /** SSE 的 topics 参数，如 "top:5000,mem"。 */
   topics?: string;

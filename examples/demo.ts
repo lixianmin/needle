@@ -1,8 +1,8 @@
 /**
  * 本地演示：`bun examples/demo.ts`
  *
- * 打开 http://127.0.0.1:7801/__dbg
- * 登录：admin / secret
+ * 打开 http://127.0.0.1:1234/console
+ * 登录：xmli / 123456
  *
  * 页面每隔一秒会收到一条 heartbeat，用来确认 SSE 是活的。
  */
@@ -11,7 +11,7 @@ import { CommandError } from "../src/console/commands.js";
 import { logo } from "../src/core/index.js";
 import { serve } from "../src/node/index.js";
 
-const PORT = Number(process.env.PORT ?? 7801);
+const PORT = Number(process.env.PORT ?? 1234);
 
 /** 假装是业务状态，用来演示"命令能读到进程内部"。 */
 const rooms = new Map<string, Record<string, unknown>>([
@@ -21,10 +21,10 @@ const rooms = new Map<string, Record<string, unknown>>([
 
 const debug = createConsole({
   logger: logo,
-  basePath: "/__dbg",
+  basePath: "/console",
   version: "0.1.0",
   topicSpec: "top:2000",
-  auth: { users: { admin: "secret" }, secret: process.env.DBG_SECRET ?? "demo-secret" },
+  auth: { users: { xmli: "123456" }, secret: process.env.DBG_SECRET ?? "demo-secret" },
   commands: [
     {
       name: "room",
@@ -64,12 +64,12 @@ const timer = setInterval(() => {
 
 const server = await serve((req) => {
   const { pathname } = new URL(req.url);
-  if (pathname === "/" || pathname.startsWith("/__dbg")) return debug.handler(req);
-  return new Response("这是你的业务服务。控制台在 /__dbg\n");
+  if (pathname === "/" || pathname.startsWith("/console")) return debug.handler(req);
+  return new Response("这是你的业务服务。控制台在 /console\n");
 }, { port: PORT });
 
-console.log(`控制台: http://127.0.0.1:${server.port}/__dbg`);
-console.log("账号:   admin / secret");
+console.log(`控制台: http://127.0.0.1:${server.port}/console`);
+console.log("账号:   xmli / 123456");
 console.log("试试:   logs 20 · ps · room · boom · slow");
 
 let closing = false;

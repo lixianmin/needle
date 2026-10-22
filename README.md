@@ -36,19 +36,19 @@ import { serve } from "@noodle/logo/node";
 
 const debug = createConsole({
   logger: logo,
-  auth: { users: { admin: "secret" }, secret: process.env.DBG_SECRET },
-  basePath: "/__dbg",
+  auth: { users: { xmli: "123456" }, secret: process.env.DBG_SECRET },
+  basePath: "/console",
 });
 
 // 复用现有服务：handler 就是一个 (Request) => Response
 declare const yourHandler: (req: Request) => Promise<Response>;
 await serve((req) =>
-  new URL(req.url).pathname.startsWith("/__dbg") ? debug.handler(req) : yourHandler(req),
+  new URL(req.url).pathname.startsWith("/console") ? debug.handler(req) : yourHandler(req),
   { port: 3000 },
 );
 ```
 
-打开 `http://localhost:3000/__dbg`：
+打开 `http://localhost:3000/console`：
 
 ```
 $ help
@@ -59,7 +59,7 @@ env [pattern]     查看环境变量（默认打码）
 login <user> <pwd> 登录以获取完整权限
 logout            清除本地登录态
 
-$ login admin secret
+$ login xmli 123456
 $ logs 20
 ```
 
@@ -70,7 +70,7 @@ $ logs 20
 ```ts
 createConsole({
   logger: logo,
-  auth: { users: { admin: "secret" } },
+  auth: { users: { xmli: "123456" } },
   commands: [
     {
       name: "room",
@@ -124,7 +124,7 @@ logo.addSink(createLarkSink({ webhook: process.env.LARK_HOOK!, minLevel: "error"
 bun examples/demo.ts
 ```
 
-打开 <http://127.0.0.1:7801/__dbg>，账号 `admin` / `secret`。
+打开 <http://127.0.0.1:1234/console>，账号 `xmli` / `123456`。
 
 - 页面每秒滚一条 `heartbeat` —— 证明 SSE 活着。
 - `logs 20` 看历史，`ps` 看进程指标，`room` 看演示业务状态。

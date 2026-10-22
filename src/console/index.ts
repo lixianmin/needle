@@ -8,7 +8,7 @@ import { mountConsole, type ConsoleView } from "./ui/view.js";
 import type { ConsoleAdapter, ConsoleEvent, HelloInfo } from "./ui/adapter.js";
 
 export interface ConsoleOptions extends ConsoleSourceOptions {
-  /** 挂载前缀，如 "/__dbg"。默认挂在根路径。 */
+  /** 挂载前缀，如 "/console"。默认挂在根路径。 */
   basePath?: string;
   /** 页面默认订阅的主题，如 "top:5000"。 */
   topicSpec?: string;

@@ -195,6 +195,29 @@ export function mountConsole(root: HTMLElement, adapter: ConsoleAdapter): Consol
     }
   });
 
+  /**
+   * 回车抢焦点。
+   *
+   * 控制台的用法是"随时开始敲命令"，而不是"先精确点中那个输入框"。焦点在
+   * 页面空白处或输出区时按回车，直接把光标送进输入框——省掉一次鼠标移动。
+   * 焦点已经在别的输入控件里（页面里可能嵌着业务表单）就不抢。
+   */
+  function isEditable(node: Element | null): boolean {
+    if (node === null) return false;
+    const tag = node.tagName.toLowerCase();
+    if (tag === "input" || tag === "textarea" || tag === "select") return true;
+    return (node as HTMLElement).isContentEditable === true;
+  }
+
+  const focusOnEnter = (event: KeyboardEvent): void => {
+    if (event.key !== "Enter") return;
+    if (isEditable(doc.activeElement)) return;
+    event.preventDefault();
+    input.focus();
+  };
+
+  doc.addEventListener("keydown", focusOnEnter);
+
   const history = readHistory();
   let cursor = history.length;
 
@@ -223,6 +246,7 @@ export function mountConsole(root: HTMLElement, adapter: ConsoleAdapter): Consol
 
   return {
     dispose() {
+      doc.removeEventListener("keydown", focusOnEnter);
       unsubscribe();
       wrap.remove();
     },
