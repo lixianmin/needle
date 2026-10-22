@@ -137,6 +137,32 @@ describe("mountConsole", () => {
     expect(input.value).toBe("help");
   });
 
+  test("焦点不在输入框时，回车把光标送进去", () => {
+    const { document } = mount();
+    const input = document.querySelector("input") as unknown as HTMLInputElement;
+
+    (document.body as unknown as HTMLElement).focus();
+    expect(input.ownerDocument.activeElement).not.toBe(input);
+
+    document.body.dispatchEvent(
+      new window.KeyboardEvent("keydown", { key: "Enter", bubbles: true }) as unknown as Event,
+    );
+    expect(input.ownerDocument.activeElement).toBe(input);
+  });
+
+  test("焦点在别的输入控件里时不抢", () => {
+    const { document } = mount();
+    const other = document.createElement("input");
+    document.body.append(other);
+    (other as unknown as HTMLInputElement).focus();
+
+    other.dispatchEvent(
+      new window.KeyboardEvent("keydown", { key: "Enter", bubbles: true }) as unknown as Event,
+    );
+
+    expect(document.activeElement).toBe(other as unknown as Element);
+  });
+
   test("dispose 之后移除面板", () => {
     const { root, view } = mount();
     expect((root as unknown as HTMLElement).childElementCount).toBe(1);
