@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 
-import { createLogger } from "../../dist/core/index.js";
+import { newLogger } from "../../dist/core/index.js";
 import { createConsole } from "../../dist/console/index.js";
 import { serve } from "../../dist/node/index.js";
 
 // 1. 批量 + 立即刷：error 应该把积压的 info 一起带出去
 const batches = [];
-const logger = createLogger({ sinks: [(batch) => batches.push(batch)], flushIntervalMs: 10_000 });
+const logger = newLogger({ sinks: [(batch) => batches.push(batch)], flushIntervalMs: 10_000 });
 
 logger.info("a");
 logger.info("b");

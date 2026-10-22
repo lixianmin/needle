@@ -1,4 +1,4 @@
-import type { Logger } from "../core/logger.js";
+import type { Logger } from "../core/logo.js";
 
 /** 鉴权配置。core 不读环境变量：Workers 上的 process 语义不可靠，secret 必须由宿主传入。 */
 export interface AuthOptions {

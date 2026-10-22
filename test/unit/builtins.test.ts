@@ -4,7 +4,7 @@ import { createBuiltinCommands } from "../../src/console/builtins.js";
 import { CommandError, findCommand } from "../../src/console/commands.js";
 import type { CommandContext, CommandOutput } from "../../src/console/types.js";
 import { createRingSink } from "../../src/core/ring.js";
-import { createLogger } from "../../src/core/logger.js";
+import { newLogger } from "../../src/core/logo.js";
 import type { LogRecord } from "../../src/core/types.js";
 
 const metrics = { read: async () => ({ runtime: "node", uptimeMs: 1234 }) };
@@ -26,7 +26,7 @@ function setup() {
   const context = (args: string[]): CommandContext => ({
     args,
     user: "admin",
-    log: createLogger({ flushIntervalMs: 0, batch: false }),
+    log: newLogger({ flushIntervalMs: 0, batch: false }),
   });
   const run = async (name: string, args: string[] = []): Promise<CommandOutput> => {
     const command = findCommand(commands, name);

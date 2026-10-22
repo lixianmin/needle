@@ -1,13 +1,13 @@
 import { describe, expect, test } from "bun:test";
 
 import { createConsoleSource } from "../../src/console/source.js";
-import { createLogger } from "../../src/core/logger.js";
+import { newLogger } from "../../src/core/logo.js";
 import type { Command, Topic } from "../../src/console/types.js";
 
 const auth = { users: { admin: "secret" }, secret: "unit-test-secret" };
 
 function setup(extra: { commands?: Command[]; topics?: Topic[]; timeoutMs?: number } = {}) {
-  const logger = createLogger({ flushIntervalMs: 0, batch: false });
+  const logger = newLogger({ flushIntervalMs: 0, batch: false });
   const source = createConsoleSource({
     logger,
     auth,
