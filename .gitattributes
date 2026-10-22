@@ -1,0 +1,4 @@
+# dist 是 tsc 的编译产物（见 tsconfig.build.json / .githooks/pre-commit），
+# 随源码一起入库，好让 Git 依赖直接可用。
+# 标记为 generated：GitHub 折叠 PR 里的 dist 改动，review 只剩 src 的真实差异。
+dist/** linguist-generated=true
