@@ -149,7 +149,7 @@ type Sink = (batch: readonly LogRecord[]) => void
 - 记录先进缓冲区，不立即写。
 - 定时刷新，默认 100ms 一次（`flushIntervalMs`）。
 - **`warn`/`error` 立即刷新**：先把缓冲区里积压的全部写掉（不受 `maxBuffer` 与时间窗限制，一条不丢，因为 `error` 之后进程可能就没了），再同步写出当前这条，两次 IO 而不是等到下一个周期。排错时不能等 100ms，而且崩溃前那几条最关键。
-- 缓冲区上限默认 10000 条，超了丢最旧的并计数，丢弃数在 `ps` 里可见——宁可丢旧日志，不能把进程内存吃光。
+- 缓冲区上限默认 10000 条，**达到上限立即 flush**（不丢记录）——用它兜住内存，而不是牺牲日志。
 - 手动 `logo.flush()`；进程退出前调 `logo.dispose()`，否则缓冲区里最后一批会丢。
 - 定时批量只在“能同步写 stdout”的环境里启用（探测方式同 §7）。Workers 上每条立即写出：那边的输出本身就是平台级缓冲，而且响应结束后未触发的定时器可能被取消，批量反而会把日志弄丢。
 
@@ -202,7 +202,6 @@ const debug = createConsole({
   topics: [myTopic],
   basePath: "/console",
   title: "my-service",      // 头栏与浏览器标签页显示的项目名，默认 "console"
-  historySize: 1000,        // 可选，默认 1000
 })
 
 // Hono
@@ -338,7 +337,7 @@ interface Topic {
 
 ## 9. 指标
 
-`ps` 和 `top` 读一个内部指标对象，Node 与 Workers 各给一份实现。检测在首次 `read()` 时做一次并缓存。
+`top`（命令）与 `top`/`mem`（主题）读同一个内部指标对象，Node 与 Workers 各给一份实现。检测在首次 `read()` 时做一次并缓存。
 
 探测只看能力，**不做任何 import**：`import(变量)` 在 workerd 里是非法的（要求静态模块说明符，运行到就抛 `ERR_MODULE_DYNAMIC_SPEC`）。这条是 miniflare 集成测试跑出来的，不是推测。判定条件就是 `typeof process?.memoryUsage === "function"`：边缘运行时要么没有 `process`，要么只有残缺替身。
 

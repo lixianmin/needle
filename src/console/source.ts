@@ -6,7 +6,6 @@ import { createMetrics } from "./metrics.js";
 import { createBroadcast, type Broadcast } from "./sse.js";
 import type { AuthOptions, Command, CommandOutput, LogFiles, Topic } from "./types.js";
 
-const DEFAULT_HISTORY = 1000;
 const DEFAULT_TIMEOUT_MS = 10_000;
 
 /**
@@ -95,7 +94,7 @@ export function createConsoleSource(options: ConsoleSourceOptions): ConsoleSourc
   const metrics = createMetrics({ connections: () => broadcast.count() });
   const auth = createAuth(options.auth);
 
-  // 实时日志直接推给 SSE；历史去磁盘看（logs 命令列文件），内存里不再留环形缓冲。
+  // 实时日志推给 SSE；历史在磁盘上，用 log.list 列文件、点开看全文。
   options.logger.addSink(broadcast.sink);
 
   const basePath = options.basePath ?? "";

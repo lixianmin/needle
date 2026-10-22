@@ -5,12 +5,12 @@ import type { Command } from "../../src/console/types.js";
 
 const commands: Command[] = [
   { name: "help", note: "列出命令", run: () => ({ kind: "text", text: "" }) },
-  { name: "logs", note: "看日志", run: () => ({ kind: "text", text: "" }) },
+  { name: "log.list", note: "看日志", run: () => ({ kind: "text", text: "" }) },
 ];
 
 describe("splitArgs", () => {
   test("忽略多余空白", () => {
-    expect(splitArgs("  logs   20 ")).toEqual(["logs", "20"]);
+    expect(splitArgs("  log.list   20 ")).toEqual(["log.list", "20"]);
   });
 
   test("空串与纯空白", () => {
@@ -25,7 +25,7 @@ describe("splitArgs", () => {
 
 describe("findCommand", () => {
   test("命中返回命令", () => {
-    expect(findCommand(commands, "logs")?.note).toBe("看日志");
+    expect(findCommand(commands, "log.list")?.note).toBe("看日志");
   });
 
   test("未命中返回 undefined", () => {

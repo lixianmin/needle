@@ -4,7 +4,6 @@ import { createBuiltinCommands } from "../../src/console/builtins.js";
 import { CommandError, findCommand } from "../../src/console/commands.js";
 import type { CommandContext, CommandOutput } from "../../src/console/types.js";
 import { newLogger } from "../../src/core/logo/logo.js";
-import type { LogRecord } from "../../src/core/logo/types.js";
 
 const metrics = { read: async () => ({ runtime: "node", uptimeMs: 1234 }) };
 
@@ -35,7 +34,7 @@ function setup() {
 }
 
 describe("内置命令", () => {
-  test("logs 列出日志文件，文件名带链接", async () => {
+  test("log.list 列出日志文件，文件名带链接", async () => {
     const { run } = setup();
     const output = await run("log.list");
 

@@ -82,7 +82,7 @@ describe("createConsole", () => {
     expect((await api.handler(get("/health"))).status).toBe(404);
   });
 
-  test("logs 列出日志文件，/log 路由能取全文", async () => {
+  test("log.list 列出日志文件，/log 路由能取全文", async () => {
     const logger = newLogger({ flushIntervalMs: 0, batch: false });
     const files: Record<string, string> = { "info.log": '{"msg":"line1"}\n' };
     const api = createConsole({

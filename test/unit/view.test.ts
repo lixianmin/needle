@@ -142,7 +142,7 @@ describe("mountConsole", () => {
     replies.push({ ok: false, error: "unauthorized", unauthorized: true });
 
     const form = document.querySelector("form") as unknown as HTMLFormElement;
-    (document.querySelector("input") as unknown as HTMLInputElement).value = "logs";
+    (document.querySelector("input") as unknown as HTMLInputElement).value = "log.list";
     form.dispatchEvent(new window.Event("submit") as unknown as Event);
     await new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -208,7 +208,7 @@ describe("mountConsole", () => {
         user: "admin",
         commands: [
           { name: "help", note: "", args: null },
-          { name: "logs", note: "", args: "[n]" },
+          { name: "log.list", note: "", args: null },
           { name: "slow", note: "", args: null },
         ],
         topics: [{ name: "top", note: "", intervalMs: 1000 }],

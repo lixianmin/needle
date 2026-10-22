@@ -92,7 +92,7 @@ const server = await serve((req) => {
 
 console.log(`控制台: http://127.0.0.1:${server.port}/console`);
 console.log("账号:   xmli / 123456");
-console.log("试试:   auth xmli → 密码 123456 → logs 20 · top · room · io · burst · boom · slow");
+console.log("试试:   auth xmli → 密码 123456 → log.list · top · room · io · burst · boom · slow");
 console.log("订阅:   sub top 2000 · unsub top");
 
 let closing = false;
