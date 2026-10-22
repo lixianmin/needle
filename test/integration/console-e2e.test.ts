@@ -3,6 +3,7 @@ import { describe, expect, test } from "bun:test";
 import { createConsole } from "../../src/console/index.js";
 import { newLogger } from "../../src/core/logo/logo.js";
 import { serve } from "../../src/node/serve.js";
+import { TEST_VERSION } from "../fixtures.js";
 
 /**
  * 端到端：真起一个 node:http 服务，走真实 HTTP + SSE。
@@ -16,7 +17,7 @@ describe("控制台端到端", () => {
     const debug = createConsole({
       logger,
       auth: { users: { admin: "secret" }, secret: "e2e-secret" },
-      version: "0.1.0",
+      version: TEST_VERSION,
     });
     const server = await serve(debug.handler, { port: 0 });
     const base = `http://127.0.0.1:${server.port}`;

@@ -4,6 +4,7 @@ import { createConsoleSource } from "../../src/console/source.js";
 import { createLocalAdapter } from "../../src/console/ui/local.js";
 import type { ConsoleEvent } from "../../src/console/ui/adapter.js";
 import { newLogger } from "../../src/core/logo/logo.js";
+import { TEST_VERSION } from "../fixtures.js";
 
 function setup() {
   const logger = newLogger({ flushIntervalMs: 0, batch: false });
@@ -11,7 +12,7 @@ function setup() {
     logger,
     auth: { users: {} },
     user: "local-dev",
-    version: "0.1.0",
+    version: TEST_VERSION,
   });
   return { logger, source, adapter: createLocalAdapter(source) };
 }
