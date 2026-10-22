@@ -74,6 +74,17 @@ describe("/exec 适配器", () => {
     expect((await setup()(post("not json"))).status).toBe(400);
   });
 
+  test("声明长度超限时不必读完 body 就返回 413", async () => {
+    const res = await setup()(
+      new Request("http://x/exec", {
+        method: "POST",
+        headers: { "content-length": "999999" },
+        body: "{}",
+      }),
+    );
+    expect(res.status).toBe(413);
+  });
+
   test("超大 body 返回 413", async () => {
     const res = await setup()(post(JSON.stringify({ line: "hi", pad: "x".repeat(5000) })));
     expect(res.status).toBe(413);
