@@ -156,14 +156,23 @@ export function createSseResponse(init: SseInit): Response {
       });
 
       for (const { topic, intervalMs } of specs) {
+        let busy = false;
         timers.push(
           setInterval(() => {
-            try {
-              connection.send("topic", { name: topic.name, data: topic.read() });
-            } catch (error) {
-              // 主题读失败不该把整条流拖死，推一条错误说明就够了。
-              connection.send("topic", { name: topic.name, error: String(error) });
-            }
+            // 慢主题不叠加：上一轮没读完就跳过这一轮，否则连接会被越堆越多的
+            // 读取任务拖死。
+            if (busy) return;
+            busy = true;
+            Promise.resolve()
+              .then(() => topic.read())
+              .then((data) => connection.send("topic", { name: topic.name, data }))
+              .catch((error) => {
+                // 主题读失败不该把整条流拖死，推一条错误说明就够了。
+                connection.send("topic", { name: topic.name, error: String(error) });
+              })
+              .finally(() => {
+                busy = false;
+              });
           }, intervalMs),
         );
       }

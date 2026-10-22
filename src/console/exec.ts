@@ -1,24 +1,17 @@
-import type { Logger } from "../core/logger.js";
-import type { Auth } from "./auth.js";
-import { CommandError, findCommand, splitArgs } from "./commands.js";
-import type { Command, CommandOutput } from "./types.js";
+import type { ConsoleSource } from "./source.js";
 
-const DEFAULT_TIMEOUT_MS = 10_000;
 const DEFAULT_MAX_BODY_BYTES = 4096;
 
-export interface ExecOptions {
-  commands: readonly Command[];
-  auth: Auth;
-  log: Logger;
-  timeoutMs?: number;
+export interface ExecHttpOptions {
+  source: ConsoleSource;
   maxBodyBytes?: number;
 }
 
-type ExecResponse =
-  | { ok: true; output: CommandOutput }
+type Body =
+  | { ok: true; output: unknown }
   | { ok: false; error: string };
 
-function json(body: ExecResponse, status = 200): Response {
+function json(body: Body, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: { "content-type": "application/json; charset=utf-8" },
@@ -32,13 +25,12 @@ function bearerToken(header: string | null): string | null {
 }
 
 /**
- * POST /exec 的处理函数。
+ * `POST /exec` 的处理函数。
  *
- * 结果走 HTTP 响应体而不是 SSE：一问一答本来就是请求/响应，同步返回省掉了
- * 一套 requestId 对账和超时清理。SSE 只负责服务端主动推的东西。
+ * 这里只做 HTTP 相关的事：限额、解析、状态码映射。命令执行、鉴权、超时
+ * 都在 source 里，浏览器里的本地适配器走的是同一段逻辑。
  */
-export function createExecHandler(options: ExecOptions): (req: Request) => Promise<Response> {
-  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+export function createExecHandler(options: ExecHttpOptions): (req: Request) => Promise<Response> {
   const maxBodyBytes = options.maxBodyBytes ?? DEFAULT_MAX_BODY_BYTES;
 
   return async (req) => {
@@ -58,59 +50,13 @@ export function createExecHandler(options: ExecOptions): (req: Request) => Promi
     if (typeof line !== "string") {
       return json({ ok: false, error: "line 必须是字符串" }, 400);
     }
+    // 空命令是畸形请求，不是业务结果，走 400 而不是 200。
+    if (line.trim() === "") return json({ ok: false, error: "空命令" }, 400);
 
-    const [name, ...args] = splitArgs(line);
-    if (name === undefined) {
-      return json({ ok: false, error: "空命令" }, 400);
-    }
-
-    const command = findCommand(options.commands, name);
-    if (command === undefined) {
-      // 业务失败用 200 承载，前端据此渲染成输出区里的一行红字。
-      return json({ ok: false, error: `unknown command: ${name}` });
-    }
-
-    if (command.public !== true) {
-      const token = bearerToken(req.headers.get("authorization"));
-      const user = await options.auth.verify(token);
-      if (user === null) return json({ ok: false, error: "unauthorized" }, 401);
-      return runCommand(command, args, user.sub);
-    }
-
-    return runCommand(command, args, null);
+    const result = await options.source.exec(line, bearerToken(req.headers.get("authorization")));
+    if (result.ok) return json({ ok: true, output: result.output });
+    return result.unauthorized === true
+      ? json({ ok: false, error: result.error }, 401)
+      : json({ ok: false, error: result.error });
   };
-
-  async function runCommand(
-    command: Command,
-    args: string[],
-    user: string | null,
-  ): Promise<Response> {
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    let timedOut = false;
-
-    const deadline = new Promise<never>((_, reject) => {
-      timer = setTimeout(() => {
-        timedOut = true;
-        reject(new Error("timeout"));
-      }, timeoutMs);
-    });
-
-    try {
-      const output = await Promise.race([
-        Promise.resolve(command.run({ args, user, log: options.log })),
-        deadline,
-      ]);
-      return json({ ok: true, output });
-    } catch (error) {
-      if (timedOut) return json({ ok: false, error: "timeout" });
-
-      // 只回 message，不回堆栈：堆栈里有文件路径和行号，是给本地排错用的，
-      // 不该顺着 HTTP 跑到浏览器里。需要细节就看服务端日志。
-      const message = error instanceof CommandError ? error.message : String(error);
-      return json({ ok: false, error: message });
-    } finally {
-      // 不清掉的话，每个请求都会留一个 10 秒定时器，进程退不掉、测试也拖尾。
-      if (timer !== undefined) clearTimeout(timer);
-    }
-  }
 }
