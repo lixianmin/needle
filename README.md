@@ -118,6 +118,20 @@ logo.addSink(createLarkSink({ webhook: process.env.LARK_HOOK!, minLevel: "error"
 
 进程退出前调 `logo.dispose()`，否则缓冲区里最后一批会丢。
 
+## 本地跑一遍
+
+```bash
+bun examples/demo.ts
+```
+
+打开 <http://127.0.0.1:7801/__dbg>，账号 `admin` / `secret`。
+
+- 页面每秒滚一条 `heartbeat` —— 证明 SSE 活着。
+- `logs 20` 看历史，`ps` 看进程指标，`room` 看演示业务状态。
+- `boom` 故意抛错：服务端 stderr 里能看到"info 抢在 error 之前写出去"，且 error 带调用栈。
+- `slow` 睡 12 秒，会被 10 秒超时截断。
+- 未登录时只有 `help` / `login` / `logout` 可用，日志流也拉不到——这是设计，不是 bug。
+
 ## Cloudflare Workers
 
 ```ts
