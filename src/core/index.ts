@@ -6,6 +6,7 @@ export { createRingSink } from "./ring.js";
 export { stdoutSink } from "./sink.js";
 export { hasStdout } from "./runtime.js";
 export { buildRecord, safeStringify } from "./record.js";
+export { displayNumber, toHuman } from "./human.js";
 export { LEVELS } from "./types.js";
 
 export type { Logger, LoggerOptions } from "./logger.js";

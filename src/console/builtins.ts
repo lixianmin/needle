@@ -19,8 +19,9 @@ function formatTime(time: number): string {
   return new Date(time).toISOString().slice(0, 23);
 }
 
-function formatValue(value: unknown): string {
-  if (typeof value === "number") return Number.isInteger(value) ? String(value) : value.toFixed(2);
+/** 只处理非数字：数字原样往下传，排序和人类可读格式化都留给展示层。 */
+function keepRaw(value: unknown): string | number {
+  if (typeof value === "number") return value;
   if (typeof value === "string") return value;
   return JSON.stringify(value) ?? "";
 }
@@ -79,7 +80,7 @@ function createTopCommand(metrics: Metrics): Command {
       return {
         kind: "table",
         columns: ["metric", "value"],
-        rows: Object.entries(snapshot).map(([key, value]) => [key, formatValue(value)]),
+        rows: Object.entries(snapshot).map(([key, value]) => [key, keepRaw(value)]),
       };
     },
   };

@@ -1,3 +1,4 @@
+import { displayNumber, toHuman } from "../../core/human.js";
 import type { LogRecord } from "../../core/types.js";
 import type { CommandOutput } from "../types.js";
 import type { ConsoleAdapter, ConsoleEvent, ExecResult } from "./adapter.js";
@@ -32,15 +33,15 @@ function clock(time: number): string {
   return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.${pad(date.getMilliseconds(), 3)}`;
 }
 
-/** 指标值的人话格式：字节转 MB、毫秒转秒，别让人自己数零。 */
+/** 主题行的人话格式：字节走 toHuman，毫秒转秒，比率原样。 */
 function formatMetric(key: string, value: unknown): string {
   if (typeof value !== "number") {
     if (typeof value === "string") return value;
     return JSON.stringify(value) ?? "";
   }
-  if (key === "rss" || key === "heapUsed") return `${(value / 1024 / 1024).toFixed(1)}MB`;
+  if (key === "rss" || key === "heapUsed") return toHuman(value);
   if (key === "uptimeMs") return `${(value / 1000).toFixed(0)}s`;
-  return Number.isInteger(value) ? String(value) : value.toFixed(2);
+  return displayNumber(value);
 }
 
 function readHistory(): string[] {
@@ -124,26 +125,64 @@ export function mountConsole(root: HTMLElement, adapter: ConsoleAdapter): Consol
     const grid = el(doc, "table", "grid");
     const head = el(doc, "thead");
     const headRow = el(doc, "tr");
-    for (const column of columns) {
+    const body = el(doc, "tbody");
+
+    const show = (value: string | number | null): string =>
+      value === null ? "" : typeof value === "number" ? displayNumber(value) : String(value);
+
+    const renderBody = (sorted: Array<Array<string | number | null>>): void => {
+      body.replaceChildren();
+      for (const row of sorted) {
+        const tr = el(doc, "tr");
+        for (const value of row) {
+          const cell = el(doc, "td");
+          cell.textContent = show(value);
+          tr.append(cell);
+        }
+        body.append(tr);
+      }
+    };
+
+    // 表头点击排序，跟 gonsole 的 JsonTable 一个交互：再点一次反向。
+    let sortIndex = -1;
+    let direction = 1;
+
+    const headers = columns.map((column, index) => {
       const cell = el(doc, "th");
       cell.textContent = column;
+      cell.classList.add("sortable");
+      cell.addEventListener("click", () => {
+        if (sortIndex === index) direction = -direction;
+        else {
+          sortIndex = index;
+          direction = 1;
+        }
+        const sorted = [...rows].sort(
+          (left, right) => compare(left[index] ?? null, right[index] ?? null) * direction,
+        );
+        renderBody(sorted);
+        headers.forEach((header, i) => {
+          const base = columns[i] ?? "";
+          header.textContent = i === sortIndex ? `${base} ${direction === 1 ? "▲" : "▼"}` : base;
+        });
+      });
       headRow.append(cell);
-    }
+      return cell;
+    });
+
+    renderBody(rows);
     head.append(headRow);
-
-    const body = el(doc, "tbody");
-    for (const row of rows) {
-      const tr = el(doc, "tr");
-      for (const value of row) {
-        const cell = el(doc, "td");
-        cell.textContent = value === null ? "" : String(value);
-        tr.append(cell);
-      }
-      body.append(tr);
-    }
-
     grid.append(head, body);
     return grid;
+  }
+
+  /** 数字按数值比大小，其余按字符串；空值永远排在最后。 */
+  function compare(left: string | number | null, right: string | number | null): number {
+    if (left === null && right === null) return 0;
+    if (left === null) return 1;
+    if (right === null) return -1;
+    if (typeof left === "number" && typeof right === "number") return left - right;
+    return String(left).localeCompare(String(right));
   }
 
   function renderOutput(result: ExecResult): void {

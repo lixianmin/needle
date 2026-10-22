@@ -59,6 +59,8 @@ export const STYLE = `
   padding: 2px 12px; border-bottom: 1px solid rgba(147,161,161,0.08);
   vertical-align: top; white-space: nowrap;
 }
+.logo-console table.grid th.sortable { cursor: pointer; user-select: none; }
+.logo-console table.grid th.sortable:hover { background: rgba(38,139,210,0.16); }
 .logo-console table.grid tbody tr:last-child td { border-bottom: 0; }
 .logo-console table.grid tbody tr:nth-child(even) { background: rgba(147,161,161,0.04); }
 .logo-console table.grid tbody tr:hover { background: rgba(38,139,210,0.12); }
