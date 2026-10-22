@@ -273,6 +273,35 @@ describe("mountConsole", () => {
     expect(document.activeElement).toBe(input);
   });
 
+  test("列语义：duration 不用 K，bytes 永远带单位", async () => {
+    const { document, replies } = mount();
+    replies.push({
+      ok: true,
+      output: {
+        kind: "table",
+        columns: ["path", "latency"],
+        formats: ["number", "duration"],
+        rows: [
+          ["/a", 57_720],
+          ["/b", 312_000],
+        ],
+      },
+    });
+
+    const form = document.querySelector("form") as unknown as HTMLFormElement;
+    (document.querySelector("input") as unknown as HTMLInputElement).value = "latency";
+    form.dispatchEvent(new window.Event("submit") as unknown as Event);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const cells = [...document.querySelectorAll("table.grid tbody tr")].map((tr) =>
+      [...tr.querySelectorAll("td")].map((td) => td.textContent),
+    );
+    expect(cells).toEqual([
+      ["/a", "57.7s"],
+      ["/b", "5m 12s"],
+    ]);
+  });
+
   test("上键翻历史", () => {
     const { document } = mount();
     const input = document.querySelector("input") as unknown as HTMLInputElement;

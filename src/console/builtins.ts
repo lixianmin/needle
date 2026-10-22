@@ -1,4 +1,5 @@
 import type { RingSink } from "../core/ring.js";
+import { formatDuration, toHuman } from "../core/human.js";
 import { CommandError } from "./commands.js";
 import type { Metrics } from "./metrics.js";
 import type { Command, CommandContext, CommandOutput } from "./types.js";
@@ -17,11 +18,19 @@ function formatTime(time: number): string {
   return new Date(time).toISOString().slice(0, 23);
 }
 
-/** 只处理非数字：数字原样往下传，排序和人类可读格式化都留给展示层。 */
-function keepRaw(value: unknown): string | number {
-  if (typeof value === "number") return value;
+/**
+ * 指标表的取值格式。
+ *
+ * 这张表是"指标名 → 值"，同一列里既有毫秒也有字节，没法用列语义（formats）
+ * 表达，所以在服务端按字段名格式化。代价是这一列没法按数值排序——但跨单位
+ * 排序本来就没意义。
+ */
+function formatMetric(name: string, value: unknown): string | number {
   if (typeof value === "string") return value;
-  return JSON.stringify(value) ?? "";
+  if (typeof value !== "number") return JSON.stringify(value) ?? "";
+  if (name === "rss" || name === "heapUsed") return toHuman(value);
+  if (name.endsWith("Ms")) return formatDuration(value);
+  return value;
 }
 
 /** help 由调用方在合并自定义命令之后再插入——它要看到全量，而不是只有内置的。 */
@@ -79,7 +88,7 @@ function createTopCommand(metrics: Metrics): Command {
       return {
         kind: "table",
         columns: ["metric", "value"],
-        rows: Object.entries(snapshot).map(([key, value]) => [key, keepRaw(value)]),
+        rows: Object.entries(snapshot).map(([key, value]) => [key, formatMetric(key, value)]),
       };
     },
   };
