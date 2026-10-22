@@ -99,6 +99,7 @@ export function createConsoleSource(options: ConsoleSourceOptions): ConsoleSourc
   const builtins = createBuiltinCommands({
     records,
     metrics,
+    flush: () => options.logger.flush(),
     ...(options.env === undefined ? {} : { env: options.env }),
   });
 
