@@ -1,5 +1,5 @@
 import type { LogRecord } from "../../core/types.js";
-import type { ConsoleAdapter, ConsoleEvent, ExecResult, HelloInfo } from "./adapter.js";
+import type { AuthResult, ConsoleAdapter, ConsoleEvent, ExecResult, HelloInfo } from "./adapter.js";
 
 const TOKEN_KEY = "logo.console.token";
 
@@ -147,18 +147,36 @@ export function createFetchAdapter(options: FetchAdapterOptions): ConsoleAdapter
         return { ok: false, error: "unauthorized", unauthorized: true };
       }
 
-      const body = (await response.json()) as ExecResult;
+      return (await response.json()) as ExecResult;
+    },
 
-      // login 成功会返回一个 token：存下来并重连，因为日志流是鉴权的。
-      if (body.ok && body.output.kind === "json") {
-        const value = body.output.value as { token?: unknown } | null;
-        if (typeof value?.token === "string") {
-          writeToken(value.token);
-          void connect();
-        }
+    async authenticate(user: string, password: string): Promise<AuthResult> {
+      const response = await fetch(`${options.basePath}/auth`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ user, password }),
+      });
+
+      const body = (await response.json()) as {
+        ok?: boolean;
+        user?: string;
+        token?: string;
+        error?: string;
+      };
+
+      if (body.ok !== true || typeof body.token !== "string") {
+        return { ok: false, error: body.error ?? `登录失败（HTTP ${response.status}）` };
       }
 
-      return body;
+      writeToken(body.token);
+      // 日志流是鉴权的：拿到 token 立刻重连。
+      void connect();
+      return { ok: true, user: body.user ?? user };
+    },
+
+    logout() {
+      writeToken(null);
+      // 不断开现有流：服务端不追踪会话，下一个请求开始就是匿名了。
     },
 
     subscribe(listener) {

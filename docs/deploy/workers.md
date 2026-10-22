@@ -39,6 +39,8 @@ wrangler 只需要常规配置：
 
 `CONSOLE_SECRET` 用 `wrangler secret put` 注入。
 
+登录走 `POST /auth`（body `{ user, password }`），页面上的 `auth <user>` 会先提示输入密码，回车后调这个接口。密码不会出现在命令行文本、浏览器历史或服务端日志里。
+
 ## 必须固定 secret
 
 token 是 HMAC 签名的，secret 变了旧 token 就作废。Workers 的 isolate 随时会被回收重建，如果让库随机生成 secret，每次回收都会把已登录的浏览器踢掉——表现为"刚登录完又要登录"。

@@ -54,13 +54,12 @@ describe("Cloudflare Workers 兼容性", () => {
   });
 
   test("登录后 ps 报 workers 运行时（没有 perf_hooks）", async () => {
-    const login = await mf.dispatchFetch("http://x/exec", {
+    const login = await mf.dispatchFetch("http://x/auth", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ line: "login admin secret" }),
+      body: JSON.stringify({ user: "admin", password: "secret" }),
     });
-    const loginBody = (await login.json()) as { output: { value: { token: string } } };
-    const token = loginBody.output.value.token;
+    const token = ((await login.json()) as { token: string }).token;
 
     const res = await mf.dispatchFetch("http://x/exec", {
       method: "POST",
@@ -76,13 +75,12 @@ describe("Cloudflare Workers 兼容性", () => {
     const unauthorized = await mf.dispatchFetch("http://x/events");
     expect(unauthorized.status).toBe(401);
 
-    const login = await mf.dispatchFetch("http://x/exec", {
+    const login = await mf.dispatchFetch("http://x/auth", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ line: "login admin secret" }),
+      body: JSON.stringify({ user: "admin", password: "secret" }),
     });
-    const token = ((await login.json()) as { output: { value: { token: string } } }).output.value
-      .token;
+    const token = ((await login.json()) as { token: string }).token;
 
     const res = await mf.dispatchFetch("http://x/events", {
       headers: { authorization: `Bearer ${token}` },
