@@ -143,8 +143,41 @@ describe("mountConsole", () => {
 
     const line = document.querySelector(".topic-line");
     expect(line?.textContent).toContain("[top]");
-    expect(line?.textContent).toContain("rss=1.0MB");
+    expect(line?.textContent).toContain("rss=1.00M");
     expect(document.querySelector(".topics")).toBeNull();
+  });
+
+  test("表格：大数字转人话，点表头排序", async () => {
+    const { document, replies } = mount();
+    replies.push({
+      ok: true,
+      output: {
+        kind: "table",
+        columns: ["name", "size"],
+        rows: [
+          ["a", 5000],
+          ["b", 200],
+          ["c", 1048576],
+        ],
+      },
+    });
+
+    const form = document.querySelector("form") as unknown as HTMLFormElement;
+    (document.querySelector("input") as unknown as HTMLInputElement).value = "sizes";
+    form.dispatchEvent(new window.Event("submit") as unknown as Event);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const sizes = () => [...document.querySelectorAll("table.grid tbody tr")].map((tr) => tr.textContent);
+    expect(sizes()).toEqual(["a4.88K", "b200", "c1.00M"]);
+
+    // 点 size 表头：按数值升序，不是按字符串。
+    const headers = document.querySelectorAll("table.grid th");
+    (headers[1] as unknown as HTMLElement).dispatchEvent(new window.Event("click") as unknown as Event);
+    expect(sizes()).toEqual(["b200", "a4.88K", "c1.00M"]);
+
+    // 再点一次反向。
+    (headers[1] as unknown as HTMLElement).dispatchEvent(new window.Event("click") as unknown as Event);
+    expect(sizes()).toEqual(["c1.00M", "a4.88K", "b200"]);
   });
 
   test("上键翻历史", () => {

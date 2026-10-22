@@ -89,7 +89,7 @@ createConsole({
 });
 ```
 
-输出只有三种形态：`text` / `table` / `json`，前端照着渲染，不用解析字符串。
+输出只有三种形态：`text` / `table` / `json`，前端照着渲染，不用解析字符串。表格里的数字按人话显示（`36290560` → `34.61M`，行为对齐 got 的 `convert.ToHuman`），点表头按原始数值排序，再点一次反向。
 
 ## 浏览器与 Chrome 扩展
 
@@ -129,7 +129,7 @@ bun examples/demo.ts
 
 打开 <http://127.0.0.1:1234/console>，账号 `xmli` / `123456`。
 
-- `logs 20` 看历史，`top` 看进程指标，`room` 看演示业务状态，`burst 200` 连写 200 条看批量与实时推送。
+- `logs 20` 看历史，`top` 看进程指标，`room` 看演示业务状态，`io` 演示表格排序，`burst 200` 连写 200 条看批量与实时推送。
 - `sub top 2000` 订阅指标（每条落一行，不是常驻面板），`unsub top` 取消，`unsub` 取消全部。
 - `boom` 故意抛错：服务端 stderr 里能看到"info 抢在 error 之前写出去"，且 error 带调用栈。
 - `slow` 睡 12 秒，会被 10 秒超时截断。

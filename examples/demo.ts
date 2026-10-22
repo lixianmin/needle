@@ -46,6 +46,19 @@ const debug = createConsole({
       },
     },
     {
+      name: "io",
+      note: "演示表格排序与人话数字（点表头可排序）",
+      run: () => ({
+        kind: "table",
+        columns: ["path", "reads", "bytes", "hitRate"],
+        rows: [
+          ["/api/user", 1520, 3_600_000, 0.982],
+          ["/api/room", 84231, 128 * 1024 * 1024, 0.913],
+          ["/health", 12, 512, 1],
+        ],
+      }),
+    },
+    {
       name: "burst",
       note: "连写 n 条日志（看批量与实时推送）",
       args: "[n]",
@@ -74,7 +87,7 @@ const server = await serve((req) => {
 
 console.log(`控制台: http://127.0.0.1:${server.port}/console`);
 console.log("账号:   xmli / 123456");
-console.log("试试:   auth xmli → 密码 123456 → logs 20 · top · room · burst · boom · slow");
+console.log("试试:   auth xmli → 密码 123456 → logs 20 · top · room · io · burst · boom · slow");
 console.log("订阅:   sub top 2000 · unsub top");
 
 let closing = false;
