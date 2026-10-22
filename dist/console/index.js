@@ -6,12 +6,6 @@ import { createConsoleSource } from "./source.js";
 import { createSseResponse } from "./sse.js";
 import { createLocalAdapter } from "./ui/local.js";
 import { mountConsole } from "./ui/view.js";
-function json(body, status = 200) {
-    return new Response(JSON.stringify(body), {
-        status,
-        headers: { "content-type": "application/json; charset=utf-8" },
-    });
-}
 function bearer(header) {
     if (header === null)
         return null;
@@ -66,7 +60,7 @@ export function createConsole(options) {
         // 事件流必须鉴权：日志里什么都有，匿名不该看到。本地模式是唯一的例外，理由同 /log/。
         const user = await resolveUser(req);
         if (user === null)
-            return json({ ok: false, error: "unauthorized" }, 401);
+            return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
         return createSseResponse({
             user,
             title: source.title,
@@ -80,7 +74,7 @@ export function createConsole(options) {
     const routes = [
         { method: "GET", pattern: "/", handler: pageRoute },
         { method: "GET", pattern: "/index.html", handler: pageRoute },
-        { method: "GET", pattern: "/health", handler: () => json({ ok: true }) },
+        { method: "GET", pattern: "/health", handler: () => Response.json({ ok: true }) },
         { method: "GET", pattern: "/events", handler: eventsRoute },
         { method: "GET", pattern: "/log/:name", handler: logRoute },
         { method: "POST", pattern: "/exec", handler: ({ req }) => exec(req) },
@@ -94,7 +88,7 @@ export function createConsole(options) {
         source,
         async handler(req) {
             if (disposed)
-                return json({ ok: false, error: "console disposed" }, 503);
+                return Response.json({ ok: false, error: "console disposed" }, { status: 503 });
             const found = router.match(req);
             if (found === null)
                 return new Response("not found", { status: 404 });
