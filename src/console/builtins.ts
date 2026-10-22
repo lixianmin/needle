@@ -24,7 +24,8 @@ function keepRaw(value: unknown): string | number {
   return JSON.stringify(value) ?? "";
 }
 
-function createHelpCommand(list: () => readonly Command[]): Command {
+/** help 由调用方在合并自定义命令之后再插入——它要看到全量，而不是只有内置的。 */
+export function createHelpCommand(list: () => readonly Command[]): Command {
   return {
     name: "help",
     note: "列出所有命令",
@@ -149,9 +150,6 @@ export function createBuiltinCommands(deps: BuiltinDeps): Command[] {
     createSubCommand("sub"),
     createSubCommand("unsub"),
   ];
-
-  // help 要列出包括自己在内的全部命令，所以最后插入并持有同一个数组的引用。
-  commands.unshift(createHelpCommand(() => commands));
 
   return commands;
 }

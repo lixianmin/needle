@@ -1,7 +1,7 @@
 import type { Logger } from "../core/logger.js";
 import { createRingSink, type RingSink } from "../core/ring.js";
 import { createAuth, type Auth } from "./auth.js";
-import { createBuiltinCommands } from "./builtins.js";
+import { createBuiltinCommands, createHelpCommand } from "./builtins.js";
 import { CommandError, findCommand, splitArgs } from "./commands.js";
 import { createMetrics } from "./metrics.js";
 import { createBroadcast, type Broadcast } from "./sse.js";
@@ -108,10 +108,18 @@ export function createConsoleSource(options: ConsoleSourceOptions): ConsoleSourc
   // 调用方传入的命令优先：内置只是默认值，不是特权层。
   const custom = options.commands ?? [];
   const shadowed = new Set(custom.map((command) => command.name));
-  const commands: Command[] = [
+  const merged: Command[] = [
     ...custom,
     ...builtins.filter((command) => !shadowed.has(command.name)),
   ];
+
+  // help 要列全量（含自定义命令），所以先建空数组再插 —— 让它持有最终引用。
+  // 调用方自己定义了 help 就用它的，不硬塞一个内置版本。
+  const commands: Command[] = [];
+  const help = merged.some((command) => command.name === "help")
+    ? []
+    : [createHelpCommand(() => commands)];
+  commands.push(...help, ...merged);
 
   const customTopics = options.topics ?? [];
   const shadowedTopics = new Set(customTopics.map((topic) => topic.name));

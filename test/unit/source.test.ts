@@ -35,6 +35,18 @@ describe("createConsoleSource", () => {
     expect(allowed.ok).toBe(true);
   });
 
+  test("help 列出自定义命令", async () => {
+    const { source } = setup({
+      commands: [{ name: "room", note: "房间状态", public: true, run: () => ({ kind: "text", text: "" }) }],
+    });
+    const result = await source.exec("help", null);
+    const text = (result as { output: { text: string } }).output.text;
+
+    expect(text).toContain("room");
+    expect(text).toContain("房间状态");
+    expect(text).toContain("logs");
+  });
+
   test("调用方命令优先于同名内置命令", async () => {
     const { source } = setup({
       commands: [{ name: "help", note: "自定义", public: true, run: () => ({ kind: "text", text: "mine" }) }],
