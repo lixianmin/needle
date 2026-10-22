@@ -10,6 +10,7 @@ export { SortedTable, defaultComparer } from "./sorted-table.js";
 export type { Comparer } from "./sorted-table.js";
 export { displayNumber, formatDuration, toHuman } from "./human.js";
 export { UTC_OFFSET_MINUTES, formatTime } from "./time.js";
+export { LEVEL_HINTS, formatLine, parseLine } from "./line.js";
 export { LEVELS } from "./types.js";
 
 export type { Logger, LoggerOptions } from "./logger.js";

@@ -22,7 +22,9 @@ describe("stdoutSink", () => {
     stdoutSink([record("a"), record("b")]);
 
     expect(writes).toHaveLength(1);
-    expect(writes[0]).toBe('{"time":1,"level":"info","msg":"a"}\n{"time":1,"level":"info","msg":"b"}\n');
+    // 前缀是东八区时间 + 级别，JSON 里不再重复 time/level
+    expect(writes[0]).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2} \[I\] \{"msg":"a"\}\n/);
+    expect(writes[0]).toContain(' \[I\] {"msg":"b"}\n');
   });
 
   test("没有 stdout 时逐条 console.log", () => {
@@ -38,7 +40,7 @@ describe("stdoutSink", () => {
     }
 
     expect(logged).toHaveLength(2);
-    expect(logged[0]).toBe('{"time":1,"level":"info","msg":"a"}');
+    expect(logged[0]).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2} \[I\] \{"msg":"a"\}$/);
   });
 
   test("空批次什么都不做", () => {

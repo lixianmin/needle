@@ -109,7 +109,21 @@ logo.error("paid failed", err, { userId: 7 })
 
 `warn` 与 `error` 默认附带 `stack`（调用点栈帧，已剪掉 logger 内部帧）；`info`/`debug` 不采集，因为采集栈比拼字符串慢两个数量级。由 `stackLevel` 控制，默认 `"warn"`，可设成 `"error"` 或 `"off"`。
 
-### 6.3 记录格式
+### 6.3 落盘格式
+
+一行一条，前缀给人看、后面给机器解析：
+
+```
+2026-10-22T15:04:05 [I] {"msg":"burst","seq":1,"total":2}
+```
+
+- 时间是**东八区、精确到秒**，固定时区不跟机器走（§6.6）。
+- 级别是 `[D]/[I]/[W]/[E]`，与 Go 版 logo 一致。
+- `time` 与 `level` 只出现在前缀，JSON 里不再重复——同一条信息写两遍既浪费，也会出现两个可能不一致的来源。
+- JSON 部分由 `safeStringify` 产出，循环引用等异常值不会让整行写不出来。
+- `parseLine` 负责把载荷解析回来；前缀不参与解析。
+
+### 6.4 记录结构
 
 ```ts
 interface LogRecord {
@@ -122,7 +136,7 @@ interface LogRecord {
 }
 ```
 
-### 6.4 Sink 与批量刷新
+### 6.5 Sink 与批量刷新
 
 ```ts
 type Sink = (batch: readonly LogRecord[]) => void
@@ -141,7 +155,7 @@ type Sink = (batch: readonly LogRecord[]) => void
 
 sink 是同步函数。抛错被捕获并忽略（一条坏 sink 不能拖垮业务），第一次出错时用 `console.error` 打一行提示（Workers 没有 stderr）。需要网络或限流的 sink（飞书）在自己的 batch 回调里处理，logger 不管背压。
 
-### 6.5 基础集合：SortedTable
+### 6.7 基础集合：SortedTable
 
 移植 unicorn 的 `SortedTable<TKey, TValue>`（C#）：两个并行数组维护“key 始终有序”的键值表，查找二分，按下标访问 O(1)，插入/删除移动数组 O(n)。
 
@@ -151,6 +165,10 @@ sink 是同步函数。抛错被捕获并忽略（一条坏 sink 不能拖垮业
 - 自定义 `comparer` 可倒序。
 
 用途是“读多写少、需要顺序遍历、需要按下标取整列”的数据；高频随机插入用 `Map`。
+
+### 6.6 时区
+
+存储是 epoch 毫秒（不带时区），展示固定 `+08:00`。`formatTime()` 负责这件事。不跟机器时区走的理由：开发机在 UTC、服务器在 Shanghai 时，同一条日志两边显示的时间不一样，排障先要算时差。
 
 ## 7. 内置 sink
 
