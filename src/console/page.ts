@@ -2,6 +2,8 @@ import { UI_SCRIPT } from "./ui/script.generated.js";
 
 export interface PageOptions {
   basePath: string;
+  /** 头栏与浏览器标签页显示的名字。 */
+  title: string;
   version: string;
   /** SSE 的 topics 参数，如 "top:5000"。不传就用服务端默认间隔。 */
   topicSpec?: string;
@@ -22,7 +24,7 @@ export function renderPage(options: PageOptions): string {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>logo console</title>
+<title>${escapeAttribute(options.title)}</title>
 <style>html,body{margin:0;height:100%;background:#002b36}</style>
 </head>
 <body>

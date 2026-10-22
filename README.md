@@ -36,8 +36,9 @@ import { serve } from "@noodle/logo/node";
 
 const debug = createConsole({
   logger: logo,
-  auth: { users: { xmli: "123456" }, secret: process.env.DBG_SECRET },
+  title: "my-service",          // 头栏与浏览器标签页显示的项目名，默认 "console"
   basePath: "/console",
+  auth: { users: { xmli: "123456" }, secret: process.env.DBG_SECRET },
 });
 
 // 复用现有服务：handler 就是一个 (Request) => Response

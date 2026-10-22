@@ -162,6 +162,7 @@ const debug = createConsole({
   commands: [myCommand],
   topics: [myTopic],
   basePath: "/console",
+  title: "my-service",      // 头栏与浏览器标签页显示的项目名，默认 "console"
   historySize: 1000,        // 可选，默认 1000
 })
 

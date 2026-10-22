@@ -79,11 +79,12 @@ export function mountConsole(root: HTMLElement, adapter: ConsoleAdapter): Consol
 
   const wrap = el(doc, "div", "logo-console");
   const header = el(doc, "header");
-  const title = el(doc, "span");
-  title.textContent = "logo";
+  const title = el(doc, "span", "title");
+  title.textContent = "console";
+  const version = el(doc, "span", "version");
   const user = el(doc, "span", "who");
   user.textContent = "未登录";
-  header.append(title, user);
+  header.append(title, version, user);
 
   const output = el(doc, "div", "output");
   const form = el(doc, "form");
@@ -233,7 +234,9 @@ export function mountConsole(root: HTMLElement, adapter: ConsoleAdapter): Consol
   const unsubscribe = adapter.subscribe((event: ConsoleEvent) => {
     switch (event.type) {
       case "hello":
-        title.textContent = `logo · v${event.info.version}`;
+        // 头栏显示"谁的控制台"：项目名 + 版本 + 当前账号，全部靠左。
+        title.textContent = event.info.title;
+        version.textContent = `v${event.info.version}`;
         user.textContent = event.info.user ?? "未登录";
         availableTopics = event.info.topics;
         break;

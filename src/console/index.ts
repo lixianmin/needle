@@ -54,6 +54,7 @@ export function createConsole(options: ConsoleOptions): Console {
 
   const page = renderPage({
     basePath,
+    title: source.title,
     version: source.version,
     ...(options.topicSpec === undefined ? {} : { topicSpec: options.topicSpec }),
   });
@@ -94,6 +95,7 @@ export function createConsole(options: ConsoleOptions): Console {
 
         return createSseResponse({
           user: verified.sub,
+          title: source.title,
           version: source.version,
           commands: source.commands,
           topics: source.topics,

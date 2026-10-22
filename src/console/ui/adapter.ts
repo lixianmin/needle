@@ -2,6 +2,7 @@ import type { LogRecord } from "../../core/types.js";
 import type { CommandOutput } from "../types.js";
 
 export interface HelloInfo {
+  title: string;
   version: string;
   user: string | null;
   commands: Array<{ name: string; note: string; args: string | null }>;

@@ -85,6 +85,7 @@ export function createLocalAdapter(source: ConsoleSource): ConsoleAdapter {
       emit({
         type: "hello",
         info: {
+          title: source.title,
           version: source.version,
           user: source.user,
           commands: source.commands.map((command) => ({

@@ -108,6 +108,7 @@ describe("createSseResponse", () => {
   test("第一帧是 hello，带命令与用户", async () => {
     const response = createSseResponse({
       user: "admin",
+      title: "node",
       version: "0.1.0",
       commands,
       topics,
@@ -127,6 +128,7 @@ describe("createSseResponse", () => {
     const broadcast = createBroadcast();
     const response = createSseResponse({
       user: "admin",
+      title: "node",
       version: "0.1.0",
       commands,
       topics: [],
@@ -144,6 +146,7 @@ describe("createSseResponse", () => {
   test("订阅的主题按间隔推送", async () => {
     const response = createSseResponse({
       user: "admin",
+      title: "node",
       version: "0.1.0",
       commands,
       topics,
@@ -161,6 +164,7 @@ describe("createSseResponse", () => {
     const broadcast = createBroadcast();
     const response = createSseResponse({
       user: "admin",
+      title: "node",
       version: "0.1.0",
       commands,
       topics,
@@ -179,6 +183,7 @@ describe("createSseResponse", () => {
   test("心跳是注释帧", async () => {
     const response = createSseResponse({
       user: "admin",
+      title: "node",
       version: "0.1.0",
       commands,
       topics: [],
