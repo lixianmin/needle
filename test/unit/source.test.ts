@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import { createConsoleSource } from "../../src/console/source.js";
-import { newLogger } from "../../src/core/logo.js";
+import { newLogger } from "../../src/core/logo/logo.js";
 import type { Command, Topic } from "../../src/console/types.js";
 
 const auth = { users: { admin: "secret" }, secret: "unit-test-secret" };

@@ -1,5 +1,5 @@
-import { formatDuration, toHuman } from "../core/human.js";
-import { formatTime } from "../core/time.js";
+import { formatDuration, toHuman } from "../core/logo/human.js";
+import { formatTime } from "../core/logo/time.js";
 import { CommandError } from "./commands.js";
 import type { Metrics } from "./metrics.js";
 import type { Auth } from "./auth.js";

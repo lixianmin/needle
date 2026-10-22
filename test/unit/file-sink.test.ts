@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { createFileSink } from "../../src/node/file-sink.js";
-import type { Level, LogRecord } from "../../src/core/types.js";
+import type { Level, LogRecord } from "../../src/core/logo/types.js";
 
 const dirs: string[] = [];
 

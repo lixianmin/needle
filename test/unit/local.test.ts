@@ -3,7 +3,7 @@ import { describe, expect, test } from "bun:test";
 import { createConsoleSource } from "../../src/console/source.js";
 import { createLocalAdapter } from "../../src/console/ui/local.js";
 import type { ConsoleEvent } from "../../src/console/ui/adapter.js";
-import { newLogger } from "../../src/core/logo.js";
+import { newLogger } from "../../src/core/logo/logo.js";
 
 function setup() {
   const logger = newLogger({ flushIntervalMs: 0, batch: false });

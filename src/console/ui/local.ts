@@ -1,4 +1,4 @@
-import type { LogRecord } from "../../core/types.js";
+import type { LogRecord } from "../../core/logo/types.js";
 import type { ConsoleSource } from "../source.js";
 import type { AuthResult, ConsoleAdapter, ConsoleEvent, ExecResult, FileResult } from "./adapter.js";
 

@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import { createConsoleSource } from "../../src/console/source.js";
 import { createExecHandler } from "../../src/console/exec.js";
-import { newLogger } from "../../src/core/logo.js";
+import { newLogger } from "../../src/core/logo/logo.js";
 
 function setup(timeoutMs = 20) {
   const logger = newLogger({ flushIntervalMs: 0, batch: false });

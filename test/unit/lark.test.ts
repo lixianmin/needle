@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
-import { createLarkSink } from "../../src/lark/index.js";
-import type { LogRecord } from "../../src/core/types.js";
+import { createLarkSink } from "../../src/core/logo/lark.js";
+import type { LogRecord } from "../../src/core/logo/types.js";
 
 function setup(overrides: Partial<Parameters<typeof createLarkSink>[0]> = {}) {
   const calls: Array<{ url: string; body: string }> = [];

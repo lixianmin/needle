@@ -1,5 +1,5 @@
-import { safeStringify } from "../core/record.js";
-import { LEVELS, type Level, type Sink } from "../core/types.js";
+import { safeStringify } from "./record.js";
+import { LEVELS, type Level, type Sink } from "./types.js";
 
 const DEFAULT_BATCH_MS = 1000;
 const DEFAULT_MAX_PER_MINUTE = 20;

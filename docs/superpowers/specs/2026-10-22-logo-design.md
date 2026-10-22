@@ -436,6 +436,9 @@ package.json exports:
 ```
 src/
   core/         # 运行时无关
+    logo/           # 日志这一摊：门面、记录、行格式、sink、时间、类型
+      logo.ts / record.ts / line.ts / sink.ts / ring.ts
+      time.ts / human.ts / runtime.ts / types.ts / lark.ts
     collections/    # 数据结构（SortedTable 等）
     logger.ts       # logo 门面
     record.ts       # 记录构造与参数归一化
