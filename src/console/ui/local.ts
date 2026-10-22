@@ -83,7 +83,7 @@ export function createLocalAdapter(source: ConsoleSource): ConsoleAdapter {
       attach();
 
       emit({
-        type: "hello",
+        type: "handshake",
         info: {
           title: source.title,
           version: source.version,

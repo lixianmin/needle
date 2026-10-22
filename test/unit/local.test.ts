@@ -22,8 +22,8 @@ describe("createLocalAdapter", () => {
     const events: ConsoleEvent[] = [];
     adapter.subscribe((event) => events.push(event));
 
-    expect(events[0]?.type).toBe("hello");
-    const hello = events[0] as Extract<ConsoleEvent, { type: "hello" }>;
+    expect(events[0]?.type).toBe("handshake");
+    const hello = events[0] as Extract<ConsoleEvent, { type: "handshake" }>;
     expect(hello.info.user).toBe("local-dev");
     expect(hello.info.commands.map((command) => command.name)).toContain("logs");
   });

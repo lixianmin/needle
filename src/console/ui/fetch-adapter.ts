@@ -1,5 +1,5 @@
 import type { LogRecord } from "../../core/types.js";
-import type { AuthResult, ConsoleAdapter, ConsoleEvent, ExecResult, HelloInfo } from "./adapter.js";
+import type { AuthResult, ConsoleAdapter, ConsoleEvent, ExecResult, HandshakeInfo } from "./adapter.js";
 
 const TOKEN_KEY = "logo.console.token";
 
@@ -102,7 +102,7 @@ export function createFetchAdapter(options: FetchAdapterOptions): ConsoleAdapter
       const decoder = new TextDecoder();
       const parse = createFrameParser((event, data) => {
         try {
-          if (event === "hello") emit({ type: "hello", info: JSON.parse(data) as HelloInfo });
+          if (event === "handshake") emit({ type: "handshake", info: JSON.parse(data) as HandshakeInfo });
           else if (event === "log") emit({ type: "log", record: JSON.parse(data) as LogRecord });
           else if (event === "topic") {
             const payload = JSON.parse(data) as { name: string; data: unknown };

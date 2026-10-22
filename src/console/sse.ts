@@ -149,7 +149,7 @@ export function createSseResponse(init: SseInit): Response {
 
       detach = init.broadcast.attach(connection);
 
-      connection.send("hello", {
+      connection.send("handshake", {
         title: init.title,
         version: init.version,
         user: init.user,
