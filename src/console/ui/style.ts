@@ -27,7 +27,7 @@ export const STYLE = `
 .logo-console .output { flex: 1; overflow-y: auto; padding: 8px 12px; white-space: pre-wrap; }
 .logo-console .line { display: flex; gap: 8px; }
 .logo-console .line .t { color: var(--dim); flex: none; }
-.logo-console .line .lv { flex: none; width: 44px; text-transform: uppercase; }
+.logo-console .line .lv { flex: none; }
 .logo-console .lv-debug { color: var(--dim); }
 .logo-console .lv-info { color: var(--cyan); }
 .logo-console .lv-warn { color: var(--yellow); }

@@ -82,16 +82,37 @@ describe("createConsole", () => {
     expect((await api.handler(get("/health"))).status).toBe(404);
   });
 
-  test("日志进环形缓冲后能被 logs 命令读到", async () => {
-    const { logger, console: api } = setup();
+  test("logs 列出日志文件，/log 路由能取全文", async () => {
+    const logger = createLogger({ flushIntervalMs: 0, batch: false });
+    const files: Record<string, string> = { "info.log": '{"msg":"line1"}\n' };
+    const api = createConsole({
+      logger,
+      auth: { users: { admin: "secret" }, secret: "unit-test-secret" },
+      basePath: "/console",
+      logFiles: {
+        list: async () => [{ name: "info.log", size: 18, modified: 1_700_000_000_000 }],
+        read: async (name) => files[name] ?? null,
+      },
+    });
+
     const token = (await api.source.auth.login("admin", "secret")) as string;
+    const res = await api.handler(post("/console/exec", { line: "logs" }, token));
+    const body = (await res.json()) as {
+      output: { rows: Array<Array<{ text: string; href: string } | number | string>> };
+    };
+    const cell = body.output.rows[0]?.[0] as { text: string; href: string };
+    expect(cell.text).toBe("info.log");
 
-    logger.info("hello");
-    logger.flush();
+    // 链接里的 token 能直接取全文
+    const url = new URL(cell.href, "http://x");
+    expect((await api.handler(get(`${url.pathname}${url.search}`))).status).toBe(200);
 
-    const res = await api.handler(post("/exec", { line: "logs" }, token));
-    const body = (await res.json()) as { output: { rows: unknown[][] } };
-    expect(body.output.rows[0]?.[2]).toBe("hello");
+    // 没有 token 401，名字不存在 404
+    expect((await api.handler(get("/console/log/info.log"))).status).toBe(401);
+    const fileToken = url.searchParams.get("t") as string;
+    expect((await api.handler(get(`/console/log/nope.log?t=${fileToken}`))).status).toBe(404);
+
+    api.dispose();
   });
 
   test("dispose 之后返回 503 并摘掉 sink", async () => {
@@ -102,7 +123,8 @@ describe("createConsole", () => {
 
     logger.info("after");
     logger.flush();
-    expect(api.source.records.read()).toHaveLength(0);
+    // dispose 之后不会再往任何连接推；用 broadcast 的连接数近似验证已摘干净。
+    expect(api.source.broadcast.count()).toBe(0);
   });
 
   test("未知路径 404", async () => {

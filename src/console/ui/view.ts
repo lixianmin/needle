@@ -1,6 +1,7 @@
 import { displayNumber, formatDuration, toHuman } from "../../core/human.js";
+import { formatTime } from "../../core/time.js";
 import type { LogRecord } from "../../core/types.js";
-import type { ColumnFormat, CommandOutput } from "../types.js";
+import type { Cell, ColumnFormat, CommandOutput, LinkedCell } from "../types.js";
 import type { ConsoleAdapter, ConsoleEvent, ExecResult } from "./adapter.js";
 import { STYLE, STYLE_ID } from "./style.js";
 
@@ -27,11 +28,13 @@ function injectStyle(doc: Document): void {
   doc.head.append(style);
 }
 
-function clock(time: number): string {
-  const date = new Date(time);
-  const pad = (n: number, width = 2) => String(n).padStart(width, "0");
-  return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.${pad(date.getMilliseconds(), 3)}`;
-}
+/** 级别缩写，与 Go 版 logo 的 [D]/[I]/[W]/[E] 对齐。 */
+const LEVEL_HINTS: Record<string, string> = {
+  debug: "[D]",
+  info: "[I]",
+  warn: "[W]",
+  error: "[E]",
+};
 
 /** 主题行的人话格式：字节走 toHuman，毫秒转秒，比率原样。 */
 function formatMetric(key: string, value: unknown): string {
@@ -114,27 +117,27 @@ export function mountConsole(root: HTMLElement, adapter: ConsoleAdapter): Consol
   function renderLog(record: LogRecord): void {
     const line = el(doc, "div", "line");
     const time = el(doc, "span", "t");
-    time.textContent = clock(record.time);
+    time.textContent = formatTime(record.time);
     const level = el(doc, "span", `lv lv-${record.level}`);
-    level.textContent = record.level;
+    level.textContent = LEVEL_HINTS[record.level] ?? "[I]";
     const msg = el(doc, "span", "msg");
     msg.textContent = record.msg ?? "";
     line.append(time, level, msg);
     push(line);
   }
 
-  function table(
-    columns: string[],
-    rows: Array<Array<string | number | null>>,
-    formats: ColumnFormat[] = [],
-  ): HTMLElement {
+  function table(columns: string[], rows: Cell[][], formats: ColumnFormat[] = []): HTMLElement {
     const grid = el(doc, "table", "grid");
     const head = el(doc, "thead");
     const headRow = el(doc, "tr");
     const body = el(doc, "tbody");
 
-    const render = (format: ColumnFormat, value: string | number | null): string => {
+    const isLink = (value: Cell): value is LinkedCell =>
+      typeof value === "object" && value !== null;
+
+    const render = (format: ColumnFormat, value: Cell): string => {
       if (value === null) return "";
+      if (isLink(value)) return value.text;
       if (typeof value !== "number") return String(value);
       if (format === "duration") return formatDuration(value);
       if (format === "bytes") return toHuman(value);
@@ -142,16 +145,25 @@ export function mountConsole(root: HTMLElement, adapter: ConsoleAdapter): Consol
       return displayNumber(value);
     };
 
-    const show = (index: number, value: string | number | null): string =>
-      render(formats[index] ?? "auto", value);
+    const show = (index: number, value: Cell): string => render(formats[index] ?? "auto", value);
 
-    const renderBody = (sorted: Array<Array<string | number | null>>): void => {
+    const renderBody = (sorted: Cell[][]): void => {
       body.replaceChildren();
       for (const row of sorted) {
         const tr = el(doc, "tr");
         row.forEach((value, index) => {
           const cell = el(doc, "td");
-          cell.textContent = show(index, value);
+          if (isLink(value)) {
+            // 日志文件这类：点开新窗口看全文。noopener 是必须的，别让新页面拿到 opener。
+            const link = el(doc, "a");
+            link.href = value.href;
+            link.target = "_blank";
+            link.rel = "noopener";
+            link.textContent = value.text;
+            cell.append(link);
+          } else {
+            cell.textContent = show(index, value);
+          }
           tr.append(cell);
         });
         body.append(tr);
@@ -173,7 +185,7 @@ export function mountConsole(root: HTMLElement, adapter: ConsoleAdapter): Consol
           direction = 1;
         }
         const sorted = [...rows].sort(
-          (left, right) => compare(left[index] ?? null, right[index] ?? null) * direction,
+          (left, right) => compare(left[index], right[index]) * direction,
         );
         renderBody(sorted);
         headers.forEach((header, i) => {
@@ -191,13 +203,17 @@ export function mountConsole(root: HTMLElement, adapter: ConsoleAdapter): Consol
     return grid;
   }
 
-  /** 数字按数值比大小，其余按字符串；空值永远排在最后。 */
-  function compare(left: string | number | null, right: string | number | null): number {
-    if (left === null && right === null) return 0;
-    if (left === null) return 1;
-    if (right === null) return -1;
-    if (typeof left === "number" && typeof right === "number") return left - right;
-    return String(left).localeCompare(String(right));
+  /** 数字按数值比大小，其余按文本；空值永远排在最后。 */
+  function compare(left: Cell | undefined, right: Cell | undefined): number {
+    const a = left ?? null;
+    const b = right ?? null;
+    if (a === null && b === null) return 0;
+    if (a === null) return 1;
+    if (b === null) return -1;
+    const av = typeof a === "object" ? a.text : a;
+    const bv = typeof b === "object" ? b.text : b;
+    if (typeof av === "number" && typeof bv === "number") return av - bv;
+    return String(av).localeCompare(String(bv));
   }
 
   function renderOutput(result: ExecResult): void {

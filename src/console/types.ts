@@ -23,12 +23,40 @@ export interface AuthOptions {
  */
 export type ColumnFormat = "auto" | "bytes" | "duration" | "number";
 
+/** 日志文件条目。由宿主注入（Node 侧读磁盘，Workers 侧没有）。 */
+export interface LogFileEntry {
+  name: string;
+  size: number;
+  /** epoch 毫秒 */
+  modified: number;
+}
+
+/**
+ * 日志文件的读取端口。
+ *
+ * 控制台本身不认识 fs —— 浏览器/Workers 里没有文件系统。Node 入口提供实现，
+ * 没注入时 logs 命令会明确说"未配置"。
+ */
+export interface LogFiles {
+  list(): Promise<LogFileEntry[]>;
+  /** 读取整个文件；不在白名单内返回 null。 */
+  read(name: string): Promise<string | null>;
+}
+
+/** 表格里可以带链接的单元格，点开新窗口（用于看日志全文）。 */
+export interface LinkedCell {
+  text: string;
+  href: string;
+}
+
+export type Cell = string | number | null | LinkedCell;
+
 export type CommandOutput =
   | { kind: "text"; text: string }
   | {
       kind: "table";
       columns: string[];
-      rows: Array<Array<string | number | null>>;
+      rows: Cell[][];
       /** 与 columns 等长；省略则全部按 auto 处理。 */
       formats?: ColumnFormat[];
     }

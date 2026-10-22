@@ -27,11 +27,11 @@ describe("createConsoleSource", () => {
 
   test("受限命令需要 token", async () => {
     const { source } = setup();
-    const denied = await source.exec("logs", null);
+    const denied = await source.exec("top", null);
     expect(denied).toEqual({ ok: false, error: "unauthorized", unauthorized: true });
 
     const token = (await source.auth.login("admin", "secret")) as string;
-    const allowed = await source.exec("logs", token);
+    const allowed = await source.exec("top", token);
     expect(allowed.ok).toBe(true);
   });
 
@@ -55,7 +55,7 @@ describe("createConsoleSource", () => {
     expect((result as { output: { text: string } }).output.text).toBe("mine");
   });
 
-  test("日志同时进环形缓冲与广播", async () => {
+  test("日志实时进广播", async () => {
     const { logger, source } = setup();
     const received: unknown[] = [];
     source.broadcast.attach({ send: (_event, data) => received.push(data), close: () => {} });
@@ -63,8 +63,7 @@ describe("createConsoleSource", () => {
     logger.info("hello");
     logger.flush();
 
-    expect(source.records.read()[0]?.msg).toBe("hello");
-    expect(received).toHaveLength(1);
+    expect((received[0] as { msg: string }).msg).toBe("hello");
   });
 
   test("默认主题 top 与 mem 都在", () => {
@@ -110,7 +109,7 @@ describe("createConsoleSource", () => {
 
     logger.info("after");
     logger.flush();
-    expect(source.records.read()).toHaveLength(0);
+    expect(source.broadcast.count()).toBe(0);
 
     expect(await source.exec("help", null)).toEqual({ ok: false, error: "console disposed" });
   });

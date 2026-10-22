@@ -93,7 +93,9 @@ describe("mountConsole", () => {
     emit({ type: "log", record: { time: Date.now(), level: "error", msg: "boom" } });
 
     const line = document.querySelector(".line");
-    expect(line?.querySelector(".lv-error")?.textContent).toBe("error");
+    expect(line?.querySelector(".lv-error")?.textContent).toBe("[E]");
+    // 时间固定东八区、精确到秒：2026-10-22T15:04:05
+    expect(line?.querySelector(".t")?.textContent).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/);
     expect(line?.querySelector(".msg")?.textContent).toBe("boom");
   });
 
