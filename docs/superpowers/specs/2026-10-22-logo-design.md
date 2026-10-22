@@ -255,7 +255,7 @@ POST /exec   { "line": "log.list" }
 
 ```
 event: handshake
-data: {"title":"Noodle","version":"0.1.0","user":"admin","commands":[...],"topics":[...]}
+data: {"title":"Needle","version":"0.1.0","user":"admin","commands":[...],"topics":[...]}
 
 event: log
 data: {"time":...,"level":"info","msg":"..."}
@@ -414,7 +414,7 @@ token   = payload + "." + base64url(HMAC-SHA256(secret, payload))
 
 ## 13. 包与构建
 
-包名 `@noodle/logo`。
+包名 `@needle/logo`。
 
 ```
 package.json exports:

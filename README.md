@@ -1,4 +1,4 @@
-# @noodle/logo
+# @needle/logo
 
 线上排障不用再 `docker exec` 进去 `tail -f`。给 Node 服务（或 Workers）挂一个浏览器控制台：看实时日志、敲命令查状态、订阅周期性指标。零运行时依赖。
 
@@ -11,7 +11,7 @@
 ## 一行日志
 
 ```ts
-import { logo } from "@noodle/logo";
+import { logo } from "@needle/logo";
 
 logo.info("order created", { orderId: 42 });
 // {"time":1758991234567,"level":"info","msg":"order created","orderId":42}
@@ -33,9 +33,9 @@ db.info("connected");
 `sinks` 只是**初始**列表，文件、飞书都是事后挂上去的：
 
 ```ts
-import { logo } from "@noodle/logo";
-import { createFileSink } from "@noodle/logo/node";
-import { createLarkSink } from "@noodle/logo/lark";
+import { logo } from "@needle/logo";
+import { createFileSink } from "@needle/logo/node";
+import { createLarkSink } from "@needle/logo/lark";
 
 logo.addSink(createFileSink({ dir: "logs" }));                    // 落盘，按级别分文件
 logo.addSink(createLarkSink({ webhook: process.env.LARK_HOOK!,    // 推到飞书
@@ -52,7 +52,7 @@ process.on("SIGTERM", () => logo.dispose());   // 退出前冲掉缓冲区
 查找二分，遍历天然是排好序的。
 
 ```ts
-import { SortedTable } from "@noodle/logo";
+import { SortedTable } from "@needle/logo";
 
 const table = new SortedTable<number, string>();
 table.add(5, "e");
@@ -69,9 +69,9 @@ table.tryGet(9);                      // undefined
 
 ```ts
 import http from "node:http";
-import { logo } from "@noodle/logo";
-import { createConsole } from "@noodle/logo/console";
-import { serve } from "@noodle/logo/node";
+import { logo } from "@needle/logo";
+import { createConsole } from "@needle/logo/console";
+import { serve } from "@needle/logo/node";
 
 const debug = createConsole({
   logger: logo,
@@ -138,8 +138,8 @@ createConsole({
 同一套控制台，挂在 DOM 上而不是 HTTP 上：
 
 ```ts
-import { logo } from "@noodle/logo";
-import { createBrowserConsole } from "@noodle/logo/console";
+import { logo } from "@needle/logo";
+import { createBrowserConsole } from "@needle/logo/console";
 
 const panel = createBrowserConsole({
   logger: logo,
@@ -154,8 +154,8 @@ Chrome 扩展的 popup / devtools 面板同样适用——UI 是 DOM 构建，�
 ## 写文件与推飞书
 
 ```ts
-import { createFileSink } from "@noodle/logo/node";
-import { createLarkSink } from "@noodle/logo/lark";
+import { createFileSink } from "@needle/logo/node";
+import { createLarkSink } from "@needle/logo/lark";
 
 // 按级别分文件并级联：info.log 收 info/warn/error，warn.log 收 warn/error，error.log 只收 error
 logo.addSink(createFileSink({ dir: "logs", maxBytes: 10 * 1024 * 1024 }));
