@@ -3,14 +3,12 @@ import { describe, expect, test } from "bun:test";
 import { createBuiltinCommands } from "../../src/console/builtins.js";
 import { CommandError, findCommand } from "../../src/console/commands.js";
 import type { CommandContext, CommandOutput } from "../../src/console/types.js";
-import { createRingSink } from "../../src/core/collections/ring.js";
 import { newLogger } from "../../src/core/logo/logo.js";
 import type { LogRecord } from "../../src/core/logo/types.js";
 
 const metrics = { read: async () => ({ runtime: "node", uptimeMs: 1234 }) };
 
 function setup() {
-  const records = createRingSink(100);
   const commands = createBuiltinCommands({
     metrics,
     auth: { login: async () => null, verify: async () => null },
@@ -33,7 +31,7 @@ function setup() {
     if (command === undefined) throw new Error(`没有命令 ${name}`);
     return command.run(context(args));
   };
-  return { records, commands, run };
+  return { commands, run };
 }
 
 describe("内置命令", () => {

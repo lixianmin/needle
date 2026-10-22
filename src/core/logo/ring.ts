@@ -1,4 +1,4 @@
-import type { LogRecord, Sink } from "../logo/types.js";
+import type { LogRecord, Sink } from "./types.js";
 
 /** 既是 sink（能被 logger 收下），又能被控制台按时间顺序读出来。 */
 export type RingSink = Sink & { read(count?: number): LogRecord[] };
