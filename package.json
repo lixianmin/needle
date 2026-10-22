@@ -27,12 +27,15 @@
     "dist"
   ],
   "scripts": {
+    "build:ui": "bun scripts/build-ui.mjs",
+    "build": "bun run build:ui && tsc -p tsconfig.build.json",
     "test": "bun test",
     "typecheck": "tsc --noEmit",
-    "build": "tsc -p tsconfig.build.json"
+    "size": "bun build src/core/index.ts --minify --target=browser | gzip -c | wc -c && bun build src/console/index.ts --minify --target=browser | gzip -c | wc -c"
   },
   "devDependencies": {
     "@types/bun": "^1.4.3",
+    "miniflare": "^4.20260730.0",
     "typescript": "7.0.2"
   }
 }
