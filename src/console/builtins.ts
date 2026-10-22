@@ -146,17 +146,6 @@ function createSubCommand(name: "sub" | "unsub"): Command {
   };
 }
 
-function createLogoutCommand(): Command {
-  return {
-    name: "logout",
-    note: "清除本地登录态",
-    public: true,
-    run(): CommandOutput {
-      return { kind: "text", text: "已退出（清除本地 token 即可）" };
-    },
-  };
-}
-
 /**
  * 内置命令。
  *
@@ -168,7 +157,6 @@ export function createBuiltinCommands(deps: BuiltinDeps): Command[] {
     createLogListCommand({ basePath: deps.basePath, ...(deps.logFiles === undefined ? {} : { logFiles: deps.logFiles }) }),
     createTopCommand(deps.metrics),
     createAuthCommand(),
-    createLogoutCommand(),
     createSubCommand("sub"),
     createSubCommand("unsub"),
   ];

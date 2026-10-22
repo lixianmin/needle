@@ -74,15 +74,15 @@ describe("内置命令", () => {
     await expect(run("unsub", [])).rejects.toBeInstanceOf(CommandError);
   });
 
-  test("logout 返回文本", async () => {
-    const { run } = setup();
-    expect((await run("logout")).kind).toBe("text");
+  test("logout 不再是内置命令", () => {
+    const { commands } = setup();
+    expect(findCommand(commands, "logout")).toBeUndefined();
   });
 
-  test("只有 help/auth/logout 可以匿名执行", () => {
+  test("只有 auth/sub/unsub 可以匿名执行", () => {
     const { commands } = setup();
     const publicNames = commands.filter((command) => command.public).map((command) => command.name);
-    expect(publicNames.sort()).toEqual(["auth", "logout", "sub", "unsub"]);
+    expect(publicNames.sort()).toEqual(["auth", "sub", "unsub"]);
   });
 
 });

@@ -96,7 +96,6 @@ help              列出所有命令
 log.list          列出日志文件（点文件名看全文）
 top               看一眼进程指标
 auth <user>       登录（下一步提示输密码，输入不回显）
-logout            清除本地登录态
 
 $ auth xmli
 密码:            # 这里输入不回显，不进历史
@@ -106,7 +105,9 @@ $ sub t<Tab>     # 第二个词补主题名
 $ log.list
 ```
 
-未登录时只能跑 `help` / `auth` / `logout`。日志流本身也要鉴权——那里什么都有。
+未登录时只能跑 `help` / `auth` / `sub` / `unsub`。日志流本身也要鉴权——那里什么都有。
+
+登录态是带 `exp` 的签名 token，默认 12 小时过期（`auth.ttlMs` 可调）；过期后控制台回到未登录，重新 `auth` 即可。
 
 口令是两步的：`auth <user>` 回车后输入框切成 `type=password`，密码不回显、不进历史、也不作为命令行内容发给服务端（走独立的 `POST /auth`）。这是把它和密码分开的唯一理由。
 
@@ -176,7 +177,7 @@ bun examples/demo.ts
 - `sub top 2000` 订阅指标（每条落一行，不是常驻面板），`unsub top` 取消，`unsub` 取消全部。
 - `boom` 故意抛错：服务端 stderr 里能看到"info 抢在 error 之前写出去"，且 error 带调用栈。
 - `slow` 睡 12 秒，会被 10 秒超时截断。
-- 未登录时只有 `help` / `login` / `logout` 可用，日志流也拉不到——这是设计，不是 bug。
+- 未登录时只有 `help` / `auth` 可用，日志流也拉不到——这是设计，不是 bug。
 
 ## Cloudflare Workers
 
@@ -202,3 +203,7 @@ export default { fetch: createConsole({ logger: logo, auth }).handler };
 - **控制台拆成 kernel + 适配器**：同一套命令在服务器上走 HTTP/SSE，在浏览器里直调，不会出现两份实现。
 
 设计文档见 `docs/superpowers/specs/2026-10-22-logo-design.md`。
+
+## 开发
+
+`dist/` 随源码一起提交，这样 `git+https://github.com/lixianmin/needle.git` 这类依赖不需要构建步骤就能用。本地克隆后执行一次 `git config core.hooksPath .githooks`，之后每次提交都会自动重建 `dist/` 并 stage 进同一个 commit。

@@ -41,7 +41,6 @@ export interface ConsoleAdapter {
    */
   fetchFile(href: string): Promise<FileResult>;
   authenticate(user: string, password: string): Promise<AuthResult>;
-  logout(): void;
   /** 订阅的主题变了：重建流，用新的 topics 参数。传空串表示全部退订。 */
   setTopics(spec: string): void;
   subscribe(listener: (event: ConsoleEvent) => void): () => void;

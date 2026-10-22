@@ -1,0 +1,140 @@
+import { createAuthRoute } from "./authenticate.js";
+import { createExecHandler } from "./exec.js";
+import { renderPage } from "./page.js";
+import { createConsoleSource } from "./source.js";
+import { createSseResponse } from "./sse.js";
+import { createLocalAdapter } from "./ui/local.js";
+import { mountConsole } from "./ui/view.js";
+function normalizeBasePath(value) {
+    if (value === "" || value === "/")
+        return "";
+    const trimmed = value.replace(/\/+$/, "");
+    return trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
+}
+function json(body, status = 200) {
+    return new Response(JSON.stringify(body), {
+        status,
+        headers: { "content-type": "application/json; charset=utf-8" },
+    });
+}
+function bearer(header) {
+    if (header === null)
+        return null;
+    const match = /^bearer\s+(.+)$/i.exec(header.trim());
+    return match?.[1] ?? null;
+}
+/**
+ * 服务端的控制台：一个 `(Request) => Response`。
+ *
+ * 只做三件事：剥掉 basePath、按路径分派、把 token 换成用户身份。命令怎么执行、
+ * 日志怎么推，全在 source 里——同一段逻辑浏览器里也在用。
+ */
+export function createConsole(options) {
+    const source = createConsoleSource(options);
+    const basePath = normalizeBasePath(options.basePath ?? "");
+    const exec = createExecHandler({ source });
+    const authenticate = createAuthRoute({ source });
+    const page = renderPage({
+        basePath,
+        title: source.title,
+        version: source.version,
+        ...(options.topicSpec === undefined ? {} : { topicSpec: options.topicSpec }),
+    });
+    let disposed = false;
+    function strip(pathname) {
+        if (basePath === "")
+            return pathname;
+        if (pathname === basePath)
+            return "/";
+        if (!pathname.startsWith(`${basePath}/`))
+            return null;
+        return pathname.slice(basePath.length);
+    }
+    return {
+        source,
+        async handler(req) {
+            if (disposed)
+                return json({ ok: false, error: "console disposed" }, 503);
+            const url = new URL(req.url);
+            const path = strip(url.pathname);
+            if (path === null)
+                return new Response("not found", { status: 404 });
+            if (req.method === "GET" && (path === "/" || path === "/index.html")) {
+                return new Response(page, { headers: { "content-type": "text/html; charset=utf-8" } });
+            }
+            if (req.method === "GET" && path === "/health")
+                return json({ ok: true });
+            if (req.method === "GET" && path.startsWith("/log/")) {
+                // 本地模式（配了 user）跳过 token：能看到控制台的人本来就能碰到这个进程，
+                // 再要一次 token 只是仪式——这条口径必须和 exec 一致，否则本地模式下
+                // 命令能跑、日志却 401。
+                if (source.user === null) {
+                    const verified = await source.auth.verify(bearer(req.headers.get("authorization")));
+                    if (verified === null)
+                        return new Response("unauthorized", { status: 401 });
+                }
+                const name = decodeURIComponent(path.slice("/log/".length));
+                const body = await source.logFiles?.read(name);
+                if (body === null || body === undefined)
+                    return new Response("not found", { status: 404 });
+                return new Response(body, {
+                    headers: {
+                        "content-type": "text/plain; charset=utf-8",
+                        "cache-control": "no-store",
+                    },
+                });
+            }
+            if (req.method === "POST" && path === "/exec")
+                return exec(req);
+            if (req.method === "POST" && path === "/auth")
+                return authenticate(req);
+            if (req.method === "GET" && path === "/events") {
+                // 事件流必须鉴权：日志里什么都有，匿名不该看到。
+                // 本地模式（配了 user）是唯一的例外，理由同 /log/。
+                let user = source.user;
+                if (user === null) {
+                    const verified = await source.auth.verify(bearer(req.headers.get("authorization")));
+                    if (verified === null)
+                        return json({ ok: false, error: "unauthorized" }, 401);
+                    user = verified.sub;
+                }
+                return createSseResponse({
+                    user,
+                    title: source.title,
+                    version: source.version,
+                    commands: source.commands,
+                    topics: source.topics,
+                    topicSpec: url.searchParams.get("topics"),
+                    broadcast: source.broadcast,
+                });
+            }
+            return new Response("not found", { status: 404 });
+        },
+        dispose() {
+            disposed = true;
+            source.dispose();
+        },
+    };
+}
+/**
+ * 浏览器页面 / 扩展里的控制台：把面板挂到一个 DOM 节点上。
+ *
+ * 与 createConsole 用同一个 source，区别只是没有 HTTP：命令直调，
+ * 日志通过 broadcast 直接流到面板。
+ */
+export function createBrowserConsole(options) {
+    const { element, ...rest } = options;
+    const source = createConsoleSource(rest);
+    const view = mountConsole(element, createLocalAdapter(source));
+    return {
+        source,
+        view,
+        dispose() {
+            view.dispose();
+            source.dispose();
+        },
+    };
+}
+export { createConsoleSource } from "./source.js";
+export { mountConsole } from "./ui/view.js";
+export { createLocalAdapter } from "./ui/local.js";

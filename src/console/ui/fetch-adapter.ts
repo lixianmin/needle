@@ -191,11 +191,6 @@ export function createFetchAdapter(options: FetchAdapterOptions): ConsoleAdapter
       return { ok: true, user: body.user ?? user };
     },
 
-    logout() {
-      writeToken(null);
-      // 不断开现有流：服务端不追踪会话，下一个请求开始就是匿名了。
-    },
-
     setTopics(spec: string) {
       topicSpec = spec;
       if (listeners.size > 0) void connect();

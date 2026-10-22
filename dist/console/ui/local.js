@@ -1,0 +1,94 @@
+/**
+ * 进程内适配器：浏览器页面、Chrome 扩展里用这个。
+ *
+ * 没有 HTTP，没有 token —— 代码本来就跑在你的应用里，能看到控制台就等于
+ * 能看到这个进程。鉴权在这一层没有意义，所以 source 用本地用户模式创建。
+ */
+export function createLocalAdapter(source) {
+    const listeners = new Set();
+    let attached = false;
+    let timers = [];
+    const emit = (event) => {
+        for (const listener of listeners)
+            listener(event);
+    };
+    function attach() {
+        if (attached)
+            return;
+        attached = true;
+        source.broadcast.attach({
+            send(event, data) {
+                if (event === "log")
+                    emit({ type: "log", record: data });
+                if (event === "topic") {
+                    const payload = data;
+                    emit({ type: "topic", name: payload.name, data: payload.data });
+                }
+            },
+            close() {
+                attached = false;
+            },
+        });
+    }
+    return {
+        exec(line) {
+            // 本地模式没有 token：source 里配了 user，鉴权直接放行。
+            return source.exec(line, null);
+        },
+        fetchFile() {
+            return Promise.resolve({ ok: false, error: "浏览器里没有日志文件可读，用 log.list 看不到内容" });
+        },
+        async authenticate(user, password) {
+            const result = await source.authenticate(user, password);
+            return result.ok ? { ok: true, user: result.user } : { ok: false, error: result.error };
+        },
+        setTopics(spec) {
+            for (const timer of timers)
+                clearInterval(timer);
+            timers = [];
+            if (spec === "")
+                return;
+            // 本地模式没有 SSE，订阅就自己起定时器——行为跟服务端一致。
+            for (const part of spec.split(",")) {
+                const [name, rawInterval] = part.split(":");
+                const topic = source.topics.find((candidate) => candidate.name === name?.trim());
+                if (topic === undefined)
+                    continue;
+                const requested = rawInterval === undefined ? topic.intervalMs : Number(rawInterval);
+                const intervalMs = Number.isFinite(requested)
+                    ? Math.min(60_000, Math.max(1_000, requested))
+                    : topic.intervalMs;
+                timers.push(setInterval(() => {
+                    void Promise.resolve(topic.read())
+                        .then((data) => emit({ type: "topic", name: topic.name, data }))
+                        .catch((error) => emit({ type: "topic", name: topic.name, data: { error: String(error) } }));
+                }, intervalMs));
+            }
+        },
+        subscribe(listener) {
+            listeners.add(listener);
+            attach();
+            emit({
+                type: "handshake",
+                info: {
+                    title: source.title,
+                    version: source.version,
+                    user: source.user,
+                    commands: source.commands.map((command) => ({
+                        name: command.name,
+                        note: command.note,
+                        args: command.args ?? null,
+                    })),
+                    topics: source.topics.map((topic) => ({
+                        name: topic.name,
+                        note: topic.note,
+                        intervalMs: topic.intervalMs,
+                    })),
+                },
+            });
+            return () => {
+                listeners.delete(listener);
+            };
+        },
+    };
+}
