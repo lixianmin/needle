@@ -37,6 +37,8 @@ export function createHelpCommand(list: () => readonly Command[]): Command {
   return {
     name: "help",
     note: "列出所有命令",
+    // 由库提供，归到内置组。调用方自定义的 help 不会有这个标记。
+    builtin: true,
     public: true,
     run(): CommandOutput {
       const all = list();
