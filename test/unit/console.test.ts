@@ -2,13 +2,14 @@ import { describe, expect, test } from "bun:test";
 
 import { createConsole } from "../../src/console/index.js";
 import { newLogger } from "../../src/core/logo/logo.js";
+import { TEST_VERSION } from "../fixtures.js";
 
 function setup(basePath?: string) {
   const logger = newLogger({ flushIntervalMs: 0, batch: false });
   const console_ = createConsole({
     logger,
     auth: { users: { admin: "secret" }, secret: "unit-test-secret" },
-    version: "9.9.9",
+    version: TEST_VERSION,
     ...(basePath === undefined ? {} : { basePath }),
   });
   return { logger, console: console_ };
@@ -35,6 +36,21 @@ describe("createConsole", () => {
     const res = await api.handler(get("/"));
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toContain("text/html");
+
+    // 静态托管的默认入口别名
+    expect((await api.handler(get("/index.html"))).status).toBe(200);
+  });
+
+  test("auth 路由换 token：错口令 401，对口令拿到 token", async () => {
+    const { console: api } = setup();
+
+    const bad = await api.handler(post("/auth", { user: "admin", password: "wrong" }));
+    expect(bad.status).toBe(401);
+
+    const good = await api.handler(post("/auth", { user: "admin", password: "secret" }));
+    const body = (await good.json()) as { ok: boolean; token?: string };
+    expect(body.ok).toBe(true);
+    expect(typeof body.token).toBe("string");
   });
 
   test("health 返回 ok", async () => {

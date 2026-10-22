@@ -1,5 +1,6 @@
 import { createConsole } from "../../src/console/index.js";
 import { logo } from "../../src/core/index.js";
+import { TEST_VERSION } from "../fixtures.js";
 
 /**
  * Workers 侧的 fixture。
@@ -10,7 +11,7 @@ import { logo } from "../../src/core/index.js";
 const debug = createConsole({
   logger: logo,
   auth: { users: { admin: "secret" }, secret: "workers-fixture-secret" },
-  version: "0.1.0",
+  version: TEST_VERSION,
 });
 
 export default {

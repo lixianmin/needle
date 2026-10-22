@@ -8,6 +8,7 @@ import {
 } from "../../src/console/sse.js";
 import type { Command, Topic } from "../../src/console/types.js";
 import type { LogRecord } from "../../src/core/logo/types.js";
+import { TEST_VERSION } from "../fixtures.js";
 
 const commands: Command[] = [
   { name: "help", note: "列出命令", public: true, run: () => ({ kind: "text", text: "" }) },
@@ -109,7 +110,7 @@ describe("createSseResponse", () => {
     const response = createSseResponse({
       user: "admin",
       title: "node",
-      version: "0.1.0",
+      version: TEST_VERSION,
       commands,
       topics,
       broadcast: createBroadcast(),
@@ -129,7 +130,7 @@ describe("createSseResponse", () => {
     const response = createSseResponse({
       user: "admin",
       title: "node",
-      version: "0.1.0",
+      version: TEST_VERSION,
       commands,
       topics: [],
       broadcast,
@@ -147,7 +148,7 @@ describe("createSseResponse", () => {
     const response = createSseResponse({
       user: "admin",
       title: "node",
-      version: "0.1.0",
+      version: TEST_VERSION,
       commands,
       topics,
       topicSpec: "top:1000",
@@ -165,7 +166,7 @@ describe("createSseResponse", () => {
     const response = createSseResponse({
       user: "admin",
       title: "node",
-      version: "0.1.0",
+      version: TEST_VERSION,
       commands,
       topics,
       broadcast,
@@ -184,7 +185,7 @@ describe("createSseResponse", () => {
     const response = createSseResponse({
       user: "admin",
       title: "node",
-      version: "0.1.0",
+      version: TEST_VERSION,
       commands,
       topics: [],
       broadcast: createBroadcast(),

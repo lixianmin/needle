@@ -228,10 +228,14 @@ Bun.serve({ port: 7701, fetch: debug.handler })
 | 方法 | 路径 | 用途 |
 |---|---|---|
 | GET | `/` | 页面（单个 HTML，内联 JS/CSS） |
+| GET | `/index.html` | 同上，静态托管默认入口的别名 |
 | GET | `/events?topics=top:5000` | SSE 流：日志、主题推送。需鉴权 |
 | POST | `/exec` | 执行一条命令，同步返回结果 |
+| POST | `/auth` | 口令换 token，请求体上限 512 字节 |
 | GET | `/health` | `{"ok":true}` |
 | GET | `/log/<name>` | 日志文件全文，需 `Authorization: Bearer` |
+
+路由写成一张表：`{ method, pattern, handler }`，`pattern` 里的 `:name` 占一个路径段（`/log/<name>` 即 `/log/:name`），解出的参数进 handler 的上下文。表在 `router.ts`，剥 `basePath`、按 method + 路径匹配也在那里；handler 只收拿到的 `Request`、`URL` 和参数，不碰分派。参数只吃单段——日志文件名不含 `/`（`log-files.read` 自己也会拒），多段的 `/log/a/b` 直接 404。
 
 命令结果走 POST 的响应体，不走 SSE。理由：请求/响应本身是天然的一问一答，同步返回比"发出去再等推送"少一套 id 对账和超时清理。SSE 只负责服务端主动推的东西。
 
@@ -464,7 +468,7 @@ src/
     types.ts        # 共享类型（level、LogRecord）
   console/
     index.ts        # createConsole：装配
-    router.ts       # 路由分发（一个 switch）
+    router.ts       # 路由表（method + 模式 → handler）与分派
     sse.ts          # SSE 编码与连接生命周期
     commands.ts     # 参数切分与命令查找
     builtins.ts     # 内置命令
