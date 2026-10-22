@@ -141,6 +141,17 @@ type Sink = (batch: readonly LogRecord[]) => void
 
 sink 是同步函数。抛错被捕获并忽略（一条坏 sink 不能拖垮业务），第一次出错时用 `console.error` 打一行提示（Workers 没有 stderr）。需要网络或限流的 sink（飞书）在自己的 batch 回调里处理，logger 不管背压。
 
+### 6.5 基础集合：SortedTable
+
+移植 unicorn 的 `SortedTable<TKey, TValue>`（C#）：两个并行数组维护“key 始终有序”的键值表，查找二分，按下标访问 O(1)，插入/删除移动数组 O(n)。
+
+- `add` 重复 key 抛错（C# 的 Add 语义），`set` 插入或覆盖（索引器 setter 语义）。
+- `append` + `sort` 用于批量构建：逐个 `add` 每次都要移动数组，追加是 O(1)，最后统一排序。
+- `snapshotKeys` / `snapshotValues` 返回副本，遍历不受后续增删影响。
+- 自定义 `comparer` 可倒序。
+
+用途是“读多写少、需要顺序遍历、需要按下标取整列”的数据；高频随机插入用 `Map`。
+
 ## 7. 内置 sink
 
 **stdout**（默认）：能拿到 `process.stdout.write` 就一次性把一个 batch 拼成多行写进 stdout，否则逐条 `console.log`。检测是同步能力探测（`typeof process?.stdout?.write`），不 import 任何东西，所以也是 §6.4 判定要不要启定时批量的依据。

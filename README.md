@@ -26,6 +26,25 @@ const logger = logo.child({ name: "db", traceId: "t1" });
 logger.info("connected");
 ```
 
+## 基础数据结构
+
+`sorted table` 从 unicorn 的 C# 实现移植过来：键值并行数组始终按 key 有序，
+查找二分，遍历天然是排好序的。
+
+```ts
+import { SortedTable } from "@noodle/logo";
+
+const table = new SortedTable<number, string>();
+table.add(5, "e");
+table.add(1, "a");
+console.log([...table.keysIter()]);   // [1, 5]
+
+table.set(3, "c");                    // 插入或覆盖
+table.tryGet(9);                      // undefined
+```
+
+读多写少、需要顺序遍历时用它；高频随机插入的大表用 `Map`。
+
 ## 挂一个控制台
 
 ```ts
