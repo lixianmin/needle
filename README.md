@@ -1,6 +1,6 @@
-# @needle/logo
+# logo
 
-内置调试控制台的 TypeScript 日志库：出问题时在浏览器里看实时日志、敲命令查进程状态、订阅指标，不用 `docker exec` 进去 `tail -f`。
+线上排障用的控制台日志库（npm 包名 `@needle/logo`）：在浏览器里看实时日志、敲命令查进程状态、订阅指标，不用 `docker exec` 进去 `tail -f`。
 
 零运行时依赖。core 2.7 KB、含控制台 13.7 KB（min+gzip，`bun run size` 可复现）。
 
@@ -8,14 +8,17 @@
 import { logo } from "@needle/logo";
 
 logo.info("order created", { orderId: 42 });
+// 打印：2026-10-23T10:50:43 [I] {"orderId":42,"msg":"order created"}
+// sink 收到：{"orderId":42,"time":1758991234567,"level":"info","msg":"order created"}
+
 logo.error("paid failed", err, { userId: 7 });
 ```
 
-它解决三件事，都是「出事那天才发现没有」的那类：
+它能干三件事，都是「出事那天才发现没有」的那类：
 
-- **看**：控制台里日志实时滚动；`log.list` 列磁盘日志文件，点开看全文。
-- **问**：敲 `order 42` 这类自定义命令，直接读进程内状态（Map、连接池、队列长度）。
-- **盯**：`sub top` 订阅进程指标，每 N 毫秒落一行，不是常驻面板。
+- **看**：日志实时滚动，磁盘上的历史也能翻，不用登服务器。
+- **问**：一条命令读进程内状态——订单、连接池、队列深度。
+- **盯**：订阅指标，每 N 毫秒落一行。
 
 ## 装
 
@@ -25,15 +28,11 @@ bun add @needle/logo
 bun add git+https://github.com/lixianmin/needle.git
 ```
 
-## 日志
+## 写日志
 
-字符串拼成 `msg`，对象合并进字段，`Error` 展开成 `message` + `stack`。
+字符串拼成 `msg`，对象合并进字段，`Error` 展开成 `message` + `stack`；`time` / `level` / `name` 由库填，业务对象伪造不了。`child()` 给一组记录钉住公共字段：
 
 ```ts
-logo.info("order created", { orderId: 42 });
-// sink 收到：{"orderId":42,"time":1758991234567,"level":"info","msg":"order created"}
-// 打印出来：2026-10-23T10:50:43 [I] {"orderId":42,"msg":"order created"}
-
 const db = logo.child({ name: "db", traceId: "t1" });
 db.warn("slow query", { ms: 1200 });
 ```
@@ -51,9 +50,9 @@ logo.addSink(createLarkSink({ webhook: process.env.LARK_HOOK!, minLevel: "error"
 process.on("SIGTERM", () => logo.dispose());                                         // 退出前冲缓冲区
 ```
 
-## 控制台
+## 挂控制台
 
-对外只有一个接口：`(req: Request) => Promise<Response>`。挂载就是把它接到你的服务器上。Hono 是两条路由：
+控制台不是第二个 logger：它挂在同一个 `logo` 上——一块 sink 收实时日志，一张命令表读进程状态。对外只有一个接口 `(req: Request) => Promise<Response>`，挂载就是把它接到你的服务器上。Hono 是两条路由：
 
 ```ts
 import { createConsole } from "@needle/logo/console";
