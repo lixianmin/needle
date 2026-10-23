@@ -95,7 +95,7 @@ addEventListener("pagehide", () => {
 });
 ```
 
-面板只显示命令输出与订阅主题，不显示日志；日志看 DevTools 的 console（默认 sink 就是写它）。
+面板分左右两栏：左边命令执行，右边「日志」「主题」两个 tab。日志栏是 `logo` 的实时流，只在面板打开期间存在——它不替代 DevTools，也不留历史。
 
 ### 坑
 

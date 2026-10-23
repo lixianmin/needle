@@ -79,7 +79,7 @@ commands: [{
 }]
 ```
 
-- 查日志用 `log.list`（读 `logFiles` 指向的目录）：列出文件，点文件名看全文。
+- 查历史日志用 `log.list`（读 `logFiles` 指向的目录）：列出文件，点文件名看全文。页面右栏另有实时日志，但只在 shell 打开时存在，刷新即空。
 - 输出只有 `text` / `table` / `json`。要人读的排成 `table`，要贴给别人的用 `json`。
 - 表格用 `table<Row>({ col: { format } })` 定义：列顺序与显示语义写一次，之后每行一个对象，字段漏写/多写 `tsc` 会报错。`bytes` 走 `toHuman`（`36290560` → `34.61M`），`duration` 走 `formatDuration`（`57720` → `57.7s`），点表头按原始数值排序。
 - 超时默认 10 秒（`timeoutMs`），超了返回 `timeout`，不会把请求挂住。

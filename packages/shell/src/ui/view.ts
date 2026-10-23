@@ -1,6 +1,8 @@
-import { displayNumber, formatDuration, toHuman } from "@needle/logo";
+import { LEVELS, LEVEL_HINTS, displayNumber, formatDuration, formatTime, toHuman } from "@needle/logo";
+import type { Level, LogRecord } from "@needle/logo";
 import type { Cell, ColumnFormat, CommandOutput, LinkedCell } from "../types.js";
 import type { ShellAdapter, ShellEvent, ExecResult } from "./adapter.js";
+import { createLogList } from "./loglist.js";
 import { STYLE, STYLE_ID } from "./style.js";
 
 /** 输出区保留的最大行数。再多浏览器会开始卡，而且人也不会往回翻那么远。 */
@@ -15,6 +17,14 @@ function el<K extends keyof HTMLElementTagNameMap>(
 ): HTMLElementTagNameMap[K] {
   const node = doc.createElement(tag);
   if (className !== undefined) node.className = className;
+  return node;
+}
+
+function button(doc: Document, text: string, className: string): HTMLButtonElement {
+  const node = doc.createElement("button");
+  node.type = "button";
+  node.className = className;
+  node.textContent = text;
   return node;
 }
 
@@ -90,8 +100,87 @@ export function mountShell(root: HTMLElement, adapter: ShellAdapter): ShellView 
   input.autocomplete = "off";
   form.append(prompt, input);
 
-  wrap.append(header, output, form);
+  const main = el(doc, "div", "main");
+  main.append(output, form);
+
+  // 右栏：日志与主题各一个 tab。日志量级和主题完全不是一个数量级，混在一起
+  // 主题会被冲走，所以分开放。
+  const aside = el(doc, "aside", "side");
+  const tabs = el(doc, "div", "tabs");
+  const logTab = button(doc, "日志", "tab active");
+  const topicTab = button(doc, "主题", "tab");
+  tabs.append(logTab, topicTab);
+
+  const tools = el(doc, "div", "tools");
+  const pause = button(doc, "暂停", "tool");
+  const clear = button(doc, "清空", "tool");
+  const level = doc.createElement("select");
+  level.className = "tool";
+  for (const value of ["all", "info", "warn", "error"] as const) {
+    const option = doc.createElement("option");
+    option.value = value;
+    option.textContent = value === "all" ? "全部" : value;
+    level.append(option);
+  }
+  const droppedLabel = el(doc, "span", "dropped");
+  tools.append(pause, level, clear, droppedLabel);
+
+  const logList = createLogList<LogRecord>(doc, renderLogLine);
+  const topicList = createLogList<{ name: string; data: unknown }>(doc, renderTopicLine, 2000);
+
+  const logPanel = el(doc, "div", "panel active");
+  logPanel.append(tools, logList.el);
+  const topicPanel = el(doc, "div", "panel");
+  topicPanel.append(topicList.el);
+
+  aside.append(tabs, logPanel, topicPanel);
+
+  const body = el(doc, "div", "body");
+  body.append(main, aside);
+
+  // 窄屏时右栏默认收起，头栏那个按钮把它盖上来。
+  const toggle = button(doc, "日志", "toggle");
+  header.append(toggle);
+
+  wrap.append(header, body);
   root.append(wrap);
+
+  let minLevel: Level | "all" = "all";
+  let paused = false;
+  let pausedDropped = 0;
+
+  function updateDropped(): void {
+    const total = logList.dropped() + pausedDropped;
+    droppedLabel.textContent = total > 0 ? `丢弃 ${total}` : "";
+  }
+
+  function selectTab(which: "log" | "topic"): void {
+    logTab.classList.toggle("active", which === "log");
+    topicTab.classList.toggle("active", which === "topic");
+    logPanel.classList.toggle("active", which === "log");
+    topicPanel.classList.toggle("active", which === "topic");
+    (which === "log" ? logList : topicList).flush();
+  }
+
+  logTab.addEventListener("click", () => selectTab("log"));
+  topicTab.addEventListener("click", () => selectTab("topic"));
+  toggle.addEventListener("click", () => aside.classList.toggle("open"));
+
+  pause.addEventListener("click", () => {
+    paused = !paused;
+    pause.textContent = paused ? "继续" : "暂停";
+    pause.classList.toggle("on", paused);
+  });
+
+  clear.addEventListener("click", () => {
+    logList.clear();
+    pausedDropped = 0;
+    updateDropped();
+  });
+
+  level.addEventListener("change", () => {
+    minLevel = level.value as Level | "all";
+  });
 
   function push(node: HTMLElement): void {
     output.append(node);
@@ -252,17 +341,32 @@ export function mountShell(root: HTMLElement, adapter: ShellAdapter): ShellView 
     pushText(JSON.stringify(value.value, null, 2), "raw");
   }
 
-  /** 主题推送落成一行：`[top] rss=36.3MB heap=1.6MB …`。不常驻面板。 */
-  function renderTopic(name: string, data: unknown): void {
-    if (typeof data !== "object" || data === null || Array.isArray(data)) {
-      pushText(`[${name}] ${JSON.stringify(data)}`, "topic-line");
-      return;
-    }
+  /** 一行日志：时间 + 级别 + 正文。定高单行，长内容省略号。 */
+  function renderLogLine(record: LogRecord): HTMLElement {
+    const line = el(doc, "div", "row");
+    const time = el(doc, "span", "t");
+    time.textContent = formatTime(record.time);
+    const text = el(doc, "span", `lv lv-${record.level}`);
+    text.textContent = `${LEVEL_HINTS[record.level] ?? "[?]"} ${record.msg ?? ""}`;
+    line.append(time, text);
+    return line;
+  }
 
+  /** 一行主题推送：`[top] rss=36.3MB heap=1.6MB …`。 */
+  function renderTopicLine(topic: { name: string; data: unknown }): HTMLElement {
+    const line = el(doc, "div", "row");
+    line.textContent = formatTopic(topic.name, topic.data);
+    return line;
+  }
+
+  function formatTopic(name: string, data: unknown): string {
+    if (typeof data !== "object" || data === null || Array.isArray(data)) {
+      return `[${name}] ${JSON.stringify(data)}`;
+    }
     const pairs = Object.entries(data as Record<string, unknown>).map(
       ([key, value]) => `${key}=${formatMetric(key, value)}`,
     );
-    pushText(`[${name}] ${pairs.join("  ")}`, "topic-line");
+    return `[${name}] ${pairs.join("  ")}`;
   }
 
   // ---- 订阅状态（属于这条流，由 UI 维护） ----
@@ -293,8 +397,21 @@ export function mountShell(root: HTMLElement, adapter: ShellAdapter): ShellView 
         availableTopics = event.info.topics;
         availableCommands = event.info.commands;
         break;
+      case "logs": {
+        if (paused) {
+          pausedDropped += event.records.length;
+          updateDropped();
+          break;
+        }
+        const floor = minLevel;
+        logList.append(
+          floor === "all" ? event.records : event.records.filter((record) => LEVELS[record.level] >= LEVELS[floor]),
+        );
+        updateDropped();
+        break;
+      }
       case "topic":
-        renderTopic(event.name, event.data);
+        topicList.append([{ name: event.name, data: event.data }]);
         break;
       case "status":
         pushText(event.message, "status");
@@ -526,6 +643,8 @@ export function mountShell(root: HTMLElement, adapter: ShellAdapter): ShellView 
     dispose() {
       doc.removeEventListener("keydown", focusOnEnter);
       unsubscribe();
+      logList.dispose();
+      topicList.dispose();
       wrap.remove();
     },
   };

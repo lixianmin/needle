@@ -1,6 +1,6 @@
 {
   "name": "@needle/logo",
-  "version": "0.2.16",
+  "version": "0.2.17",
   "description": "结构化日志：级别、字段、批量写入、多 sink（stdout / 文件 / 飞书）",
   "type": "module",
   "sideEffects": false,

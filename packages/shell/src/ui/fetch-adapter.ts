@@ -1,3 +1,4 @@
+import type { LogRecord } from "@needle/logo";
 import type { CommandOutput } from "../types.js";
 import type { AuthResult, ShellAdapter, ShellEvent, ExecResult, FileResult, HandshakeInfo } from "./adapter.js";
 
@@ -114,6 +115,7 @@ export function createFetchAdapter(options: FetchAdapterOptions): ShellAdapter {
       const parse = createFrameParser((event, data) => {
         try {
           if (event === "handshake") emit({ type: "handshake", info: JSON.parse(data) as HandshakeInfo });
+          else if (event === "log") emit({ type: "logs", records: JSON.parse(data) as LogRecord[] });
           else if (event === "topic") {
             const payload = JSON.parse(data) as { name: string; data: unknown };
             emit({ type: "topic", name: payload.name, data: payload.data });

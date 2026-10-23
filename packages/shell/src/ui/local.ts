@@ -1,3 +1,4 @@
+import type { LogRecord } from "@needle/logo";
 import type { ShellSource } from "../source.js";
 import type { AuthResult, ShellAdapter, ShellEvent, ExecResult, FileResult } from "./adapter.js";
 
@@ -22,6 +23,7 @@ export function createLocalAdapter(source: ShellSource): ShellAdapter {
 
     source.broadcast.attach({
       send(event, data) {
+        if (event === "log") emit({ type: "logs", records: data as LogRecord[] });
         if (event === "topic") {
           const payload = data as { name: string; data: unknown };
           emit({ type: "topic", name: payload.name, data: payload.data });

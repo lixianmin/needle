@@ -1,3 +1,4 @@
+import type { LogRecord } from "@needle/logo";
 import type { CommandOutput } from "../types.js";
 export interface HandshakeInfo {
     title: string;
@@ -17,6 +18,9 @@ export interface HandshakeInfo {
 export type ShellEvent = {
     type: "handshake";
     info: HandshakeInfo;
+} | {
+    type: "logs";
+    records: LogRecord[];
 } | {
     type: "topic";
     name: string;

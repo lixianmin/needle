@@ -1,9 +1,12 @@
+import type { Sink } from "@needle/logo";
 import type { Command, Topic } from "./types.js";
 export interface Connection {
     send(event: string, data: unknown): void;
     close(): void;
 }
 export interface Broadcast {
+    /** 作为 sink 挂在 logger 上：把日志切成小帧推给每条连接。 */
+    sink: Sink;
     attach(connection: Connection): () => void;
     count(): number;
     closeAll(): void;
