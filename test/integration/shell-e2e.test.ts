@@ -14,12 +14,12 @@ import { TEST_VERSION } from "../fixtures.js";
 describe("控制台端到端", () => {
   test("登录后能通过 SSE 收到握手，日志不上行", async () => {
     const logger = newLogger({ flushIntervalMs: 0, batch: false });
-    const debug = createShell({
+    const shell = createShell({
       logger,
       auth: { users: { admin: "secret" }, secret: "e2e-secret" },
       version: TEST_VERSION,
     });
-    const server = await serve(debug.handler, { port: 0 });
+    const server = await serve(shell.handler, { port: 0 });
     const base = `http://127.0.0.1:${server.port}`;
 
     try {
@@ -57,17 +57,17 @@ describe("控制台端到端", () => {
       expect(text).not.toContain("live-line");
     } finally {
       await server.close();
-      debug.dispose();
+      shell.dispose();
     }
   });
 
   test("密码错误时 /auth 返回 401", async () => {
     const logger = newLogger({ flushIntervalMs: 0, batch: false });
-    const debug = createShell({
+    const shell = createShell({
       logger,
       auth: { users: { admin: "secret" }, secret: "e2e-secret" },
     });
-    const server = await serve(debug.handler, { port: 0 });
+    const server = await serve(shell.handler, { port: 0 });
 
     try {
       const res = await fetch(`http://127.0.0.1:${server.port}/auth`, {
@@ -78,24 +78,24 @@ describe("控制台端到端", () => {
       expect(res.status).toBe(401);
     } finally {
       await server.close();
-      debug.dispose();
+      shell.dispose();
     }
   });
 
   test("未登录拉事件流被拒", async () => {
     const logger = newLogger({ flushIntervalMs: 0, batch: false });
-    const debug = createShell({
+    const shell = createShell({
       logger,
       auth: { users: { admin: "secret" }, secret: "e2e-secret" },
     });
-    const server = await serve(debug.handler, { port: 0 });
+    const server = await serve(shell.handler, { port: 0 });
 
     try {
       const res = await fetch(`http://127.0.0.1:${server.port}/events`);
       expect(res.status).toBe(401);
     } finally {
       await server.close();
-      debug.dispose();
+      shell.dispose();
     }
   });
 });

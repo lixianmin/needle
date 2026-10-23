@@ -29,7 +29,7 @@ const rooms = new Map<string, Record<string, unknown>>([
   ["102", { players: 0, owner: "bob", started: false }],
 ]);
 
-const debug = createShell({
+const shell = createShell({
   logger: logo,
   basePath: "/shell",
   title: "Needle",
@@ -93,7 +93,7 @@ const debug = createShell({
 
 const server = await serve((req) => {
   const { pathname } = new URL(req.url);
-  if (pathname === "/" || pathname.startsWith("/shell")) return debug.handler(req);
+  if (pathname === "/" || pathname.startsWith("/shell")) return shell.handler(req);
   return new Response("这是你的业务服务。控制台在 /shell\n");
 }, { port: PORT });
 

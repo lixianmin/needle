@@ -37,7 +37,7 @@ if (enabled) {
 }
 ```
 
-用户报障时让他加 `?debug` 截个图，比让他开 DevTools 翻 shell 高效。
+用户报障时让他加 `?debug` 截个图，比让他开 DevTools 翻 console 高效。
 
 ## 日志
 
@@ -60,7 +60,7 @@ const log = newLogger({
   name: "web",
   level: "info",
   stackLevel: "error",        // 默认 warn：每条 warn 都要造一次 Error，页面上能省则省
-  batch: true,                // 页面里定时器可靠，可以攒一帧再写 shell
+  batch: true,                // 页面里定时器可靠，可以攒一帧再写 console
   flushIntervalMs: 16,
 });
 ```
@@ -94,7 +94,7 @@ addEventListener("pagehide", () => {
 });
 ```
 
-现场排障还有一条路：DOM 面板实时滚动，保留最近 500 行。
+面板只显示命令输出与订阅主题，不显示日志；日志看 DevTools 的 console（默认 sink 就是写它）。
 
 ### 坑
 

@@ -10,7 +10,7 @@
 // src/index.ts
 import { createShell, logo } from "@needle/logo";
 
-const debug = createShell({
+const shell = createShell({
   logger: logo,
   auth: {
     users: { admin: process.env.CONSOLE_PASSWORD! },
@@ -21,7 +21,7 @@ const debug = createShell({
 
 export default {
   fetch(request: Request) {
-    return debug.handler(request);
+    return shell.handler(request);
   },
 };
 ```
@@ -58,18 +58,18 @@ auth: { users: {...}, secret: env.CONSOLE_SECRET }   // 不要省略
 | 飞书 sink | 有 | 有（走 fetch） |
 | 控制台页面 / SSE | 有 | 有 |
 | 命令执行 | 完整 | 完整 |
-| 日志视图 | 全进程 | **仅当前 isolate** |
 | CPU / 内存指标 | 真实读数 | 自维护计数器 |
-| 历史日志 | 进程内环形缓冲 | 同左，isolate 重建即丢失 |
 | 登录态 | 随进程重启失效 | 随 isolate 回收失效（配了固定 secret 后由 token 有效期兜底） |
 
-## 为什么日志视图只有本 isolate
+## 日志怎么拿出去
 
-Node 里所有请求共享一个进程，日志进同一块环形缓冲。Workers 里每个 isolate 是独立实例，`/events` 这条 SSE 连接活在哪个 isolate，就只能看到那个 isolate 里产生的日志。
+控制台不接收日志（这一点 Node 上一样），Workers 又没有文件系统，所以日志只能靠 sink 出去：
 
-要跨 isolate 必须引入共享存储（Durable Object、KV、Queues 或外部日志收集器），那是另一个决定，本库不做。
+- `createLarkSink` 把 `error` 推到飞书，最省事。
+- 平台侧的 Logpush / Tail Workers 收 stdout。
+- 自己的 sink 往外部收集端发。
 
-**实践建议**：Workers 上把控制台当"抽查单个 isolate 的即时状态"用；需要全局视图时，用飞书 sink 或 Logpush 把日志导向外部。
+要按文件查日志，用 Node / Bun——那里才有 `createFileSink` 和 `log.list`。
 
 ## 为什么不做定时批量
 
@@ -79,7 +79,7 @@ Node 里所有请求共享一个进程，日志进同一块环形缓冲。Worker
 
 - **不能用非字面量的 `import()`**：workerd 要求静态模块说明符。库内部已经没有任何动态 import（这条是 miniflare 集成测试抓出来的）。
 - **CPU 时间有限**：控制台的命令走同一套执行路径，一个跑太久的命令会被 HTTP 超时（默认 10 秒）截断。
-- **SSE 长连接**：Workers 的 HTTP 请求没有 wall time 上限，客户端连着就能一直推；但客户端断线后需要重连，前端已经带了指数退避。
+- **SSE 长连接**：Workers 的 HTTP 请求没有 wall time 上限，订阅的主题可以一直推；客户端断线后需要重连，前端已经带了指数退避。
 
 ## 验证过什么
 
