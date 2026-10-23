@@ -44,6 +44,70 @@ function compare(left, right) {
     }
     return String(av).localeCompare(String(bv));
 }
+function tableCell(doc, value, index, formats, openFile) {
+    const cell = el(doc, "td");
+    if (isLink(value)) {
+        // 日志文件这类：不直接跳转，先带 header 取回内容再开 blob。
+        // href 留着，悬停/右键复制地址仍然能用。
+        const link = el(doc, "a");
+        link.href = value.href;
+        link.target = "_blank";
+        link.rel = "noopener";
+        link.textContent = value.text;
+        link.addEventListener("click", (event) => {
+            event.preventDefault();
+            openFile(value.href);
+        });
+        cell.append(link);
+    }
+    else {
+        cell.textContent = renderValue(formats[index] ?? "auto", value);
+    }
+    return cell;
+}
+function renderTableBody(doc, body, rows, formats, openFile) {
+    body.replaceChildren();
+    for (const row of rows) {
+        const tr = el(doc, "tr");
+        row.forEach((value, index) => {
+            tr.append(tableCell(doc, value, index, formats, openFile));
+        });
+        body.append(tr);
+    }
+}
+/** 按第 index 列排序。空值永远排最后：乘以 direction 会让降序时它们跑到最前面。 */
+function sortRows(rows, index, direction) {
+    return [...rows].sort((left, right) => {
+        const a = left[index] ?? null;
+        const b = right[index] ?? null;
+        if (a === null || b === null) {
+            return a === null ? (b === null ? 0 : 1) : -1;
+        }
+        return compare(a, b) * direction;
+    });
+}
+function updateSortMarks(headers, sortIndex, direction) {
+    headers.forEach((header, i) => {
+        const mark = header.querySelector(".mark");
+        if (mark === null) {
+            return;
+        }
+        mark.textContent = i === sortIndex ? (direction === 1 ? "▲" : "▼") : "⇅";
+        mark.classList.toggle("active", i === sortIndex);
+    });
+}
+function headerCell(doc, column, onSort) {
+    const cell = el(doc, "th");
+    cell.classList.add("sortable");
+    const label = el(doc, "span", "col");
+    label.textContent = column;
+    const mark = el(doc, "span", "mark");
+    // 常驻一个 ⇅，否则表头看起来就是普通文字，没人知道能点。
+    mark.textContent = "⇅";
+    cell.append(label, mark);
+    cell.addEventListener("click", onSort);
+    return cell;
+}
 /**
  * 表格渲染器。
  *
@@ -59,39 +123,8 @@ export function createTableRenderer(doc, openFile) {
         const headers = [];
         let sortIndex = -1;
         let direction = 1;
-        function cellFor(value, index) {
-            const cell = el(doc, "td");
-            if (isLink(value)) {
-                // 日志文件这类：不直接跳转，先带 header 取回内容再开 blob。
-                // href 留着，悬停/右键复制地址仍然能用。
-                const link = el(doc, "a");
-                link.href = value.href;
-                link.target = "_blank";
-                link.rel = "noopener";
-                link.textContent = value.text;
-                link.addEventListener("click", (event) => {
-                    event.preventDefault();
-                    openFile(value.href);
-                });
-                cell.append(link);
-            }
-            else {
-                cell.textContent = renderValue(formats[index] ?? "auto", value);
-            }
-            return cell;
-        }
-        function renderBody(sorted) {
-            body.replaceChildren();
-            for (const row of sorted) {
-                const tr = el(doc, "tr");
-                row.forEach((value, index) => {
-                    tr.append(cellFor(value, index));
-                });
-                body.append(tr);
-            }
-        }
+        // 表头点击排序，跟 gonsole 的 JsonTable 一个交互：再点一次反向。
         function sortBy(index) {
-            // 表头点击排序，跟 gonsole 的 JsonTable 一个交互：再点一次反向。
             if (sortIndex === index) {
                 direction = -direction;
             }
@@ -99,41 +132,17 @@ export function createTableRenderer(doc, openFile) {
                 sortIndex = index;
                 direction = 1;
             }
-            const sorted = [...rows].sort((left, right) => {
-                const a = left[index] ?? null;
-                const b = right[index] ?? null;
-                // 空值永远排最后：乘以 direction 会让降序时它们跑到最前面。
-                if (a === null || b === null) {
-                    return a === null ? (b === null ? 0 : 1) : -1;
-                }
-                return compare(a, b) * direction;
-            });
-            renderBody(sorted);
-            headers.forEach((header, i) => {
-                const mark = header.querySelector(".mark");
-                if (mark === null) {
-                    return;
-                }
-                mark.textContent = i === sortIndex ? (direction === 1 ? "▲" : "▼") : "⇅";
-                mark.classList.toggle("active", i === sortIndex);
-            });
+            renderTableBody(doc, body, sortRows(rows, index, direction), formats, openFile);
+            updateSortMarks(headers, sortIndex, direction);
         }
         for (const [index, column] of columns.entries()) {
-            const cell = el(doc, "th");
-            cell.classList.add("sortable");
-            const label = el(doc, "span", "col");
-            label.textContent = column;
-            const mark = el(doc, "span", "mark");
-            // 常驻一个 ⇅，否则表头看起来就是普通文字，没人知道能点。
-            mark.textContent = "⇅";
-            cell.append(label, mark);
-            cell.addEventListener("click", () => {
+            const cell = headerCell(doc, column, () => {
                 sortBy(index);
             });
-            headRow.append(cell);
             headers.push(cell);
+            headRow.append(cell);
         }
-        renderBody(rows);
+        renderTableBody(doc, body, rows, formats, openFile);
         head.append(headRow);
         grid.append(head, body);
         return grid;
