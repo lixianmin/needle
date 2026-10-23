@@ -39,6 +39,7 @@ describe("重连", () => {
       return new Response(stream, { status: 200 });
     }) as typeof fetch;
 
+    localStorage.setItem("logo.shell.token", "token");
     const adapter = createFetchAdapter({ basePath: "" });
     const events: ShellEvent[] = [];
     const unsubscribe = adapter.subscribe((event) => events.push(event));
@@ -60,7 +61,27 @@ describe("重连", () => {
 });
 
 describe("未登录提示", () => {
-  test("401 时提示 auth 与 help", async () => {
+  test("没有 token 时一个 /events 请求都不发，直接提示", async () => {
+    let calls = 0;
+    globalThis.fetch = (async () => {
+      calls += 1;
+      return new Response("unauthorized", { status: 401 });
+    }) as unknown as typeof fetch;
+
+    const adapter = createFetchAdapter({ basePath: "" });
+    const events: ShellEvent[] = [];
+    const unsubscribe = adapter.subscribe((event) => events.push(event));
+
+    await new Promise((resolve) => setTimeout(resolve, 30));
+
+    expect(calls).toBe(0);
+    const status = events.find((event) => event.type === "status");
+    expect(status?.type === "status" && status.message).toContain("auth");
+    unsubscribe();
+  });
+
+  test("token 失效（401）时提示 auth 与 help，并清掉 token", async () => {
+    localStorage.setItem("logo.shell.token", "stale");
     globalThis.fetch = (async () => new Response("unauthorized", { status: 401 })) as unknown as typeof fetch;
 
     const adapter = createFetchAdapter({ basePath: "" });
@@ -68,6 +89,7 @@ describe("未登录提示", () => {
     const unsubscribe = adapter.subscribe((event) => events.push(event));
 
     await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(localStorage.getItem("logo.shell.token")).toBeNull();
 
     const status = events.find((event) => event.type === "status");
     expect(status?.type).toBe("status");

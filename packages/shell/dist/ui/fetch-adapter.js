@@ -82,16 +82,22 @@ export function createFetchAdapter(options) {
         const local = new AbortController();
         controller = local;
         const token = readToken();
+        if (token === null) {
+            // 没有 token 就不去碰 /events：服务端一定回 401，既不建流也不会有
+            // topic 定时器。等 auth 成功后再连，提示直接给，省一个来回。
+            status("未登录：执行 auth <user> 登录；help 查看命令", "warn");
+            return;
+        }
         const query = topicSpec === "" ? "" : `?topics=${encodeURIComponent(topicSpec)}`;
-        const headers = {};
-        if (token !== null)
-            headers.authorization = `Bearer ${token}`;
+        const headers = { authorization: `Bearer ${token}` };
         try {
             const response = await fetch(`${options.basePath}/events${query}`, {
                 headers,
                 signal: local.signal,
             });
             if (response.status === 401) {
+                // token 过期或无效：清掉，下次打开页面连探测请求都不用发。
+                writeToken(null);
                 status("未登录：执行 auth <user> 登录；help 查看命令", "warn");
                 return;
             }
@@ -152,7 +158,7 @@ export function createFetchAdapter(options) {
             });
             if (response.status === 401) {
                 writeToken(null);
-                status("未登录：执行 login <user> <password>", "warn");
+                status("未登录：执行 auth <user>", "warn");
                 return { ok: false, error: "unauthorized", unauthorized: true };
             }
             if (!response.ok)
