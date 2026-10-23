@@ -36,25 +36,20 @@ bun add git+https://github.com/lixianmin/needle.git
 
 ## 写日志
 
-字符串拼成 `msg`，对象合并进字段，`Error` 展开成 `message` + `stack`。`child()` 给一组记录钉住公共字段：
+字符串拼成 `msg`，对象合并进字段，`Error` 展开成 `message` + `stack`。`warn` / `error` 立即写出并带调用栈；`info` 攒批 100ms，一个循环写 1000 条只产生一次 IO。
 
-```ts
-const db = logo.child({ name: "db", traceId: "t1" });
-db.warn("slow query", { ms: 1200 });
-```
-
-`warn` / `error` 立即写出并带调用栈；`info` 攒批 100ms，一个循环写 1000 条只产生一次 IO。`logo` 是写 stdout 的默认实例，换级别、名字、sink 用 `newLogger()`。
-
-sink 事后挂，不必在构造时定死：
+`logo` 默认写到 stdout。一条日志可以同时写到多个地方：每个 `addSink` 挂上去的 sink 都收到同一批记录，各自决定收哪些、写到哪。
 
 ```ts
 import { createFileSink } from "@needle/logo/node";
 import { createLarkSink } from "@needle/logo/lark";
 
 logo.addSink(createFileSink({ dir: "logs" }));                                       // 按级别分文件
-logo.addSink(createLarkSink({ webhook: process.env.LARK_HOOK!, minLevel: "error" })); // 出事推飞书
+logo.addSink(createLarkSink({ webhook: process.env.LARK_HOOK!, minLevel: "error" })); // error 推飞书
 process.on("SIGTERM", () => logo.dispose());                                         // 退出前冲缓冲区
 ```
+
+要另起一个实例（换级别、换名字）用 `newLogger()`；`newLogger({ sinks: [...] })` 可以在创建时就把 sink 配好。
 
 ## 挂控制台
 
@@ -124,11 +119,10 @@ $ auth ops
 - **`time` / `level` 不在打印出的 JSON 里。** 落盘行是 `2026-10-23T10:50:43 [I] {…}`：时间与级别只在前缀，记录的 `time` 是 epoch 毫秒。时间固定东八区，与机器 `TZ` 无关；`parseLine()` 也只还原 JSON 那段。
 - **`info` 不会立刻到 sink。** 测试与脚本里断言前先 `flush()`；`warn` / `error` 立即写，并把积压一起带出去。
 - **只有 `warn` / `error` 默认带 `stack`。** `stackLevel` 默认 `warn`，要 info 也带用 `"info"`，关掉用 `"off"`。传 `Error` 时用的是它自己的栈（抛出点）。
-- **`child()` 快照 sink。** 建 child 之后再给父级 `addSink`，子实例收不到；要统一落点就在启动早期建 child。
 - **`dispose()` 之后日志静默丢弃。** 它先 `flush()` 再 `close()` 各 sink；退出前调一次，别在长生命周期进程里早调。
-- **信封字段会被丢弃。** 业务对象不能伪造 `level` / `time` / `msg` / `name` / `stack`：`info("x", { level: "error", msg: "fake" })` 仍记成 `level:"info", msg:"x"`。
-- **非纯对象进 `msg`，不进字段。** 数组、`Date`、`Map`、类实例都会序列化后拼进 `msg`；要可查询的字段就传纯对象。
-- **git 依赖不会自己跟 main。** lockfile 钉住 sha 之后 `bun install` 不会动它，要显式重取（重新 `bun add` 那个 git 地址，或换到新的 sha）；两个 spec 解析到不同 sha 时 `logo` 会变成两个对象，各自 sink 互不可见。
+- **库自己的字段不让业务改。** `level` / `time` / `msg` / `name` / `stack` 由库填：`info("x", { level: "error", msg: "fake" })` 仍记成 `level:"info", msg:"x"`。
+- **普通对象以外的值会整个进 `msg`。** 数组、`Date`、`Map`、类实例都序列化后拼进 `msg`，不会变成可查询的字段；要按字段过滤就传普通对象。
+- **从 git 装的是固定 commit。** lockfile 钉住 sha，`bun install` 不会把它推到最新；升级要重新 `bun add` 那个地址（或换成新的 sha）。两个依赖分别解析到不同 sha 时会有两份副本，`logo` 变成两个对象，各自的 sink 互不可见。
 
 ## 本地跑一遍
 
