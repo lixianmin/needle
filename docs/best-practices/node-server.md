@@ -11,7 +11,7 @@ Shell 和日志在服务端都是全功能，唯一的平台差异是有没有�
 
 ## 一、挂到 HTTP 框架
 
-Shell 对外只有一个接口：`(req: Request) => Promise<Response>`。Hono 是两条路由：
+Shell 对外只有一个接口：`(req: Request) => Promise<Response>`。Hono 挂一条通配就够：
 
 ```ts
 import { Hono } from "hono";
@@ -27,15 +27,15 @@ const shell = createServerShell({
   logFiles: createLogFiles({ dir: "logs" }),
 });
 
-app.all("/shell", (c) => shell.handler(c.req.raw));
 app.all("/shell/*", (c) => shell.handler(c.req.raw));
 
 const server = serve({ fetch: app.fetch, port: 3000 });
 ```
 
-三处容易写错：
+四处容易写错：
 
-- **两条路由缺一不可。** `/shell` 是页面，`/shell/*` 是 `/events`、`/exec`、`/log/:name`。只挂一条的话页面能打开，登录和命令全 404。
+- **通配要盖住所有子路径。** Shell 的端点都在 `basePath` 下面：`/events`（SSE）、`/exec`（执行命令）、`/auth`（登录）、`/log/:name`（取日志文件）、`/health`。只把页面那一条交给 Shell，登录和命令全 404。
+- **有的框架通配不匹配基路径。** Hono 的 `/shell/*` 连 `/shell` 本身也命中（实测），一条就够；Express 4 的通配不匹配 `/shell`（实测 404），那种框架要再补一条 `app.all("/shell", ...)`。
 - **`basePath` 与路由前缀必须一致。** handler 内部按它剥前缀：`/shell/log/info.log` → `/log/info.log`。
 - **Shell 注册在业务中间件之前。** 它自带 token 校验，不该被 CORS、body 解析、登录态中间件影响；注册在它之前的 `app.use("*")` 会把 `/shell` 一起拦掉。
 

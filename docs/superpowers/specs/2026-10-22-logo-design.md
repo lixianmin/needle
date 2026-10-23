@@ -211,7 +211,6 @@ const shell = createServerShell({
 })
 
 // Hono
-app.all("/shell", (c) => shell.handler(c.req.raw))
 app.all("/shell/*", (c) => shell.handler(c.req.raw))
 // 已有 node:http server（裸 Node / Express / Fastify 底层都是它）
 attach(server, shell, { basePath: "/shell" })
@@ -222,6 +221,8 @@ Bun.serve({ port: 7701, fetch: shell.handler })
 ```
 
 对外只有一个接口：`handler` 是 `(Request) => Response`。所以挂载分两类：Fetch 形态（Hono、Bun、Workers、React Router 资源路由的 `loader`/`action`）直接接这个函数；Node 形态用 `attach(server, shell, { basePath })`，它接管 `request` 事件，前缀内交给 shell、前缀外交回原 listener，Express/Fastify 一行不改。`attach` 在原来的路由/中间件之前处理自己的路径，不经过它们。
+
+框架的通配语义不统一：Hono 的 `/shell/*` 连 `/shell` 本身也命中（实测），一条就够；Express 4 的通配不匹配基路径（实测 `/shell` 404），那种框架要再补一条 `app.all("/shell", ...)`。
 
 不提供框架适配入口：没有 `./hono`、`./koa` 这类 subpath。框架集成就是上面那两行调用方代码，needle 的依赖表里不出现任何框架（`hono` 连 devDependency 都不进，否则"装了 Hono 的人"和"没装的人"拿到的就不是同一个包）。
 
