@@ -1,5 +1,5 @@
-import { readTextLimited } from "./web/body.js";
-import { ResponseX } from "./web/responsex.js";
+import { readTextLimited } from "../core/web/body.js";
+import { ResponseX } from "../core/web/responsex.js";
 import type { ShellSource } from "./source.js";
 
 const DEFAULT_MAX_BODY_BYTES = 512;

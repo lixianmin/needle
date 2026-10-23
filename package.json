@@ -1,6 +1,6 @@
 {
   "name": "@needle/needle",
-  "version": "0.2.33",
+  "version": "0.2.34",
   "description": "结构化日志 + 浏览器里的调试 shell：一个包，三个入口",
   "type": "module",
   "sideEffects": false,
@@ -24,7 +24,7 @@
   ],
   "scripts": {
     "build:ui": "bun scripts/build-ui.mjs",
-    "build": "bun run build:ui && tsc -p tsconfig.build.json",
+    "build": "rm -rf dist && bun run build:ui && tsc -p tsconfig.build.json",
     "test": "bun test",
     "typecheck": "tsc --noEmit",
     "size": "bun build scripts/size-log-only.ts --minify --target=browser | gzip -c | wc -c && bun build src/shell/index.ts --minify --target=browser | gzip -c | wc -c"

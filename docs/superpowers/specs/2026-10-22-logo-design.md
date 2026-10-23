@@ -527,8 +527,12 @@ src/
       file.ts           # 文件 sink（node:fs，只从 ./node 导出）
       lark.ts           # 飞书 sink
     log-files.ts        # 日志目录读取（node:fs；log.list 的数据源，只从 ./node 导出）
-  collections/
-    sorted-table.ts
+  core/
+    collections/
+      sorted-table.ts   # 按 key 有序的键值表（根入口导出）
+    web/
+      body.ts           # 有上限地读请求体
+      responsex.ts      # 错误响应出口（spec §8.2）
   shell/
     index.ts            # createShell / createBrowserShell：装配
     source.ts           # 纯逻辑：命令、主题、鉴权
@@ -552,8 +556,6 @@ src/
       app.ts            # 内联脚本入口
       style.ts          # Solarized Dark
       script.generated.ts  # 由 scripts/build-ui.mjs 生成，勿手改
-    web/
-      responsex.ts      # 错误响应出口
   node.ts               # ./node 入口的聚合：只做转出，自身没有实现
 dist/                   # 提交进仓库
 test/
@@ -564,8 +566,9 @@ docs/best-practices/  docs/deploy/
 
 依赖方向（合并成一个包之后靠源码约束，不靠包依赖声明）：
 
-- `src/logo/**` 只 import `src/logo/**` 与 `src/collections/**`，**不出现** `../shell/`。
-- `src/shell/**` 可以 import `../logo/**`，反向不允许。
+- `src/logo/**` 只 import `src/logo/**` 与 `src/core/**`，**不出现** `../shell/`。
+- `src/shell/**` 可以 import `../logo/**` 与 `../core/**`，反向不允许。
+- `src/core/**` 是不依赖任何领域代码的公共件（有序表、HTTP 响应/读体），谁都可以 import，它自己不 import logo 或 shell。
 - `src/node.ts` 是唯一的 Node 出口：只做聚合，不写实现，把 logo 与 shell 的 Node 能力转出一个口。
 - 三处 `node:` 依赖（`logo/sinks/file.ts`、`logo/log-files.ts`、`shell/node.ts`）都只从 `./node` 可达。
 
