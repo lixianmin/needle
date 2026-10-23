@@ -66,6 +66,23 @@ const panel = createBrowserConsole({
 
 `user` 设成非空就是本地模式：不签发 token、不发 `/events`，所有命令直接可跑。在扩展里，能看到面板就等于能看到这些数据，再要一次口令只是仪式。
 
+## 面板连远程控制台
+
+要连的不是本进程，而是另一个服务端托管的控制台（比如开发机上的调试服务），就换 fetch 适配器：
+
+```ts
+import { createFetchAdapter, mountConsole } from "@needle/logo/console";
+
+const view = mountConsole(
+  document.getElementById("console")!,
+  createFetchAdapter({ basePath: "https://order-service.example.com/console", topics: "top:5000" }),
+);
+```
+
+- `manifest.json` 里要给这个源 `host_permissions`，否则扩展页面的跨域请求会被拦。
+- 这时 `auth ops` 有意义了：token 走 `Authorization` 头（不用 `EventSource`，正是因为它带不了头），存在 `localStorage` 的 `logo.console.token`。
+- `log.list` 的链接是服务端按自己的 `basePath` 生成的相对路径，跨域点开会 404；远程面板适合看实时日志和敲命令。
+
 ## MV3 的 CSP 挡不住它
 
 MV3 扩展页面默认 CSP 只限制 `script-src` 与 `object-src`，禁止内联脚本和 `eval`。控制台 UI 全程 `document.createElement`，样式是往 `head` 里塞一个 `<style>` 元素，没有内联 `onclick`、没有 `new Function`、没有远程脚本。所以 popup / side panel / devtools / options 直接能用。
