@@ -1,4 +1,4 @@
-/** 行高固定成 px：虚拟滚动按它算窗口，所以行内容不能换行。 */
+/** 单行兜底高度：还没测量过的行按它算，普通日志行就是这个高度。 */
 export const ROW_HEIGHT = 18;
 
 /** 缓冲区上限（服务端不存任何日志，这只是浏览器内存保护）。超出丢最旧的并计数。 */
@@ -9,8 +9,13 @@ const OVERSCAN = 20;
 
 export interface LogListOptions<T> {
   capacity?: number;
-  /** 点行时回调；取消选择传 undefined。 */
-  onSelect?: (row: T | undefined) => void;
+  /** 量一行的高度。默认读 offsetHeight（量不到时退回 ROW_HEIGHT），测试里可以替换。 */
+  measure?: (node: HTMLElement) => number;
+  /**
+   * 还没渲染过时的估算高度。量不到的行按它算，滚动条长度和跳转位置才不至于
+   * 随"看没看过"而漂移；默认当普通行（ROW_HEIGHT）。
+   */
+  estimate?: (row: T) => number;
 }
 
 export interface LogList<T> {
@@ -20,18 +25,20 @@ export interface LogList<T> {
   isFollowing(): boolean;
   follow(): void;
   dropped(): number;
-  /** 取消选中（Esc 用）。已经没选时什么都不做。 */
-  clearSelection(): void;
   /** 立刻重绘（切 tab、容器刚可见时用；平时由 rAF 驱动）。 */
   flush(): void;
   dispose(): void;
 }
 
 /**
- * 定高虚拟列表。
+ * 变高虚拟列表。
  *
- * 只把「可见的几十行」建进 DOM，缓冲区里存几万条也不影响节点数。滚动与
- * 追加都走同一个 rAF 调度，一帧最多重绘一次。
+ * 行高不固定：带调用栈的 error 行比普通行高一大截。所以每行存一个实测
+ * 高度，`offsets[i]` 是它前面所有行的高度和——滚动落点、窗口范围都靠这张
+ * 前缀表二分，DOM 里始终只有可见的几十行。
+ *
+ * 高度只能等节点放进 DOM 才量得到，所以新行先按 ROW_HEIGHT 摆，量完如果
+ * 变高了就重算一次偏移、把窗口里的行整体挪一遍，避免叠在一起。
  */
 export function createLogList<T>(
   doc: Document,
@@ -39,6 +46,9 @@ export function createLogList<T>(
   options: LogListOptions<T> = {},
 ): LogList<T> {
   const capacity = options.capacity ?? DEFAULT_CAPACITY;
+  const measure = options.measure ?? ((node: HTMLElement) => node.offsetHeight || ROW_HEIGHT);
+  const estimate = options.estimate ?? (() => ROW_HEIGHT);
+
   const el = doc.createElement("div");
   el.className = "list";
   const spacer = doc.createElement("div");
@@ -46,12 +56,18 @@ export function createLogList<T>(
   el.append(spacer);
 
   const rows: T[] = [];
+  /** 每行的实测高度。 */
+  const heights: number[] = [];
+  /** offsets[i] = heights[0..i-1] 的和；长度始终是 rows.length + 1。 */
+  let offsets: number[] = [0];
+  /** 高度或行数被改动过，offsets 需要重算。 */
+  let dirty = false;
+
   const live = new Map<number, HTMLElement>();
   let dropped = 0;
   let following = true;
   let frame = 0;
-  /** 选中行的下标；-1 表示没选。行会被丢弃，所以下标要跟着缓冲区一起挪。 */
-  let selected = -1;
+  let width = el.clientWidth;
 
   const view = doc.defaultView;
   const raf: (callback: () => void) => number =
@@ -59,11 +75,43 @@ export function createLogList<T>(
   const cancel: (handle: number) => void =
     view?.cancelAnimationFrame?.bind(view) ?? ((handle) => clearTimeout(handle));
 
+  function ensureOffsets(): void {
+    if (!dirty) return;
+    offsets = new Array<number>(rows.length + 1);
+    offsets[0] = 0;
+    for (let index = 0; index < rows.length; index += 1) {
+      offsets[index + 1] = (offsets[index] as number) + (heights[index] as number);
+    }
+    dirty = false;
+  }
+
+  /** 二分：scrollTop 落在哪一行。调用前必须 ensureOffsets()。 */
+  function indexAt(scrollTop: number): number {
+    let low = 0;
+    let high = rows.length - 1;
+    let found = 0;
+    while (low <= high) {
+      const mid = (low + high) >> 1;
+      if ((offsets[mid] as number) <= scrollTop) {
+        found = mid;
+        low = mid + 1;
+      } else {
+        high = mid - 1;
+      }
+    }
+    return found;
+  }
+
   function paint(): void {
     frame = 0;
+    ensureOffsets();
+
     const viewport = el.clientHeight > 0 ? el.clientHeight : ROW_HEIGHT * 20;
-    const first = Math.max(0, Math.floor(el.scrollTop / ROW_HEIGHT) - OVERSCAN);
-    const last = Math.min(rows.length, Math.ceil((el.scrollTop + viewport) / ROW_HEIGHT) + OVERSCAN);
+    const first = Math.max(0, indexAt(el.scrollTop) - OVERSCAN);
+    const limit = el.scrollTop + viewport;
+    let last = first;
+    while (last < rows.length && (offsets[last] as number) < limit) last += 1;
+    last = Math.min(rows.length, last + OVERSCAN);
 
     for (const [index, node] of live) {
       if (index < first || index >= last) {
@@ -72,15 +120,32 @@ export function createLogList<T>(
       }
     }
 
+    // 面板不可见（切到别的 tab）时量到的是 0，会把估算高度冲掉，等可见了再量。
+    const measurable = el.clientHeight > 0 || options.measure !== undefined;
+    let remeasured = false;
     for (let index = first; index < last; index += 1) {
       if (live.has(index)) continue;
       const node = render(rows[index] as T);
-      node.style.top = `${index * ROW_HEIGHT}px`;
-      node.dataset.index = String(index);
-      if (index === selected) node.classList.add("on");
+      node.style.top = `${offsets[index]}px`;
       spacer.append(node);
       live.set(index, node);
+
+      if (!measurable) continue;
+      const height = measure(node);
+      if (height !== heights[index]) {
+        heights[index] = height;
+        remeasured = true;
+      }
     }
+
+    if (remeasured) {
+      dirty = true;
+      ensureOffsets();
+      for (const [index, node] of live) node.style.top = `${offsets[index]}px`;
+      // 高度一变，总高跟着变；贴着底看的时候要重新钉住，否则会往上飘一截。
+      if (following) el.scrollTop = offsets[rows.length] as number;
+    }
+    spacer.style.height = `${offsets[rows.length]}px`;
   }
 
   function schedule(): void {
@@ -93,51 +158,50 @@ export function createLogList<T>(
     live.clear();
   }
 
-  function select(next: number): void {
-    live.get(selected)?.classList.remove("on");
-    selected = next;
-    live.get(selected)?.classList.add("on");
-    options.onSelect?.(selected < 0 ? undefined : (rows[selected] as T));
-  }
-
-  const onClick = (event: Event): void => {
-    const target = event.target as HTMLElement | null;
-    const node = target?.closest?.(".row") as HTMLElement | null;
-    if (node === null) return;
-    const index = Number(node.dataset.index);
-    if (!Number.isInteger(index)) return;
-    select(index === selected ? -1 : index);
-  };
-  el.addEventListener("click", onClick);
-
   const onScroll = (): void => {
     following = el.scrollHeight - el.scrollTop - el.clientHeight <= ROW_HEIGHT;
     schedule();
   };
   el.addEventListener("scroll", onScroll, { passive: true });
 
+  // 行高跟宽度有关：窗口变窄，同一行栈会折成更多行。宽度变了就把高度全部作废重量。
+  const onResize = (): void => {
+    const next = el.clientWidth;
+    if (next === width) return;
+    width = next;
+    if (rows.length === 0) return;
+    for (let index = 0; index < rows.length; index += 1) heights[index] = estimate(rows[index] as T);
+    dirty = true;
+    rebuild();
+    schedule();
+  };
+  const resizeObserver =
+    view?.ResizeObserver !== undefined ? new view.ResizeObserver(onResize) : undefined;
+  if (resizeObserver === undefined) view?.addEventListener("resize", onResize);
+  else resizeObserver.observe(el);
+
   function append(next: readonly T[]): void {
     if (next.length === 0) return;
-    for (const row of next) rows.push(row);
+    for (const row of next) {
+      const height = estimate(row);
+      rows.push(row);
+      heights.push(height);
+      if (!dirty) offsets.push((offsets[offsets.length - 1] as number) + height);
+    }
 
     const excess = rows.length - capacity;
     if (excess > 0) {
       rows.splice(0, excess);
+      heights.splice(0, excess);
       dropped += excess;
-      if (selected >= 0) {
-        const moved = selected - excess;
-        if (moved < 0) {
-          selected = -1;
-          options.onSelect?.(undefined);
-        } else {
-          selected = moved;
-        }
-      }
+      dirty = true;
       rebuild();
     }
 
-    spacer.style.height = `${rows.length * ROW_HEIGHT}px`;
-    if (following) el.scrollTop = rows.length * ROW_HEIGHT;
+    if (following) {
+      ensureOffsets();
+      el.scrollTop = offsets[rows.length] as number;
+    }
     schedule();
   }
 
@@ -147,22 +211,21 @@ export function createLogList<T>(
     isFollowing: () => following,
     follow() {
       following = true;
-      el.scrollTop = rows.length * ROW_HEIGHT;
+      ensureOffsets();
+      el.scrollTop = offsets[rows.length] as number;
       schedule();
     },
     clear() {
       rows.length = 0;
+      heights.length = 0;
+      offsets = [0];
+      dirty = false;
       dropped = 0;
-      selected = -1;
-      options.onSelect?.(undefined);
       rebuild();
       spacer.style.height = "0px";
       schedule();
     },
     dropped: () => dropped,
-    clearSelection() {
-      if (selected >= 0) select(-1);
-    },
     flush() {
       if (frame !== 0) {
         cancel(frame);
@@ -172,7 +235,8 @@ export function createLogList<T>(
     },
     dispose() {
       if (frame !== 0) cancel(frame);
-      el.removeEventListener("click", onClick);
+      if (resizeObserver === undefined) view?.removeEventListener("resize", onResize);
+      else resizeObserver.disconnect();
       el.removeEventListener("scroll", onScroll);
       el.remove();
     },
