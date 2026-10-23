@@ -15,11 +15,11 @@ logo.error("paid failed", err, { userId: 7 });
 // Error 展开成 message + stack
 ```
 
-它有两半，共用同一个 logger。
+它有两半：日志库和控制台。
 
 **日志**：级别、字段、`Error` 展开、100ms 攒批、sink 可插拔（stdout / 文件 / 飞书），用法在下面「写日志」。
 
-**控制台**：浏览器里打开 `/console`。登录后进程的实时日志由 SSE 推进来，自己往下滚，不用轮询。常用的三件事：
+**控制台**：一个网页 shell，浏览器里打开 `/console`。登录后进程的实时日志由 SSE 推进来，自己往下滚，不用轮询。常用的三件事：
 
 | 输入 | 看到什么 |
 |---|---|
@@ -53,7 +53,7 @@ process.on("SIGTERM", () => logo.dispose());                                    
 
 ## 挂控制台
 
-控制台不是第二个 logger：它挂在同一个 `logo` 上，一块 sink 收实时日志、一张命令表读进程状态。对外只有一个接口 `(req: Request) => Promise<Response>`。
+控制台是一个网页 shell：一个滚动区收日志和命令输出，底部一个输入框，回车执行。它对外只有一个接口 `(req: Request) => Promise<Response>`，挂载就是把这个函数接到你的服务器上。
 
 ### 挂载（Hono）
 
