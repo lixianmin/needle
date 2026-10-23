@@ -28,30 +28,35 @@ export function createLogFiles(options) {
             }
             const entries = [];
             for (const name of names) {
-                if (!isLogFile(name))
+                if (!isLogFile(name)) {
                     continue;
+                }
                 const info = await lstat(join(dir, name)).catch(() => null);
-                if (info === null || !info.isFile())
+                if (info === null || !info.isFile()) {
                     continue; // 符号链接 isFile() 为 false
+                }
                 entries.push({ name, size: info.size, modified: info.mtimeMs });
             }
             return entries.sort((left, right) => left.name.localeCompare(right.name));
         },
         async read(name) {
             // 分隔符、.. 一律拒绝：不给自己留拼接路径的机会。
-            if (!isLogFile(name))
+            if (!isLogFile(name)) {
                 return null;
+            }
             const full = resolve(dir, name);
-            if (full !== join(dir, name) || !full.startsWith(dir + sep))
+            if (full !== join(dir, name) || !full.startsWith(dir + sep)) {
                 return null;
+            }
             let handle;
             try {
                 // O_NOFOLLOW + 句柄上 fstat：打开与检查是同一个对象，中间被换成符号链接
                 // 会直接 ELOOP，写入增长也按打开那一刻之后的真实大小判断。
                 handle = await open(full, constants.O_RDONLY | constants.O_NOFOLLOW);
                 const info = await handle.stat();
-                if (!info.isFile() || info.size > maxFileBytes)
+                if (!info.isFile() || info.size > maxFileBytes) {
                     return null;
+                }
                 return await handle.readFile("utf8");
             }
             catch {

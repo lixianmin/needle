@@ -21,21 +21,25 @@ const MAX_NODES = 10_000;
  */
 export function sanitize(value, depth = 0, ancestors = new WeakSet(), budget = { nodes: MAX_NODES }) {
     // 函数不是对象，但旧实现把判断放在早退之后，于是函数值原样进了记录。
-    if (typeof value === "function")
+    if (typeof value === "function") {
         return "[Function]";
+    }
     if (value === null || typeof value !== "object") {
         // BigInt 不能进 JSON，转成字符串保住精度。
         return typeof value === "bigint" ? value.toString() : value;
     }
-    if (depth >= MAX_DEPTH)
+    if (depth >= MAX_DEPTH) {
         return "[Depth]";
-    if (budget.nodes <= 0)
+    }
+    if (budget.nodes <= 0) {
         return "[Truncated]";
+    }
     budget.nodes -= 1;
     // 只沿当前路径去环：`{ start: d, end: d }` 是共享引用，不是环。旧实现用
     // 一个贯穿整次遍历的 WeakSet，第二个 d 就被误判成 "[Circular]"。
-    if (ancestors.has(value))
+    if (ancestors.has(value)) {
         return CIRCULAR;
+    }
     ancestors.add(value);
     try {
         if (value instanceof Error) {
@@ -83,8 +87,9 @@ export function safeStringify(value) {
 }
 /** 只有"纯对象"才合并进记录字段；数组、Date、类实例都当作值渲染进 msg。 */
 function isPlainObject(value) {
-    if (typeof value !== "object" || value === null)
+    if (typeof value !== "object" || value === null) {
         return false;
+    }
     const proto = Object.getPrototypeOf(value);
     return proto === Object.prototype || proto === null;
 }
@@ -119,18 +124,21 @@ export function buildRecord(level, args, options = {}) {
     }
     // 信封字段由库拥有，业务对象里的同名键直接丢弃——否则调用方能用
     // `info({ level: "error" })` 伪造级别，过滤和告警都跟着跑偏。
-    for (const key of ENVELOPE_FIELDS)
+    for (const key of ENVELOPE_FIELDS) {
         delete fields[key];
+    }
     const record = {
         ...fields,
         time: options.time ?? Date.now(),
         level,
     };
     const msg = parts.join(" ");
-    if (msg !== "")
+    if (msg !== "") {
         record.msg = msg;
-    if (options.name !== undefined)
+    }
+    if (options.name !== undefined) {
         record.name = options.name;
+    }
     // 参数里的 Error 自带调用栈（抛出点），比这里的调用点更准，优先保留。
     if (options.stack !== undefined && record.stack === undefined) {
         record.stack = options.stack;

@@ -44,8 +44,9 @@ export function formatLine(record) {
 /** 从一行日志里把 JSON 载荷解析回来。前缀不参与解析。 */
 export function parseLine(line) {
     const index = line.indexOf("] ");
-    if (index < 0)
+    if (index < 0) {
         return null;
+    }
     try {
         const parsed = JSON.parse(line.slice(index + 2));
         return typeof parsed === "object" && parsed !== null ? parsed : null;

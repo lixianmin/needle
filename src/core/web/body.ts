@@ -9,9 +9,13 @@
  */
 export async function readTextLimited(req: Request, maxBytes: number): Promise<string | null> {
   const declared = Number(req.headers.get("content-length") ?? "0");
-  if (Number.isFinite(declared) && declared > maxBytes) return null;
+  if (Number.isFinite(declared) && declared > maxBytes) {
+    return null;
+  }
 
-  if (req.body === null) return "";
+  if (req.body === null) {
+    return "";
+  }
 
   const reader = req.body.getReader();
   const decoder = new TextDecoder();
@@ -21,7 +25,9 @@ export async function readTextLimited(req: Request, maxBytes: number): Promise<s
   try {
     for (;;) {
       const { done, value } = await reader.read();
-      if (done) break;
+      if (done) {
+        break;
+      }
       bytes += value.byteLength;
       if (bytes > maxBytes) {
         await reader.cancel().catch(() => {});

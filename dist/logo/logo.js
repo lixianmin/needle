@@ -18,8 +18,9 @@ function captureStack() {
     const lines = stack.split("\n");
     const self = /\((.*):\d+:\d+\)\s*$/.exec(lines[1] ?? "")?.[1];
     const dir = self === undefined ? "" : self.slice(0, Math.max(self.lastIndexOf("/"), self.lastIndexOf("\\")));
-    if (dir === "")
+    if (dir === "") {
         return stack;
+    }
     // Windows 的栈里是反斜杠，两种分隔符都试。
     const inside = (line) => line.includes(`${dir}/`) || line.includes(`${dir}\\`);
     // 第一行是 "Error" 头，保留。
@@ -42,21 +43,24 @@ function buildLogger(options, state) {
     const fixedFields = { ...options.fields };
     function reportSinkError(error) {
         // 只提示一次：一条坏 sink 可能每 100ms 抛一次，刷屏比沉默更糟。
-        if (sinkReported)
+        if (sinkReported) {
             return;
+        }
         sinkReported = true;
         console.error("[logo] sink 抛错，后续错误不再提示:", error);
     }
     function clearTimer() {
-        if (timer === undefined)
+        if (timer === undefined) {
             return;
+        }
         clearTimeout(timer);
         timer = undefined;
     }
     function flush() {
         clearTimer();
-        if (buffer.length === 0)
+        if (buffer.length === 0) {
             return;
+        }
         // 整体换出：sink 里如果再写日志，不会掉进这次正在处理的批次里造成死循环。
         const outgoing = buffer;
         buffer = [];
@@ -70,8 +74,9 @@ function buildLogger(options, state) {
         }
     }
     function schedule() {
-        if (!batch || flushIntervalMs <= 0 || timer !== undefined)
+        if (!batch || flushIntervalMs <= 0 || timer !== undefined) {
             return;
+        }
         timer = setTimeout(() => {
             timer = undefined;
             flush();
@@ -82,10 +87,12 @@ function buildLogger(options, state) {
     }
     function emit(recordLevel, args) {
         // dispose 之后静默丢弃：之前 stdout 还在写、文件 sink 已经丢了，行为不一致。
-        if (state.disposed)
+        if (state.disposed) {
             return;
-        if (LEVELS[recordLevel] < LEVELS[level])
+        }
+        if (LEVELS[recordLevel] < LEVELS[level]) {
             return;
+        }
         const withStack = stackLevel !== "off" && LEVELS[recordLevel] >= LEVELS[stackLevel];
         const built = buildRecord(recordLevel, args, {
             name: options.name,
@@ -140,8 +147,9 @@ function buildLogger(options, state) {
         },
         removeSink(sink) {
             const index = sinks.indexOf(sink);
-            if (index >= 0)
+            if (index >= 0) {
                 sinks.splice(index, 1);
+            }
         },
         setLevel(next) {
             level = next;
@@ -153,8 +161,9 @@ function buildLogger(options, state) {
             flush();
             for (const sink of sinks) {
                 const close = sink.close;
-                if (typeof close !== "function")
+                if (typeof close !== "function") {
                     continue;
+                }
                 try {
                     close.call(sink);
                 }

@@ -14,12 +14,16 @@ const UNITS = ["B", "K", "M", "G", "T", "P"] as const;
  * 这样计数类数据（如 200 条日志）不会被写成 "200B"。
  */
 export function toHuman(num: number): string {
-  if (!Number.isFinite(num)) return String(num);
+  if (!Number.isFinite(num)) {
+    return String(num);
+  }
 
   const sign = num < 0 ? "-" : "";
   let value = Math.abs(num);
 
-  if (value < 1024) return `${sign}${Math.round(value)}${UNITS[0]}`;
+  if (value < 1024) {
+    return `${sign}${Math.round(value)}${UNITS[0]}`;
+  }
 
   let unit = 0;
   while (value >= 1024 && unit < UNITS.length - 1) {
@@ -37,7 +41,9 @@ export function toHuman(num: number): string {
  * 四舍五入成 "0B"，那比不格式化更糟。
  */
 export function displayNumber(value: number): string {
-  if (!Number.isInteger(value) || Math.abs(value) < 1024) return String(value);
+  if (!Number.isInteger(value) || Math.abs(value) < 1024) {
+    return String(value);
+  }
   return toHuman(value);
 }
 
@@ -52,13 +58,19 @@ export function displayNumber(value: number): string {
  *   277_200_000 → "3d 5h"
  */
 export function formatDuration(ms: number): string {
-  if (!Number.isFinite(ms)) return String(ms);
+  if (!Number.isFinite(ms)) {
+    return String(ms);
+  }
 
   const sign = ms < 0 ? "-" : "";
   const value = Math.abs(ms);
 
-  if (value < 1000) return `${sign}${Math.round(value)}ms`;
-  if (value < 60_000) return `${sign}${(value / 1000).toFixed(1)}s`;
+  if (value < 1000) {
+    return `${sign}${Math.round(value)}ms`;
+  }
+  if (value < 60_000) {
+    return `${sign}${(value / 1000).toFixed(1)}s`;
+  }
 
   const totalSeconds = Math.floor(value / 1000);
   const days = Math.floor(totalSeconds / 86_400);
@@ -66,7 +78,11 @@ export function formatDuration(ms: number): string {
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
 
-  if (days > 0) return `${sign}${days}d ${hours}h`;
-  if (hours > 0) return `${sign}${hours}h ${String(minutes).padStart(2, "0")}m`;
+  if (days > 0) {
+    return `${sign}${days}d ${hours}h`;
+  }
+  if (hours > 0) {
+    return `${sign}${hours}h ${String(minutes).padStart(2, "0")}m`;
+  }
   return `${sign}${minutes}m ${String(seconds).padStart(2, "0")}s`;
 }

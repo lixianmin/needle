@@ -16,8 +16,9 @@ export function createBroadcast() {
     const connections = new Set();
     return {
         sink(batch) {
-            if (connections.size === 0)
+            if (connections.size === 0) {
                 return;
+            }
             // 不过滤级别：logger 已经按自己的 level 过滤过了，这里原样转发。
             for (let start = 0; start < batch.length; start += MAX_LOG_FRAME) {
                 const frame = batch.slice(start, start + MAX_LOG_FRAME);
@@ -25,10 +26,12 @@ export function createBroadcast() {
                 const text = encodeEvent("log", frame);
                 for (const connection of connections) {
                     try {
-                        if (connection.sendText === undefined)
+                        if (connection.sendText === undefined) {
                             connection.send("log", frame);
-                        else
+                        }
+                        else {
                             connection.sendText(text);
+                        }
                     }
                     catch {
                         // 写不进去说明连接已经坏了，摘掉即可，不能让一条坏连接影响其他连接。
@@ -47,8 +50,9 @@ export function createBroadcast() {
             return connections.size;
         },
         closeAll() {
-            for (const connection of connections)
+            for (const connection of connections) {
                 connection.close();
+            }
             connections.clear();
         },
     };
@@ -59,19 +63,22 @@ export function createBroadcast() {
  * 未知名字直接忽略，而不是报错：前端拼错一个名字不值得让整条流失败。
  */
 export function parseTopicSpecs(spec, topics) {
-    if (spec === null || spec.trim() === "")
+    if (spec === null || spec.trim() === "") {
         return [];
+    }
     const specs = [];
     const seen = new Set();
     for (const part of spec.split(",")) {
-        if (specs.length >= MAX_TOPIC_SPECS)
+        if (specs.length >= MAX_TOPIC_SPECS) {
             break;
+        }
         const [name, rawInterval] = part.split(":");
         const trimmed = name?.trim() ?? "";
         const topic = topics.find((candidate) => candidate.name === trimmed);
         // 去重：同一个名字重复出现会重复建 interval，一条 URL 就能压满事件循环。
-        if (topic === undefined || seen.has(topic.name))
+        if (topic === undefined || seen.has(topic.name)) {
             continue;
+        }
         seen.add(topic.name);
         const requested = rawInterval === undefined ? topic.intervalMs : Number(rawInterval);
         const intervalMs = Number.isFinite(requested)
@@ -97,16 +104,18 @@ export function createSseResponse(init) {
     /** 唯一的清理出口：定时器不清，连接关了也还在每秒读主题。 */
     function teardown() {
         closed = true;
-        for (const timer of timers)
+        for (const timer of timers) {
             clearInterval(timer);
+        }
         timers.length = 0;
     }
     const stream = new ReadableStream({
         start(controller) {
             let lastWrite = Date.now();
             const write = (chunk) => {
-                if (closed)
+                if (closed) {
                     return;
+                }
                 try {
                     controller.enqueue(encoder.encode(chunk));
                     lastWrite = Date.now();
@@ -126,8 +135,9 @@ export function createSseResponse(init) {
                     write(text);
                 },
                 close() {
-                    if (closed)
+                    if (closed) {
                         return;
+                    }
                     teardown();
                     try {
                         controller.close();
@@ -156,12 +166,14 @@ export function createSseResponse(init) {
             for (const { topic, intervalMs } of specs) {
                 let busy = false;
                 timers.push(setInterval(() => {
-                    if (closed)
+                    if (closed) {
                         return;
+                    }
                     // 慢主题不叠加：上一轮没读完就跳过这一轮，否则连接会被越堆越多的
                     // 读取任务拖死。
-                    if (busy)
+                    if (busy) {
                         return;
+                    }
                     busy = true;
                     Promise.resolve()
                         .then(() => topic.read())
@@ -179,14 +191,17 @@ export function createSseResponse(init) {
             // 中间层（nginx 默认 60s、多数负载均衡 30s）按"无数据"计算超时，
             // 这一行是给它们看的，控制台里不会显示。
             timers.push(setInterval(() => {
-                if (closed)
+                if (closed) {
                     return;
-                if (Date.now() - lastWrite < heartbeatMs)
+                }
+                if (Date.now() - lastWrite < heartbeatMs) {
                     return;
+                }
                 write(": ping\n\n");
             }, heartbeatMs));
-            for (const timer of timers)
+            for (const timer of timers) {
                 timer.unref?.();
+            }
         },
         cancel() {
             teardown();

@@ -24,7 +24,9 @@ function el<K extends keyof HTMLElementTagNameMap>(
   className?: string,
 ): HTMLElementTagNameMap[K] {
   const node = doc.createElement(tag);
-  if (className !== undefined) node.className = className;
+  if (className !== undefined) {
+    node.className = className;
+  }
   return node;
 }
 
@@ -37,7 +39,9 @@ function button(doc: Document, text: string, className: string): HTMLButtonEleme
 }
 
 function injectStyle(doc: Document): void {
-  if (doc.getElementById(STYLE_ID) !== null) return;
+  if (doc.getElementById(STYLE_ID) !== null) {
+    return;
+  }
   const style = doc.createElement("style");
   style.id = STYLE_ID;
   style.textContent = STYLE;
@@ -48,12 +52,18 @@ function injectStyle(doc: Document): void {
 /** 主题行的人话格式：字节走 toHuman，毫秒转秒，比率原样。 */
 function formatMetric(key: string, value: unknown): string {
   if (typeof value !== "number") {
-    if (typeof value === "string") return value;
+    if (typeof value === "string") {
+      return value;
+    }
     return JSON.stringify(value) ?? "";
   }
-  if (key === "rss" || key === "heapUsed") return toHuman(value);
+  if (key === "rss" || key === "heapUsed") {
+    return toHuman(value);
+  }
   // 约定：以 Ms 结尾的字段是毫秒数（uptimeMs、latencyMs…），按时长渲染。
-  if (key.endsWith("Ms")) return formatDuration(value);
+  if (key.endsWith("Ms")) {
+    return formatDuration(value);
+  }
   return displayNumber(value);
 }
 
@@ -192,7 +202,9 @@ export function mountShell(root: HTMLElement, adapter: ShellAdapter): ShellView 
 
   function push(node: HTMLElement): void {
     output.append(node);
-    while (output.childElementCount > MAX_LINES) output.firstElementChild?.remove();
+    while (output.childElementCount > MAX_LINES) {
+      output.firstElementChild?.remove();
+    }
     output.scrollTop = output.scrollHeight;
   }
 
@@ -218,7 +230,9 @@ export function mountShell(root: HTMLElement, adapter: ShellAdapter): ShellView 
     }
 
     const page = doc.defaultView;
-    if (page === null) return;
+    if (page === null) {
+      return;
+    }
 
     if (typeof URL.createObjectURL !== "function") {
       // 极端环境（部分扩展沙箱）没有 blob URL：退化成带凭证的直连会 401，不如说清楚。
@@ -242,12 +256,24 @@ export function mountShell(root: HTMLElement, adapter: ShellAdapter): ShellView 
       typeof value === "object" && value !== null;
 
     const render = (format: ColumnFormat, value: Cell): string => {
-      if (value === null) return "";
-      if (isLink(value)) return value.text;
-      if (typeof value !== "number") return String(value);
-      if (format === "duration") return formatDuration(value);
-      if (format === "bytes") return toHuman(value);
-      if (format === "number") return String(value);
+      if (value === null) {
+        return "";
+      }
+      if (isLink(value)) {
+        return value.text;
+      }
+      if (typeof value !== "number") {
+        return String(value);
+      }
+      if (format === "duration") {
+        return formatDuration(value);
+      }
+      if (format === "bytes") {
+        return toHuman(value);
+      }
+      if (format === "number") {
+        return String(value);
+      }
       return displayNumber(value);
     };
 
@@ -296,7 +322,9 @@ export function mountShell(root: HTMLElement, adapter: ShellAdapter): ShellView 
       cell.append(label, mark);
 
       cell.addEventListener("click", () => {
-        if (sortIndex === index) direction = -direction;
+        if (sortIndex === index) {
+          direction = -direction;
+        }
         else {
           sortIndex = index;
           direction = 1;
@@ -305,13 +333,17 @@ export function mountShell(root: HTMLElement, adapter: ShellAdapter): ShellView 
           const a = left[index] ?? null;
           const b = right[index] ?? null;
           // 空值永远排最后：乘以 direction 会让降序时它们跑到最前面。
-          if (a === null || b === null) return a === null ? (b === null ? 0 : 1) : -1;
+          if (a === null || b === null) {
+            return a === null ? (b === null ? 0 : 1) : -1;
+          }
           return compare(a, b) * direction;
         });
         renderBody(sorted);
         headers.forEach((header, i) => {
           const mark = header.querySelector(".mark");
-          if (mark === null) return;
+          if (mark === null) {
+            return;
+          }
           mark.textContent = i === sortIndex ? (direction === 1 ? "▲" : "▼") : "⇅";
           mark.classList.toggle("active", i === sortIndex);
         });
@@ -330,12 +362,20 @@ export function mountShell(root: HTMLElement, adapter: ShellAdapter): ShellView 
   function compare(left: Cell | undefined, right: Cell | undefined): number {
     const a = left ?? null;
     const b = right ?? null;
-    if (a === null && b === null) return 0;
-    if (a === null) return 1;
-    if (b === null) return -1;
+    if (a === null && b === null) {
+      return 0;
+    }
+    if (a === null) {
+      return 1;
+    }
+    if (b === null) {
+      return -1;
+    }
     const av = typeof a === "object" ? a.text : a;
     const bv = typeof b === "object" ? b.text : b;
-    if (typeof av === "number" && typeof bv === "number") return av - bv;
+    if (typeof av === "number" && typeof bv === "number") {
+      return av - bv;
+    }
     return String(av).localeCompare(String(bv));
   }
 
@@ -370,7 +410,9 @@ export function mountShell(root: HTMLElement, adapter: ShellAdapter): ShellView 
 
   /** 估算行高：一行消息 + 栈的每一行。真实高度等渲染后由测量覆盖。 */
   function estimateLogHeight(record: LogRecord): number {
-    if (typeof record.stack !== "string" || record.stack === "") return ROW_HEIGHT;
+    if (typeof record.stack !== "string" || record.stack === "") {
+      return ROW_HEIGHT;
+    }
     return ROW_HEIGHT * (1 + record.stack.split("\n").length);
   }
 
@@ -470,17 +512,27 @@ export function mountShell(root: HTMLElement, adapter: ShellAdapter): ShellView 
    * 焦点已经在别的输入控件里（页面里可能嵌着业务表单）就不抢。
    */
   function isEditable(node: Element | null): boolean {
-    if (node === null) return false;
+    if (node === null) {
+      return false;
+    }
     const tag = node.tagName.toLowerCase();
-    if (tag === "input" || tag === "textarea" || tag === "select") return true;
+    if (tag === "input" || tag === "textarea" || tag === "select") {
+      return true;
+    }
     return (node as HTMLElement).isContentEditable === true;
   }
 
   const focusOnEnter = (event: KeyboardEvent): void => {
-    if (event.key !== "Enter") return;
-    if (isEditable(doc.activeElement)) return;
+    if (event.key !== "Enter") {
+      return;
+    }
+    if (isEditable(doc.activeElement)) {
+      return;
+    }
     // Enter 是按钮/链接的默认激活方式，抢走它键盘就没法操作控制台自己的控件。
-    if (doc.activeElement?.closest?.("button, a, [role='button']") != null) return;
+    if (doc.activeElement?.closest?.("button, a, [role='button']") != null) {
+      return;
+    }
     event.preventDefault();
     input.focus();
   };
@@ -507,10 +559,14 @@ export function mountShell(root: HTMLElement, adapter: ShellAdapter): ShellView 
   }
 
   function commonPrefix(values: string[]): string {
-    if (values.length === 0) return "";
+    if (values.length === 0) {
+      return "";
+    }
     let prefix = values[0] ?? "";
     for (const value of values) {
-      while (!value.startsWith(prefix)) prefix = prefix.slice(0, -1);
+      while (!value.startsWith(prefix)) {
+        prefix = prefix.slice(0, -1);
+      }
     }
     return prefix;
   }
@@ -545,7 +601,9 @@ export function mountShell(root: HTMLElement, adapter: ShellAdapter): ShellView 
           ? topicNames(last)
           : [];
 
-    if (pool.length === 0) return;
+    if (pool.length === 0) {
+      return;
+    }
 
     if (pool.length === 1) {
       const before = tokens.slice(0, -1).join(" ");
@@ -648,7 +706,9 @@ export function mountShell(root: HTMLElement, adapter: ShellAdapter): ShellView 
       const password = input.value;
       const target = pendingUser;
       leavePasswordMode();
-      if (password === "") return;
+      if (password === "") {
+        return;
+      }
 
       void adapter.authenticate(target, password).then(
         (result) => {
@@ -666,16 +726,22 @@ export function mountShell(root: HTMLElement, adapter: ShellAdapter): ShellView 
     }
 
     const line = input.value.trim();
-    if (line === "") return;
+    if (line === "") {
+      return;
+    }
     input.value = "";
 
     const [name, ...args] = line.split(/\s+/);
-    if (name === undefined) return;
+    if (name === undefined) {
+      return;
+    }
 
     pushText(`$ ${line}`, "echo");
     remember(line);
 
-    if (runLocal(name, args)) return;
+    if (runLocal(name, args)) {
+      return;
+    }
     void adapter.exec(line).then(renderOutput, (error: unknown) => {
       pushText(`请求失败：${String(error)}`, "status");
     });
@@ -691,14 +757,22 @@ export function mountShell(root: HTMLElement, adapter: ShellAdapter): ShellView 
     // Tab 补全：永远 preventDefault，否则焦点会跳到别的控件上。
     if (event.key === "Tab") {
       event.preventDefault();
-      if (!event.shiftKey && pendingUser === null) complete();
+      if (!event.shiftKey && pendingUser === null) {
+        complete();
+      }
       return;
     }
 
-    if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+    if (event.key !== "ArrowUp" && event.key !== "ArrowDown") {
+      return;
+    }
     // 密码框里翻历史会把上一条命令当密码提交，用户还看不出发生了什么。
-    if (pendingUser !== null) return;
-    if (history.length === 0) return;
+    if (pendingUser !== null) {
+      return;
+    }
+    if (history.length === 0) {
+      return;
+    }
 
     event.preventDefault();
     cursor = event.key === "ArrowUp" ? Math.max(0, cursor - 1) : Math.min(history.length, cursor + 1);

@@ -16,16 +16,22 @@ export function createLocalAdapter(source: ShellSource): ShellAdapter {
   let timers: Array<ReturnType<typeof setInterval>> = [];
 
   const emit = (event: ShellEvent): void => {
-    for (const listener of listeners) listener(event);
+    for (const listener of listeners) {
+      listener(event);
+    }
   };
 
   function attach(): void {
-    if (attached) return;
+    if (attached) {
+      return;
+    }
     attached = true;
 
     detach = source.broadcast.attach({
       send(event, data) {
-        if (event === "log") emit({ type: "logs", records: data as LogRecord[] });
+        if (event === "log") {
+          emit({ type: "logs", records: data as LogRecord[] });
+        }
         if (event === "topic") {
           const payload = data as { name: string; data: unknown };
           emit({ type: "topic", name: payload.name, data: payload.data });
@@ -41,7 +47,9 @@ export function createLocalAdapter(source: ShellSource): ShellAdapter {
     async exec(line: string): Promise<ExecResult> {
       // 本地模式没有 token：source 里配了 user，鉴权直接放行。
       const result = await source.exec(line, null);
-      if (result.ok) return result;
+      if (result.ok) {
+        return result;
+      }
       // 适配器不知道 code 的各种取值，只关心"是不是没登录"，这一层转成布尔。
       return {
         ok: false,
@@ -60,9 +68,13 @@ export function createLocalAdapter(source: ShellSource): ShellAdapter {
     },
 
     setTopics(spec: string) {
-      for (const timer of timers) clearInterval(timer);
+      for (const timer of timers) {
+        clearInterval(timer);
+      }
       timers = [];
-      if (spec === "") return;
+      if (spec === "") {
+        return;
+      }
 
       // 本地模式没有 SSE，订阅就自己起定时器——解析复用 sse 的那份，去重与
       // 上限才跟服务端一致，不会两处逻辑慢慢漂移。
@@ -104,11 +116,15 @@ export function createLocalAdapter(source: ShellSource): ShellAdapter {
 
       return () => {
         listeners.delete(listener);
-        if (listeners.size > 0) return;
+        if (listeners.size > 0) {
+          return;
+        }
 
         // 面板卸载：定时器和广播连接一起收回。留着的话每次重新挂载都会
         // 多一份每秒读主题的 interval，broadcast.count() 也永远降不下来。
-        for (const timer of timers) clearInterval(timer);
+        for (const timer of timers) {
+          clearInterval(timer);
+        }
         timers = [];
         detach?.();
         detach = undefined;

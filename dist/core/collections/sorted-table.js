@@ -14,12 +14,15 @@ export function defaultComparer(left, right) {
     const leftType = typeof left;
     const rightType = typeof right;
     // 类型不同就不能转字符串比：`1` 与 `"1"` 会被判成相等，set() 静默覆盖前一个值。
-    if (leftType !== rightType)
+    if (leftType !== rightType) {
         return leftType < rightType ? -1 : 1;
-    if (leftType === "number")
+    }
+    if (leftType === "number") {
         return left - right;
-    if (leftType === "string")
+    }
+    if (leftType === "string") {
         return left < right ? -1 : left > right ? 1 : 0;
+    }
     const a = String(left);
     const b = String(right);
     return a < b ? -1 : a > b ? 1 : 0;
@@ -47,12 +50,15 @@ export class SortedTable {
         while (low <= high) {
             const mid = (low + high) >>> 1;
             const order = this.comparer(this.keys[mid], key);
-            if (order < 0)
+            if (order < 0) {
                 low = mid + 1;
-            else if (order > 0)
+            }
+            else if (order > 0) {
                 high = mid - 1;
-            else
+            }
+            else {
                 return mid;
+            }
         }
         return ~low;
     }
@@ -75,8 +81,9 @@ export class SortedTable {
     /** 取值；key 不存在时抛错（与 C# 的索引器一致，区别于 Map.get 返回 undefined）。 */
     get(key) {
         const index = this.search(key);
-        if (index < 0)
+        if (index < 0) {
             throw new Error(`SortedTable: key 不存在 ${String(key)}`);
+        }
         return this.values[index];
     }
     /** 取值；不存在返回 undefined。 */
@@ -87,8 +94,9 @@ export class SortedTable {
     /** 插入新 key；已存在则抛错（C# 的 Add 语义）。 */
     add(key, value) {
         const index = this.search(key);
-        if (index >= 0)
+        if (index >= 0) {
             throw new Error(`SortedTable: key 重复 ${String(key)}`);
+        }
         this.insertAt(~index, key, value);
     }
     /** 插入或覆盖（C# 的索引器 setter 语义）。 */
@@ -102,21 +110,24 @@ export class SortedTable {
     }
     remove(key) {
         const index = this.search(key);
-        if (index < 0)
+        if (index < 0) {
             return false;
+        }
         this.removeAt(index);
         return true;
     }
     removeAt(index) {
-        if (index < 0 || index >= this.keys.length)
+        if (index < 0 || index >= this.keys.length) {
             throw new RangeError("SortedTable: 下标越界");
+        }
         this.keys.splice(index, 1);
         this.values.splice(index, 1);
     }
     /** 在指定位置插入，调用方负责保证放进去之后仍然有序。 */
     insertAt(index, key, value) {
-        if (index < 0 || index > this.keys.length)
+        if (index < 0 || index > this.keys.length) {
             throw new RangeError("SortedTable: 插入位置越界");
+        }
         this.keys.splice(index, 0, key);
         this.values.splice(index, 0, value);
     }

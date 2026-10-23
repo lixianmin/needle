@@ -22,10 +22,14 @@ async function bundle(entry: string): Promise<string> {
     target: "browser",
     format: "esm",
   });
-  if (!result.success) throw new Error(result.logs.map(String).join("\n"));
+  if (!result.success) {
+    throw new Error(result.logs.map(String).join("\n"));
+  }
 
   const output = result.outputs[0];
-  if (output === undefined) throw new Error(`没有构建产物: ${entry}`);
+  if (output === undefined) {
+    throw new Error(`没有构建产物: ${entry}`);
+  }
   return output.text();
 }
 

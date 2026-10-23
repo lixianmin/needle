@@ -5,15 +5,17 @@ const DEFAULT_MAX_PER_MINUTE = 20;
 const MAX_TEXT_BYTES = 24_000;
 function truncate(text) {
     const encoder = new TextEncoder();
-    if (encoder.encode(text).length <= MAX_TEXT_BYTES)
+    if (encoder.encode(text).length <= MAX_TEXT_BYTES) {
         return text;
+    }
     // 按字节累加而不是按字符数：18000 个汉字是 54KB，飞书会直接拒收。
     let bytes = 0;
     let end = 0;
     for (const char of text) {
         const size = encoder.encode(char).length;
-        if (bytes + size > MAX_TEXT_BYTES)
+        if (bytes + size > MAX_TEXT_BYTES) {
             break;
+        }
         bytes += size;
         end += char.length;
     }
@@ -22,12 +24,15 @@ function truncate(text) {
 /** 一条记录能给人看的部分：msg、Error 的 message、栈。 */
 function detailOf(record) {
     const parts = [];
-    if (record.msg !== undefined && record.msg !== "")
+    if (record.msg !== undefined && record.msg !== "") {
         parts.push(record.msg);
-    if (typeof record.message === "string" && record.message !== "")
+    }
+    if (typeof record.message === "string" && record.message !== "") {
         parts.push(record.message);
-    if (typeof record.stack === "string" && record.stack !== "")
+    }
+    if (typeof record.stack === "string" && record.stack !== "") {
         parts.push(record.stack);
+    }
     return parts.join("\n");
 }
 async function sign(secret, timestamp) {
@@ -35,8 +40,9 @@ async function sign(secret, timestamp) {
     const key = await crypto.subtle.importKey("raw", encoder.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
     const signature = await crypto.subtle.sign("HMAC", key, encoder.encode(`${timestamp}\n${secret}`));
     let binary = "";
-    for (const byte of new Uint8Array(signature))
+    for (const byte of new Uint8Array(signature)) {
         binary += String.fromCharCode(byte);
+    }
     return btoa(binary);
 }
 /**
@@ -59,16 +65,18 @@ export function createLarkSink(options) {
     function refill() {
         const at = now();
         const elapsed = at - lastRefill;
-        if (elapsed <= 0)
+        if (elapsed <= 0) {
             return;
+        }
         // 按时间比例补充，而不是每满 60 秒整桶重置：后者允许在窗口边界连发
         // 2× 配额，正好是限流要防的情况。
         lastRefill = at;
         tokens = Math.min(maxPerMinute, tokens + (elapsed / 60_000) * maxPerMinute);
     }
     async function send(lines) {
-        if (lines.length === 0)
+        if (lines.length === 0) {
             return;
+        }
         const text = truncate(lines.join("\n"));
         const timestamp = String(Math.floor(now() / 1000));
         const body = { msg_type: "text", content: { text } };
@@ -82,21 +90,24 @@ export function createLarkSink(options) {
             body: JSON.stringify(body),
         });
         // 静默失败等于告警没发出去：至少留一行到 stderr。
-        if (!response.ok)
+        if (!response.ok) {
             console.error(`[logo] lark webhook 返回 HTTP ${response.status}`);
+        }
     }
     async function flush() {
         if (timer !== undefined) {
             clearTimeout(timer);
             timer = undefined;
         }
-        if (queue.length === 0)
+        if (queue.length === 0) {
             return;
+        }
         const pending = queue;
         queue = [];
         refill();
-        if (tokens < 1)
+        if (tokens < 1) {
             return; // 超出配额：这一批直接丢，不排队堆积
+        }
         tokens -= 1;
         try {
             await send(pending);
@@ -106,11 +117,13 @@ export function createLarkSink(options) {
         }
     }
     const sink = ((batch) => {
-        if (closed)
+        if (closed) {
             return;
+        }
         for (const record of batch) {
-            if (LEVELS[record.level] < minLevel)
+            if (LEVELS[record.level] < minLevel) {
                 continue;
+            }
             queue.push(`[${record.level}] ${detailOf(record)}`.trim());
         }
         if (queue.length > 0 && timer === undefined) {
@@ -124,8 +137,9 @@ export function createLarkSink(options) {
     sink.flush = flush;
     // dispose() 只调用带 close 的 sink。没有它，队列里最后一条 error 会随进程消失。
     sink.close = () => {
-        if (closed)
+        if (closed) {
             return;
+        }
         closed = true;
         if (timer !== undefined) {
             clearTimeout(timer);

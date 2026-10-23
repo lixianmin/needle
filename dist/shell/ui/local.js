@@ -11,17 +11,20 @@ export function createLocalAdapter(source) {
     let detach;
     let timers = [];
     const emit = (event) => {
-        for (const listener of listeners)
+        for (const listener of listeners) {
             listener(event);
+        }
     };
     function attach() {
-        if (attached)
+        if (attached) {
             return;
+        }
         attached = true;
         detach = source.broadcast.attach({
             send(event, data) {
-                if (event === "log")
+                if (event === "log") {
                     emit({ type: "logs", records: data });
+                }
                 if (event === "topic") {
                     const payload = data;
                     emit({ type: "topic", name: payload.name, data: payload.data });
@@ -36,8 +39,9 @@ export function createLocalAdapter(source) {
         async exec(line) {
             // 本地模式没有 token：source 里配了 user，鉴权直接放行。
             const result = await source.exec(line, null);
-            if (result.ok)
+            if (result.ok) {
                 return result;
+            }
             // 适配器不知道 code 的各种取值，只关心"是不是没登录"，这一层转成布尔。
             return {
                 ok: false,
@@ -53,11 +57,13 @@ export function createLocalAdapter(source) {
             return result.ok ? { ok: true, user: result.user } : { ok: false, error: result.error };
         },
         setTopics(spec) {
-            for (const timer of timers)
+            for (const timer of timers) {
                 clearInterval(timer);
+            }
             timers = [];
-            if (spec === "")
+            if (spec === "") {
                 return;
+            }
             // 本地模式没有 SSE，订阅就自己起定时器——解析复用 sse 的那份，去重与
             // 上限才跟服务端一致，不会两处逻辑慢慢漂移。
             for (const { topic, intervalMs } of parseTopicSpecs(spec, source.topics)) {
@@ -91,12 +97,14 @@ export function createLocalAdapter(source) {
             });
             return () => {
                 listeners.delete(listener);
-                if (listeners.size > 0)
+                if (listeners.size > 0) {
                     return;
+                }
                 // 面板卸载：定时器和广播连接一起收回。留着的话每次重新挂载都会
                 // 多一份每秒读主题的 interval，broadcast.count() 也永远降不下来。
-                for (const timer of timers)
+                for (const timer of timers) {
                     clearInterval(timer);
+                }
                 timers = [];
                 detach?.();
                 detach = undefined;

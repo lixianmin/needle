@@ -24,7 +24,9 @@ const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function readFor(response: Response, ms: number): Promise<string> {
   const reader = response.body?.getReader();
-  if (reader === undefined) return "";
+  if (reader === undefined) {
+    return "";
+  }
 
   const decoder = new TextDecoder();
   let text = "";
@@ -35,8 +37,12 @@ async function readFor(response: Response, ms: number): Promise<string> {
       reader.read(),
       delay(deadline - Date.now()).then(() => null),
     ]);
-    if (chunk === null) break; // 超时
-    if (chunk.done) break;
+    if (chunk === null) {
+      break; // 超时
+    }
+    if (chunk.done) {
+      break;
+    }
     text += decoder.decode(chunk.value);
   }
 

@@ -23,7 +23,9 @@ function readToken(): string | null {
 async function errorMessage(response: Response): Promise<string> {
   try {
     const body = (await response.json()) as { message?: unknown };
-    if (typeof body.message === "string" && body.message !== "") return body.message;
+    if (typeof body.message === "string" && body.message !== "") {
+      return body.message;
+    }
   } catch {
     // 网关/代理插进来的非 JSON 错误页，不猜内容
   }
@@ -32,8 +34,12 @@ async function errorMessage(response: Response): Promise<string> {
 
 function writeToken(token: string | null): void {
   try {
-    if (token === null) localStorage.removeItem(TOKEN_KEY);
-    else localStorage.setItem(TOKEN_KEY, token);
+    if (token === null) {
+      localStorage.removeItem(TOKEN_KEY);
+    }
+    else {
+      localStorage.setItem(TOKEN_KEY, token);
+    }
   } catch {
     // 隐私模式下写不进去，那就每次刷新重登一次，不算故障。
   }
@@ -52,10 +58,16 @@ function createFrameParser(onFrame: (event: string, data: string) => void) {
       let event = "message";
       const data: string[] = [];
       for (const line of frame.split("\n")) {
-        if (line.startsWith("event:")) event = line.slice(6).trim();
-        else if (line.startsWith("data:")) data.push(line.slice(5).trim());
+        if (line.startsWith("event:")) {
+          event = line.slice(6).trim();
+        }
+        else if (line.startsWith("data:")) {
+          data.push(line.slice(5).trim());
+        }
       }
-      if (data.length > 0) onFrame(event, data.join("\n"));
+      if (data.length > 0) {
+        onFrame(event, data.join("\n"));
+      }
 
       index = buffer.indexOf("\n\n");
     }
@@ -77,7 +89,9 @@ export function createFetchAdapter(options: FetchAdapterOptions): ShellAdapter {
   let disposed = false;
 
   const emit = (event: ShellEvent): void => {
-    for (const listener of listeners) listener(event);
+    for (const listener of listeners) {
+      listener(event);
+    }
   };
 
   const status = (message: string, level: "info" | "warn" | "error" = "info"): void => {
@@ -85,7 +99,9 @@ export function createFetchAdapter(options: FetchAdapterOptions): ShellAdapter {
   };
 
   async function connect(): Promise<void> {
-    if (disposed) return;
+    if (disposed) {
+      return;
+    }
     controller?.abort();
     // 每轮持有自己的 Controller：旧轮次被 abort 时，catch 里不能去读那个
     // 已经被换成新轮次的 controller，否则守卫失效、旧轮次会把新连接再 abort 一遍。
@@ -125,8 +141,12 @@ export function createFetchAdapter(options: FetchAdapterOptions): ShellAdapter {
       const decoder = new TextDecoder();
       const parse = createFrameParser((event, data) => {
         try {
-          if (event === "handshake") emit({ type: "handshake", info: JSON.parse(data) as HandshakeInfo });
-          else if (event === "log") emit({ type: "logs", records: JSON.parse(data) as LogRecord[] });
+          if (event === "handshake") {
+            emit({ type: "handshake", info: JSON.parse(data) as HandshakeInfo });
+          }
+          else if (event === "log") {
+            emit({ type: "logs", records: JSON.parse(data) as LogRecord[] });
+          }
           else if (event === "topic") {
             const payload = JSON.parse(data) as { name: string; data?: unknown; error?: unknown };
             // 主题读取失败时服务端发的是 { error }，兜一下，别渲染成 "[top] undefined"。
@@ -139,18 +159,26 @@ export function createFetchAdapter(options: FetchAdapterOptions): ShellAdapter {
 
       for (;;) {
         const chunk = await reader.read();
-        if (chunk.done) break;
+        if (chunk.done) {
+          break;
+        }
         parse(decoder.decode(chunk.value, { stream: true }));
       }
 
-      if (!disposed) status("连接已断开，正在重连…", "warn");
+      if (!disposed) {
+        status("连接已断开，正在重连…", "warn");
+      }
     } catch (error) {
-      if (disposed || local.signal.aborted) return;
+      if (disposed || local.signal.aborted) {
+        return;
+      }
       status(`连接失败：${String(error)}`, "error");
     }
 
     // 只有这一轮仍是最新时才安排重连：被 abort 的旧轮次不该再拉起一次。
-    if (disposed || controller !== local) return;
+    if (disposed || controller !== local) {
+      return;
+    }
     // 指数退避，封顶 10 秒：服务重启期间不要把浏览器打死。
     retry += 1;
     setTimeout(() => void connect(), Math.min(10_000, 500 * 2 ** retry));
@@ -160,7 +188,9 @@ export function createFetchAdapter(options: FetchAdapterOptions): ShellAdapter {
     async exec(line: string): Promise<ExecResult> {
       const token = readToken();
       const headers: Record<string, string> = { "content-type": "application/json" };
-      if (token !== null) headers.authorization = `Bearer ${token}`;
+      if (token !== null) {
+        headers.authorization = `Bearer ${token}`;
+      }
 
       const response = await fetch(`${options.basePath}/exec`, {
         method: "POST",
@@ -174,7 +204,9 @@ export function createFetchAdapter(options: FetchAdapterOptions): ShellAdapter {
         return { ok: false, error: "unauthorized", unauthorized: true };
       }
 
-      if (!response.ok) return { ok: false, error: await errorMessage(response) };
+      if (!response.ok) {
+        return { ok: false, error: await errorMessage(response) };
+      }
 
       // 成功响应不加壳：命令输出直接在 body.data 里。
       const body = (await response.json()) as { data: CommandOutput };
@@ -184,12 +216,18 @@ export function createFetchAdapter(options: FetchAdapterOptions): ShellAdapter {
     async fetchFile(href: string): Promise<FileResult> {
       const token = readToken();
       const headers: Record<string, string> = {};
-      if (token !== null) headers.authorization = `Bearer ${token}`;
+      if (token !== null) {
+        headers.authorization = `Bearer ${token}`;
+      }
 
       try {
         const response = await fetch(href, { headers });
-        if (response.status === 401) return { ok: false, error: "未登录：先执行 auth <user>" };
-        if (!response.ok) return { ok: false, error: await errorMessage(response) };
+        if (response.status === 401) {
+          return { ok: false, error: "未登录：先执行 auth <user>" };
+        }
+        if (!response.ok) {
+          return { ok: false, error: await errorMessage(response) };
+        }
         return { ok: true, text: await response.text() };
       } catch (error) {
         return { ok: false, error: String(error) };
@@ -221,12 +259,16 @@ export function createFetchAdapter(options: FetchAdapterOptions): ShellAdapter {
 
     setTopics(spec: string) {
       topicSpec = spec;
-      if (listeners.size > 0) void connect();
+      if (listeners.size > 0) {
+        void connect();
+      }
     },
 
     subscribe(listener) {
       listeners.add(listener);
-      if (listeners.size === 1) void connect();
+      if (listeners.size === 1) {
+        void connect();
+      }
       return () => {
         listeners.delete(listener);
         if (listeners.size === 0) {

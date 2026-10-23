@@ -25,10 +25,18 @@ export interface BuiltinDeps {
  * 排序本来就没意义。
  */
 function formatMetric(name: string, value: unknown): string | number {
-  if (typeof value === "string") return value;
-  if (typeof value !== "number") return JSON.stringify(value) ?? "";
-  if (name === "rss" || name === "heapUsed") return toHuman(value);
-  if (name.endsWith("Ms")) return formatDuration(value);
+  if (typeof value === "string") {
+    return value;
+  }
+  if (typeof value !== "number") {
+    return JSON.stringify(value) ?? "";
+  }
+  if (name === "rss" || name === "heapUsed") {
+    return toHuman(value);
+  }
+  if (name.endsWith("Ms")) {
+    return formatDuration(value);
+  }
   return value;
 }
 
@@ -58,7 +66,9 @@ export function createHelpCommand(list: () => readonly Command[]): Command {
         blocks.push("自定义命令", ...custom.map(render));
       }
       if (builtin.length > 0) {
-        if (blocks.length > 0) blocks.push("");
+        if (blocks.length > 0) {
+          blocks.push("");
+        }
         blocks.push("内置命令", ...builtin.map(render));
       }
       return { kind: "text", text: blocks.join("\n") };
@@ -82,7 +92,9 @@ function createLogListCommand(deps: { logFiles?: LogFiles; basePath: string }): 
       }
 
       const files = await deps.logFiles.list();
-      if (files.length === 0) return { kind: "text", text: "日志目录里还没有文件" };
+      if (files.length === 0) {
+        return { kind: "text", text: "日志目录里还没有文件" };
+      }
 
       return filesTable.output(
         files.map((file) => ({

@@ -10,7 +10,9 @@ export interface ExecHttpOptions {
 }
 
 function bearerToken(header: string | null): string | null {
-  if (header === null) return null;
+  if (header === null) {
+    return null;
+  }
   const match = /^bearer\s+(.+)$/i.exec(header.trim());
   return match?.[1] ?? null;
 }
@@ -27,7 +29,9 @@ export function createExecHandler(options: ExecHttpOptions): (req: Request) => P
   return async (req) => {
     // 边读边计数：chunked 请求没有 content-length，先读后检查等于没检查。
     const body = await readTextLimited(req, maxBodyBytes);
-    if (body === null) return ResponseX.payloadTooLarge("payload too large");
+    if (body === null) {
+      return ResponseX.payloadTooLarge("payload too large");
+    }
 
     let parsed: unknown;
     try {
@@ -41,10 +45,14 @@ export function createExecHandler(options: ExecHttpOptions): (req: Request) => P
       return ResponseX.badRequest("line 必须是字符串");
     }
     // 空命令是畸形请求，不是业务结果，走 400。
-    if (line.trim() === "") return ResponseX.badRequest("空命令");
+    if (line.trim() === "") {
+      return ResponseX.badRequest("空命令");
+    }
 
     const result = await options.source.exec(line, bearerToken(req.headers.get("authorization")));
-    if (result.ok) return Response.json({ data: result.output });
+    if (result.ok) {
+      return Response.json({ data: result.output });
+    }
 
     // 内部失败原因比线上 code 细：一个状态码只配一个 code，细分靠 message。
     switch (result.code) {

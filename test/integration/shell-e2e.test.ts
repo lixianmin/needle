@@ -48,7 +48,9 @@ describe("控制台端到端", () => {
       // 读后续帧，直到看到那条日志（最多 50 帧）。
       for (let i = 0; i < 50 && !text.includes("live-line"); i += 1) {
         const chunk = await reader?.read();
-        if (chunk?.done === true) break;
+        if (chunk?.done === true) {
+          break;
+        }
         text += decoder.decode(chunk?.value);
       }
 
@@ -147,7 +149,9 @@ describe("SSE 断开", () => {
           },
         );
         request.on("error", (error: NodeJS.ErrnoException) => {
-          if (error.code !== "ECONNRESET") reject(error);
+          if (error.code !== "ECONNRESET") {
+            reject(error);
+          }
         });
       });
 

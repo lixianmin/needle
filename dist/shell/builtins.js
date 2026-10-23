@@ -10,14 +10,18 @@ import { table } from "./table.js";
  * 排序本来就没意义。
  */
 function formatMetric(name, value) {
-    if (typeof value === "string")
+    if (typeof value === "string") {
         return value;
-    if (typeof value !== "number")
+    }
+    if (typeof value !== "number") {
         return JSON.stringify(value) ?? "";
-    if (name === "rss" || name === "heapUsed")
+    }
+    if (name === "rss" || name === "heapUsed") {
         return toHuman(value);
-    if (name.endsWith("Ms"))
+    }
+    if (name.endsWith("Ms")) {
         return formatDuration(value);
+    }
     return value;
 }
 /** help 由调用方在合并自定义命令之后再插入——它要看到全量，而不是只有内置的。 */
@@ -43,8 +47,9 @@ export function createHelpCommand(list) {
                 blocks.push("自定义命令", ...custom.map(render));
             }
             if (builtin.length > 0) {
-                if (blocks.length > 0)
+                if (blocks.length > 0) {
                     blocks.push("");
+                }
                 blocks.push("内置命令", ...builtin.map(render));
             }
             return { kind: "text", text: blocks.join("\n") };
@@ -65,8 +70,9 @@ function createLogListCommand(deps) {
                 throw new CommandError("没有配置日志目录，log.list 不可用（Node 侧用 createLogFiles 传进来）");
             }
             const files = await deps.logFiles.list();
-            if (files.length === 0)
+            if (files.length === 0) {
                 return { kind: "text", text: "日志目录里还没有文件" };
+            }
             return filesTable.output(files.map((file) => ({
                 file: { text: file.name, href: `${deps.basePath}/log/${encodeURIComponent(file.name)}` },
                 size: file.size,

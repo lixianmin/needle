@@ -23,7 +23,9 @@ export interface Shell {
 
 
 function bearer(header: string | null): string | null {
-  if (header === null) return null;
+  if (header === null) {
+    return null;
+  }
   const match = /^bearer\s+(.+)$/i.exec(header.trim());
   return match?.[1] ?? null;
 }
@@ -58,17 +60,23 @@ export function createShell(options: ShellOptions): Shell {
    * 没有有效 token 返回 null。`/log/:name` 与 `/events` 共用这一处口径。
    */
   async function resolveUser(req: Request): Promise<string | null> {
-    if (source.user !== null) return source.user;
+    if (source.user !== null) {
+      return source.user;
+    }
     const verified = await source.auth.verify(bearer(req.headers.get("authorization")));
     return verified === null ? null : verified.sub;
   }
 
   async function logRoute({ req, params }: RouteContext): Promise<Response> {
     const user = await resolveUser(req);
-    if (user === null) return ResponseX.unauthorized("未登录或 token 无效");
+    if (user === null) {
+      return ResponseX.unauthorized("未登录或 token 无效");
+    }
 
     const body = await source.logFiles?.read(params.name ?? "");
-    if (body === null || body === undefined) return ResponseX.notFound("日志文件不存在");
+    if (body === null || body === undefined) {
+      return ResponseX.notFound("日志文件不存在");
+    }
 
     return new Response(body, {
       headers: {
@@ -81,7 +89,9 @@ export function createShell(options: ShellOptions): Shell {
   async function eventsRoute({ req, url }: RouteContext): Promise<Response> {
     // 事件流必须鉴权：日志里什么都有，匿名不该看到。本地模式是唯一的例外，理由同 /log/。
     const user = await resolveUser(req);
-    if (user === null) return ResponseX.unauthorized("未登录或 token 无效");
+    if (user === null) {
+      return ResponseX.unauthorized("未登录或 token 无效");
+    }
 
     return createSseResponse({
       user,
@@ -113,11 +123,15 @@ export function createShell(options: ShellOptions): Shell {
     source,
 
     async handler(req) {
-      if (disposed) return ResponseX.unavailable("shell disposed");
+      if (disposed) {
+        return ResponseX.unavailable("shell disposed");
+      }
 
       const found = router.match(req);
       // 消息里必须带方法与路径：只回 "not found" 等于没回，调用方无法判断是路径写错还是方法不对
-      if (found === null) return ResponseX.notFound(`未匹配的路由：${req.method} ${new URL(req.url).pathname}`);
+      if (found === null) {
+        return ResponseX.notFound(`未匹配的路由：${req.method} ${new URL(req.url).pathname}`);
+      }
 
       return found.handler({ req, url: found.url, params: found.params });
     },

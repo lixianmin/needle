@@ -7,8 +7,9 @@ const HISTORY_KEY = "logo.shell.history";
 const HISTORY_LIMIT = 50;
 function el(doc, tag, className) {
     const node = doc.createElement(tag);
-    if (className !== undefined)
+    if (className !== undefined) {
         node.className = className;
+    }
     return node;
 }
 function button(doc, text, className) {
@@ -19,8 +20,9 @@ function button(doc, text, className) {
     return node;
 }
 function injectStyle(doc) {
-    if (doc.getElementById(STYLE_ID) !== null)
+    if (doc.getElementById(STYLE_ID) !== null) {
         return;
+    }
     const style = doc.createElement("style");
     style.id = STYLE_ID;
     style.textContent = STYLE;
@@ -29,15 +31,18 @@ function injectStyle(doc) {
 /** 主题行的人话格式：字节走 toHuman，毫秒转秒，比率原样。 */
 function formatMetric(key, value) {
     if (typeof value !== "number") {
-        if (typeof value === "string")
+        if (typeof value === "string") {
             return value;
+        }
         return JSON.stringify(value) ?? "";
     }
-    if (key === "rss" || key === "heapUsed")
+    if (key === "rss" || key === "heapUsed") {
         return toHuman(value);
+    }
     // 约定：以 Ms 结尾的字段是毫秒数（uptimeMs、latencyMs…），按时长渲染。
-    if (key.endsWith("Ms"))
+    if (key.endsWith("Ms")) {
         return formatDuration(value);
+    }
     return displayNumber(value);
 }
 function readHistory() {
@@ -152,8 +157,9 @@ export function mountShell(root, adapter) {
     });
     function push(node) {
         output.append(node);
-        while (output.childElementCount > MAX_LINES)
+        while (output.childElementCount > MAX_LINES) {
             output.firstElementChild?.remove();
+        }
         output.scrollTop = output.scrollHeight;
     }
     function pushText(text, className) {
@@ -177,8 +183,9 @@ export function mountShell(root, adapter) {
             return;
         }
         const page = doc.defaultView;
-        if (page === null)
+        if (page === null) {
             return;
+        }
         if (typeof URL.createObjectURL !== "function") {
             // 极端环境（部分扩展沙箱）没有 blob URL：退化成带凭证的直连会 401，不如说清楚。
             pushText("当前环境不支持在新窗口打开文件", "status");
@@ -196,18 +203,24 @@ export function mountShell(root, adapter) {
         const body = el(doc, "tbody");
         const isLink = (value) => typeof value === "object" && value !== null;
         const render = (format, value) => {
-            if (value === null)
+            if (value === null) {
                 return "";
-            if (isLink(value))
+            }
+            if (isLink(value)) {
                 return value.text;
-            if (typeof value !== "number")
+            }
+            if (typeof value !== "number") {
                 return String(value);
-            if (format === "duration")
+            }
+            if (format === "duration") {
                 return formatDuration(value);
-            if (format === "bytes")
+            }
+            if (format === "bytes") {
                 return toHuman(value);
-            if (format === "number")
+            }
+            if (format === "number") {
                 return String(value);
+            }
             return displayNumber(value);
         };
         const show = (index, value) => render(formats[index] ?? "auto", value);
@@ -252,8 +265,9 @@ export function mountShell(root, adapter) {
             mark.textContent = "⇅";
             cell.append(label, mark);
             cell.addEventListener("click", () => {
-                if (sortIndex === index)
+                if (sortIndex === index) {
                     direction = -direction;
+                }
                 else {
                     sortIndex = index;
                     direction = 1;
@@ -262,15 +276,17 @@ export function mountShell(root, adapter) {
                     const a = left[index] ?? null;
                     const b = right[index] ?? null;
                     // 空值永远排最后：乘以 direction 会让降序时它们跑到最前面。
-                    if (a === null || b === null)
+                    if (a === null || b === null) {
                         return a === null ? (b === null ? 0 : 1) : -1;
+                    }
                     return compare(a, b) * direction;
                 });
                 renderBody(sorted);
                 headers.forEach((header, i) => {
                     const mark = header.querySelector(".mark");
-                    if (mark === null)
+                    if (mark === null) {
                         return;
+                    }
                     mark.textContent = i === sortIndex ? (direction === 1 ? "▲" : "▼") : "⇅";
                     mark.classList.toggle("active", i === sortIndex);
                 });
@@ -287,16 +303,20 @@ export function mountShell(root, adapter) {
     function compare(left, right) {
         const a = left ?? null;
         const b = right ?? null;
-        if (a === null && b === null)
+        if (a === null && b === null) {
             return 0;
-        if (a === null)
+        }
+        if (a === null) {
             return 1;
-        if (b === null)
+        }
+        if (b === null) {
             return -1;
+        }
         const av = typeof a === "object" ? a.text : a;
         const bv = typeof b === "object" ? b.text : b;
-        if (typeof av === "number" && typeof bv === "number")
+        if (typeof av === "number" && typeof bv === "number") {
             return av - bv;
+        }
         return String(av).localeCompare(String(bv));
     }
     function renderOutput(result) {
@@ -329,8 +349,9 @@ export function mountShell(root, adapter) {
     }
     /** 估算行高：一行消息 + 栈的每一行。真实高度等渲染后由测量覆盖。 */
     function estimateLogHeight(record) {
-        if (typeof record.stack !== "string" || record.stack === "")
+        if (typeof record.stack !== "string" || record.stack === "") {
             return ROW_HEIGHT;
+        }
         return ROW_HEIGHT * (1 + record.stack.split("\n").length);
     }
     function renderLogLine(record) {
@@ -417,21 +438,26 @@ export function mountShell(root, adapter) {
      * 焦点已经在别的输入控件里（页面里可能嵌着业务表单）就不抢。
      */
     function isEditable(node) {
-        if (node === null)
+        if (node === null) {
             return false;
+        }
         const tag = node.tagName.toLowerCase();
-        if (tag === "input" || tag === "textarea" || tag === "select")
+        if (tag === "input" || tag === "textarea" || tag === "select") {
             return true;
+        }
         return node.isContentEditable === true;
     }
     const focusOnEnter = (event) => {
-        if (event.key !== "Enter")
+        if (event.key !== "Enter") {
             return;
-        if (isEditable(doc.activeElement))
+        }
+        if (isEditable(doc.activeElement)) {
             return;
+        }
         // Enter 是按钮/链接的默认激活方式，抢走它键盘就没法操作控制台自己的控件。
-        if (doc.activeElement?.closest?.("button, a, [role='button']") != null)
+        if (doc.activeElement?.closest?.("button, a, [role='button']") != null) {
             return;
+        }
         event.preventDefault();
         input.focus();
     };
@@ -453,12 +479,14 @@ export function mountShell(root, adapter) {
         input.value = "";
     }
     function commonPrefix(values) {
-        if (values.length === 0)
+        if (values.length === 0) {
             return "";
+        }
         let prefix = values[0] ?? "";
         for (const value of values) {
-            while (!value.startsWith(prefix))
+            while (!value.startsWith(prefix)) {
                 prefix = prefix.slice(0, -1);
+            }
         }
         return prefix;
     }
@@ -488,8 +516,9 @@ export function mountShell(root, adapter) {
             : tokens[0] === "sub" || tokens[0] === "unsub"
                 ? topicNames(last)
                 : [];
-        if (pool.length === 0)
+        if (pool.length === 0) {
             return;
+        }
         if (pool.length === 1) {
             const before = tokens.slice(0, -1).join(" ");
             input.value = `${before === "" ? "" : `${before} `}${pool[0]} `;
@@ -578,8 +607,9 @@ export function mountShell(root, adapter) {
             const password = input.value;
             const target = pendingUser;
             leavePasswordMode();
-            if (password === "")
+            if (password === "") {
                 return;
+            }
             void adapter.authenticate(target, password).then((result) => {
                 if (result.ok) {
                     loggedIn = true;
@@ -594,16 +624,19 @@ export function mountShell(root, adapter) {
             return;
         }
         const line = input.value.trim();
-        if (line === "")
+        if (line === "") {
             return;
+        }
         input.value = "";
         const [name, ...args] = line.split(/\s+/);
-        if (name === undefined)
+        if (name === undefined) {
             return;
+        }
         pushText(`$ ${line}`, "echo");
         remember(line);
-        if (runLocal(name, args))
+        if (runLocal(name, args)) {
             return;
+        }
         void adapter.exec(line).then(renderOutput, (error) => {
             pushText(`请求失败：${String(error)}`, "status");
         });
@@ -618,17 +651,21 @@ export function mountShell(root, adapter) {
         // Tab 补全：永远 preventDefault，否则焦点会跳到别的控件上。
         if (event.key === "Tab") {
             event.preventDefault();
-            if (!event.shiftKey && pendingUser === null)
+            if (!event.shiftKey && pendingUser === null) {
                 complete();
+            }
             return;
         }
-        if (event.key !== "ArrowUp" && event.key !== "ArrowDown")
+        if (event.key !== "ArrowUp" && event.key !== "ArrowDown") {
             return;
+        }
         // 密码框里翻历史会把上一条命令当密码提交，用户还看不出发生了什么。
-        if (pendingUser !== null)
+        if (pendingUser !== null) {
             return;
-        if (history.length === 0)
+        }
+        if (history.length === 0) {
             return;
+        }
         event.preventDefault();
         cursor = event.key === "ArrowUp" ? Math.max(0, cursor - 1) : Math.min(history.length, cursor + 1);
         input.value = history[cursor] ?? "";

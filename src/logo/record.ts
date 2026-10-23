@@ -35,20 +35,28 @@ export function sanitize(
   budget: Budget = { nodes: MAX_NODES },
 ): unknown {
   // 函数不是对象，但旧实现把判断放在早退之后，于是函数值原样进了记录。
-  if (typeof value === "function") return "[Function]";
+  if (typeof value === "function") {
+    return "[Function]";
+  }
 
   if (value === null || typeof value !== "object") {
     // BigInt 不能进 JSON，转成字符串保住精度。
     return typeof value === "bigint" ? value.toString() : value;
   }
 
-  if (depth >= MAX_DEPTH) return "[Depth]";
-  if (budget.nodes <= 0) return "[Truncated]";
+  if (depth >= MAX_DEPTH) {
+    return "[Depth]";
+  }
+  if (budget.nodes <= 0) {
+    return "[Truncated]";
+  }
   budget.nodes -= 1;
 
   // 只沿当前路径去环：`{ start: d, end: d }` 是共享引用，不是环。旧实现用
   // 一个贯穿整次遍历的 WeakSet，第二个 d 就被误判成 "[Circular]"。
-  if (ancestors.has(value)) return CIRCULAR;
+  if (ancestors.has(value)) {
+    return CIRCULAR;
+  }
 
   ancestors.add(value);
   try {
@@ -99,7 +107,9 @@ export function safeStringify(value: unknown): string {
 
 /** 只有"纯对象"才合并进记录字段；数组、Date、类实例都当作值渲染进 msg。 */
 function isPlainObject(value: unknown): value is Record<string, unknown> {
-  if (typeof value !== "object" || value === null) return false;
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
   const proto = Object.getPrototypeOf(value);
   return proto === Object.prototype || proto === null;
 }
@@ -146,7 +156,9 @@ export function buildRecord(
 
   // 信封字段由库拥有，业务对象里的同名键直接丢弃——否则调用方能用
   // `info({ level: "error" })` 伪造级别，过滤和告警都跟着跑偏。
-  for (const key of ENVELOPE_FIELDS) delete fields[key];
+  for (const key of ENVELOPE_FIELDS) {
+    delete fields[key];
+  }
 
   const record: LogRecord = {
     ...fields,
@@ -155,8 +167,12 @@ export function buildRecord(
   };
 
   const msg = parts.join(" ");
-  if (msg !== "") record.msg = msg;
-  if (options.name !== undefined) record.name = options.name;
+  if (msg !== "") {
+    record.msg = msg;
+  }
+  if (options.name !== undefined) {
+    record.name = options.name;
+  }
 
   // 参数里的 Error 自带调用栈（抛出点），比这里的调用点更准，优先保留。
   if (options.stack !== undefined && record.stack === undefined) {

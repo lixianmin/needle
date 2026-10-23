@@ -25,9 +25,17 @@ export interface RunningServer {
 function toHeaders(req: IncomingMessage): Headers {
   const headers = new Headers();
   for (const [key, value] of Object.entries(req.headers)) {
-    if (value === undefined) continue;
-    if (Array.isArray(value)) for (const item of value) headers.append(key, item);
-    else headers.set(key, value);
+    if (value === undefined) {
+      continue;
+    }
+    if (Array.isArray(value)) {
+      for (const item of value) {
+headers.append(key, item);
+}
+    }
+    else {
+      headers.set(key, value);
+    }
   }
   return headers;
 }
@@ -52,9 +60,13 @@ async function writeResponse(response: Response, res: ServerResponse): Promise<v
   try {
     for (;;) {
       const { done, value } = await reader.read();
-      if (done) break;
+      if (done) {
+        break;
+      }
       // 断开后的 write 会触发未监听的 'error'，先判一次再写。
-      if (res.destroyed || res.writableEnded) break;
+      if (res.destroyed || res.writableEnded) {
+        break;
+      }
       // write 返回 false 表示内核缓冲满了：等 drain 再继续，否则大响应会把内存吃光。
       if (!res.write(value)) {
         await new Promise<void>((resolve) => {
@@ -76,7 +88,9 @@ async function writeResponse(response: Response, res: ServerResponse): Promise<v
     void reader.cancel().catch(() => {});
   }
 
-  if (!res.writableEnded && !res.destroyed) res.end();
+  if (!res.writableEnded && !res.destroyed) {
+    res.end();
+  }
 }
 
 async function handle(
@@ -111,7 +125,9 @@ function respond(
   res: ServerResponse,
 ): void {
   void handle(handler, req, res).catch((error: unknown) => {
-    if (!res.headersSent) res.statusCode = 500;
+    if (!res.headersSent) {
+      res.statusCode = 500;
+    }
     res.end(String(error));
   });
 }
@@ -155,7 +171,9 @@ export async function serve(
         // SSE 是长连接，浏览器不断开就永远不进入 idle：给正在收尾的响应 250ms，
         // 然后强制断开剩下的 socket，close() 才会回调。
         const timer = setTimeout(() => {
-          for (const socket of sockets) socket.destroy();
+          for (const socket of sockets) {
+            socket.destroy();
+          }
         }, 250);
         (timer as unknown as { unref?: () => void }).unref?.();
       }),
@@ -163,14 +181,18 @@ export async function serve(
 }
 
 function normalizeBasePath(value: string | undefined): string {
-  if (value === undefined || value === "" || value === "/") return "";
+  if (value === undefined || value === "" || value === "/") {
+    return "";
+  }
   const trimmed = value.replace(/\/+$/, "");
   return trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
 }
 
 /** 按路径段匹配：`/shell` 命中 `/shell` 与 `/shell/...`，不命中 `/shellfoo`。 */
 function matchesBasePath(pathname: string, base: string): boolean {
-  if (base === "") return true;
+  if (base === "") {
+    return true;
+  }
   return pathname === base || pathname.startsWith(`${base}/`);
 }
 
@@ -204,6 +226,8 @@ export function attach(server: Server, target: ShellLike, options: AttachOptions
       res.end();
       return;
     }
-    for (const listener of previous) listener.call(server, req, res);
+    for (const listener of previous) {
+      listener.call(server, req, res);
+    }
   });
 }
