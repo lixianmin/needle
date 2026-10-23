@@ -6,9 +6,9 @@ describe("包的默认入口", () => {
   test("日志、控制台、飞书 sink 都从 @needle/logo 导入", () => {
     expect(typeof root.logo.info).toBe("function");
     expect(typeof root.newLogger).toBe("function");
-    expect(typeof root.createConsole).toBe("function");
-    expect(typeof root.createBrowserConsole).toBe("function");
-    expect(typeof root.mountConsole).toBe("function");
+    expect(typeof root.createShell).toBe("function");
+    expect(typeof root.createBrowserShell).toBe("function");
+    expect(typeof root.mountShell).toBe("function");
     expect(typeof root.createFetchAdapter).toBe("function");
     expect(typeof root.createLarkSink).toBe("function");
   });

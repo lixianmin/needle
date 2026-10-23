@@ -1,4 +1,4 @@
-import type { LogFiles } from "../console/types.js";
+import type { LogFiles } from "../shell/types.js";
 export interface LogFilesOptions {
     /** 日志目录，相对路径按进程 cwd 解析。 */
     dir: string;

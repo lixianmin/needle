@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { createRouter, normalizeBasePath, type Route } from "../../src/console/router.js";
+import { createRouter, normalizeBasePath, type Route } from "../../src/shell/router.js";
 
 /** handler 把参数回显成 JSON，方便断言解出了什么。 */
 function routes(): Route[] {
@@ -83,8 +83,8 @@ describe("normalizeBasePath", () => {
   test("补前导斜杠、去尾随斜杠，根路径归一成空串", () => {
     expect(normalizeBasePath("")).toBe("");
     expect(normalizeBasePath("/")).toBe("");
-    expect(normalizeBasePath("console")).toBe("/console");
-    expect(normalizeBasePath("/console/")).toBe("/console");
-    expect(normalizeBasePath("/console//")).toBe("/console");
+    expect(normalizeBasePath("shell")).toBe("/shell");
+    expect(normalizeBasePath("/shell/")).toBe("/shell");
+    expect(normalizeBasePath("/shell//")).toBe("/shell");
   });
 });

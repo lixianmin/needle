@@ -8,9 +8,9 @@
 
 ```ts
 // src/index.ts
-import { createConsole, logo } from "@needle/logo";
+import { createShell, logo } from "@needle/logo";
 
-const debug = createConsole({
+const debug = createShell({
   logger: logo,
   auth: {
     users: { admin: process.env.CONSOLE_PASSWORD! },

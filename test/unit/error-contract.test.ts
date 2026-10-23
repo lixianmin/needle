@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { createConsole, type Console } from "../../src/console/index.js";
+import { createShell, type Shell } from "../../src/shell/index.js";
 import { newLogger } from "../../src/core/logo/logo.js";
 import { ResponseX } from "../../src/core/web/responsex.js";
 import { TEST_VERSION } from "../fixtures.js";
@@ -9,9 +9,9 @@ import { TEST_VERSION } from "../fixtures.js";
  * 错误响应契约（spec §8.2）：失败一律 JSON `{ code, message }`，状态码如实；
  * 成功响应不加壳。这张表是新路由加入时的验收清单——漏了哪条就在这里红。
  */
-function setup(): Console {
+function setup(): Shell {
   const logger = newLogger({ flushIntervalMs: 0, batch: false });
-  return createConsole({
+  return createShell({
     logger,
     auth: { users: { admin: "secret" }, secret: "error-contract-secret" },
     version: TEST_VERSION,

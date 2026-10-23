@@ -1,20 +1,20 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 import { Window } from "happy-dom";
 
-import type { ConsoleAdapter, ConsoleEvent } from "../../src/console/ui/adapter.js";
-import { mountConsole } from "../../src/console/ui/view.js";
+import type { ShellAdapter, ShellEvent } from "../../src/shell/ui/adapter.js";
+import { mountShell } from "../../src/shell/ui/view.js";
 
 /** 假适配器：测试里手动推事件、手动返回命令结果。 */
 function fakeAdapter() {
-  let listener: ((event: ConsoleEvent) => void) | undefined;
+  let listener: ((event: ShellEvent) => void) | undefined;
   const executed: string[] = [];
-  const replies: Array<Awaited<ReturnType<ConsoleAdapter["exec"]>>> = [];
+  const replies: Array<Awaited<ReturnType<ShellAdapter["exec"]>>> = [];
 
   const logins: Array<{ user: string; password: string }> = [];
   const topicSpecs: string[] = [];
   const openedFiles: string[] = [];
 
-  const adapter: ConsoleAdapter = {
+  const adapter: ShellAdapter = {
     exec(line) {
       executed.push(line);
       return Promise.resolve(
@@ -47,7 +47,7 @@ function fakeAdapter() {
     logins,
     topicSpecs,
     openedFiles,
-    emit: (event: ConsoleEvent) => listener?.(event),
+    emit: (event: ShellEvent) => listener?.(event),
   };
 }
 
@@ -64,11 +64,11 @@ function mount() {
   const root = document.createElement("div");
   document.body.append(root);
   const fake = fakeAdapter();
-  const view = mountConsole(root as unknown as HTMLElement, fake.adapter);
+  const view = mountShell(root as unknown as HTMLElement, fake.adapter);
   return { document, root, view, ...fake };
 }
 
-describe("mountConsole", () => {
+describe("mountShell", () => {
   test("hello 之后显示版本与用户", () => {
     const { root, emit, document } = mount();
     emit({
@@ -307,7 +307,7 @@ describe("mountConsole", () => {
       output: {
         kind: "table",
         columns: ["file", "size"],
-        rows: [[{ text: "info.log", href: "/console/log/info.log" }, 1024]],
+        rows: [[{ text: "info.log", href: "/shell/log/info.log" }, 1024]],
       },
     });
 
@@ -321,7 +321,7 @@ describe("mountConsole", () => {
     link.dispatchEvent(event as unknown as Event);
     await new Promise((resolve) => setTimeout(resolve, 0));
 
-    expect(openedFiles).toEqual(["/console/log/info.log"]);
+    expect(openedFiles).toEqual(["/shell/log/info.log"]);
     expect(event.defaultPrevented).toBe(true);
   });
 

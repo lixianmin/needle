@@ -4,27 +4,27 @@
 
 | 位置 | 有 DOM | 控制台 | 日志去哪 |
 |---|---|---|---|
-| service worker | 无 | 不能（没有 `document`） | `console` → `chrome://extensions` 的检查视图 |
-| 扩展页面（side panel / popup / options / devtools） | 有 | DOM 面板 | `console` + 面板 |
-| content script（注入宿主页面） | 有（宿主页） | 不推荐，见下文 | 宿主 console + 扩展自己的 console |
+| service worker | 无 | 不能（没有 `document`） | `shell` → `chrome://extensions` 的检查视图 |
+| 扩展页面（side panel / popup / options / devtools） | 有 | DOM 面板 | `shell` + 面板 |
+| content script（注入宿主页面） | 有（宿主页） | 不推荐，见下文 | 宿主 shell + 扩展自己的 shell |
 
 ## 控制台
 
 ### 挂在扩展页面
 
-`createBrowserConsole` 要一个 `HTMLElement`，所以只能在有 `document` 的扩展页面用。选 side panel 或 devtools 面板，别用 popup——popup 一失焦就销毁，面板和历史一起没了。
+`createBrowserShell` 要一个 `HTMLElement`，所以只能在有 `document` 的扩展页面用。选 side panel 或 devtools 面板，别用 popup——popup 一失焦就销毁，面板和历史一起没了。
 
 ```ts
 // sidepanel.ts
-import { createBrowserConsole, logo } from "@needle/logo";
+import { createBrowserShell, logo } from "@needle/logo";
 
-const panel = createBrowserConsole({
+const panel = createBrowserShell({
   logger: logo,
   title: "my-extension",
   version: chrome.runtime.getManifest().version,
   auth: { users: {} },       // 扩展页面没有鉴权意义
   user: "local",             // 能打开这个面板的人，本来就能看到这些数据
-  element: document.getElementById("console")!,
+  element: document.getElementById("shell")!,
 });
 ```
 
@@ -41,16 +41,16 @@ const panel = createBrowserConsole({
 面板也可以连另一个服务端托管的控制台（比如开发机上那台），这时换 fetch 适配器，鉴权重新有意义：
 
 ```ts
-import { createFetchAdapter, mountConsole } from "@needle/logo";
+import { createFetchAdapter, mountShell } from "@needle/logo";
 
-const view = mountConsole(
-  document.getElementById("console")!,
-  createFetchAdapter({ basePath: "https://order-service.example.com/console", topics: "top:5000" }),
+const view = mountShell(
+  document.getElementById("shell")!,
+  createFetchAdapter({ basePath: "https://order-service.example.com/shell", topics: "top:5000" }),
 );
 ```
 
 - `manifest.json` 要给这个源 `host_permissions`，否则跨域请求被拦。
-- `auth ops` 走 token，存在 `localStorage` 的 `logo.console.token`，随 `Authorization` 头发出去（不用 `EventSource`，正是因为它带不了头）。
+- `auth ops` 走 token，存在 `localStorage` 的 `logo.shell.token`，随 `Authorization` 头发出去（不用 `EventSource`，正是因为它带不了头）。
 - `log.list` 的链接是服务端按自己的 `basePath` 生成的相对路径，跨域点开会 404；远程面板适合看实时日志和敲命令。
 
 ### MV3 的 CSP 挡不住它
@@ -113,7 +113,7 @@ logo.addSink(persist);
 
 ### 坑
 
-- **`info` 不会攒批。** 批量刷新依赖能同步写 stdout，扩展里探测不到（没有 `process.stdout`），库自动改成逐条立即写出。所以「等 100ms 再看 console」在这里不成立。
+- **`info` 不会攒批。** 批量刷新依赖能同步写 stdout，扩展里探测不到（没有 `process.stdout`），库自动改成逐条立即写出。所以「等 100ms 再看 shell」在这里不成立。
 - **面板要显式 `dispose()`。** 被用户关掉时把 `panel.dispose()` 挂到 `unload`，否则订阅和定时器跟着页面一起泄漏。
 - **命令历史存在 `localStorage`，写不进去会被静默忽略。** 隐私模式、沙箱页面都可能抛错，功能不该依赖它。
 - **`version` 从 `chrome.runtime.getManifest()` 读。** 扩展版本只在 `manifest.json` 一处维护，别在代码里再硬编码一份。

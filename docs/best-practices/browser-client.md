@@ -9,15 +9,15 @@ Vite / 静态站，没有后端，用户在 Windows 上的 Chrome / Edge 里打�
 ### 接线
 
 ```ts
-import { createBrowserConsole, logo } from "@needle/logo";
+import { createBrowserShell, logo } from "@needle/logo";
 
-const panel = createBrowserConsole({
+const panel = createBrowserShell({
   logger: logo,
   title: "my-app",
   version: import.meta.env.VITE_APP_VERSION,
   auth: { users: {} },       // 浏览器里没有鉴权意义
   user: "local",             // 能打开页面的人就是这个人
-  element: document.getElementById("console")!,
+  element: document.getElementById("shell")!,
 });
 ```
 
@@ -33,11 +33,11 @@ const enabled = new URLSearchParams(location.search).has("debug") || import.meta
 if (enabled) {
   const host = document.createElement("div");
   document.body.append(host);
-  createBrowserConsole({ /* 同上 */ element: host });
+  createBrowserShell({ /* 同上 */ element: host });
 }
 ```
 
-用户报障时让他加 `?debug` 截个图，比让他开 DevTools 翻 console 高效。
+用户报障时让他加 `?debug` 截个图，比让他开 DevTools 翻 shell 高效。
 
 ## 日志
 
@@ -60,7 +60,7 @@ const log = newLogger({
   name: "web",
   level: "info",
   stackLevel: "error",        // 默认 warn：每条 warn 都要造一次 Error，页面上能省则省
-  batch: true,                // 页面里定时器可靠，可以攒一帧再写 console
+  batch: true,                // 页面里定时器可靠，可以攒一帧再写 shell
   flushIntervalMs: 16,
 });
 ```
@@ -99,6 +99,6 @@ addEventListener("pagehide", () => {
 ### 坑
 
 - **版本号只有一处来源。** 用构建期注入（Vite 的 `define` / `import.meta.env`）从 `package.json` 读；面板头栏显示的版本必须等于当前跑的代码。
-- **`localStorage` 可能直接抛错。** 命令历史（`logo.console.history`，50 条）在隐私模式、部分嵌入式 WebView 里写不进去，失败会被静默忽略。功能不该依赖它。
+- **`localStorage` 可能直接抛错。** 命令历史（`logo.shell.history`，50 条）在隐私模式、部分嵌入式 WebView 里写不进去，失败会被静默忽略。功能不该依赖它。
 - **`dispose()` 不是可选的。** 面板的定时器与订阅跟着页面走；SPA 切换路由后重建控制台，不 dispose 就多一份订阅，日志重复渲染。
 - **别把日志拼进 `innerHTML`。** 面板内部只用 `createElement` + `textContent`；业务代码也别把 `msg` 拼进 HTML，那里面可能是用户输入。

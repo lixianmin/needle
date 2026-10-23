@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test";
 
-import { renderPage } from "../../src/console/page.js";
+import { renderPage } from "../../src/shell/page.js";
 
 describe("renderPage", () => {
-  const page = renderPage({ basePath: "/console", title: "node", version: "1.2.3", topicSpec: "top:5000" });
+  const page = renderPage({ basePath: "/shell", title: "node", version: "1.2.3", topicSpec: "top:5000" });
 
   test("是一个完整的 HTML 文档", () => {
     expect(page.startsWith("<!doctype html>")).toBe(true);
@@ -12,7 +12,7 @@ describe("renderPage", () => {
   });
 
   test("挂载参数落在 data 属性里", () => {
-    expect(page).toContain('data-base-path="/console"');
+    expect(page).toContain('data-base-path="/shell"');
     expect(page).toContain('data-topics="top:5000"');
   });
 
