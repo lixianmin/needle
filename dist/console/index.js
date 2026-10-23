@@ -124,3 +124,4 @@ export function createBrowserConsole(options) {
 export { createConsoleSource } from "./source.js";
 export { mountConsole } from "./ui/view.js";
 export { createLocalAdapter } from "./ui/local.js";
+export { createFetchAdapter } from "./ui/fetch-adapter.js";
