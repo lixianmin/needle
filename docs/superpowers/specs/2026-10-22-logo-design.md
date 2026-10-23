@@ -267,6 +267,8 @@ POST /exec   { "line": "log.list" }
 
 一个状态码只配一个 `code`，同一种状态内的细分靠 `message`。命令失败的内部原因（`ExecFailureCode`：disposed / bad_request / unknown_command / unauthorized / timeout / command_failed）比线上 `code` 细，在 `exec.ts` 里一个 `switch` 映射过去——内部词表管“该选哪个响应”，线上词表管“客户端看到什么”。
 
+表里没覆盖的状态码走 `ResponseX.fail(status, code, message)`——但同一个 `code` 用到第二次就该补成一个具名方法，别让调用方去记数字。
+
 `/health` 是唯一例外：它的 body 是探活载荷 `{"ok":true}`，不是错误信封。线上错误体不带 `ok` 字段——非 2xx 已经表达了失败；`ok` 只活在内部 Result（浏览器适配器没有状态码可用）。
 
 四条工程约束，写在这里避免实现时各写各的：
