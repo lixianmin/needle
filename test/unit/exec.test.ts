@@ -58,16 +58,16 @@ describe("/exec 适配器", () => {
     expect(res.status).toBe(401);
   });
 
-  test("未知命令返回 400 + unknown_command", async () => {
+  test("未知命令返回 400 + bad_request", async () => {
     const res = await setup()(post(JSON.stringify({ line: "nope" })));
     expect(res.status).toBe(400);
-    expect(await res.json()).toEqual({ code: "unknown_command", message: "unknown command: nope" });
+    expect(await res.json()).toEqual({ code: "bad_request", message: "unknown command: nope" });
   });
 
   test("普通异常只回 message", async () => {
     const res = await setup()(post(JSON.stringify({ line: "fail" })));
     expect(res.status).toBe(500);
-    expect(await res.json()).toEqual({ code: "command_failed", message: "Error: detail" });
+    expect(await res.json()).toEqual({ code: "internal_error", message: "Error: detail" });
   });
 
   test("非 JSON body 返回 400", async () => {
@@ -98,9 +98,9 @@ describe("/exec 适配器", () => {
     expect((await setup()(post(JSON.stringify({ line: "  " })))).status).toBe(400);
   });
 
-  test("超时返回 504 + timeout", async () => {
+  test("超时返回 504 + gateway_timeout", async () => {
     const res = await setup()(post(JSON.stringify({ line: "hang" })));
     expect(res.status).toBe(504);
-    expect(await res.json()).toEqual({ code: "timeout", message: "timeout" });
+    expect(await res.json()).toEqual({ code: "gateway_timeout", message: "timeout" });
   });
 });

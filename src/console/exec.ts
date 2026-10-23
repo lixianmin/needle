@@ -1,5 +1,5 @@
-import { fail } from "./fail.js";
-import type { ConsoleSource, ExecFailureCode } from "./source.js";
+import { ResponseX } from "../core/web/response.js";
+import type { ConsoleSource } from "./source.js";
 
 const DEFAULT_MAX_BODY_BYTES = 4096;
 
@@ -7,16 +7,6 @@ export interface ExecHttpOptions {
   source: ConsoleSource;
   maxBodyBytes?: number;
 }
-
-/** 失败原因 → 状态码。`code` 由 source 给，适配器只做映射。 */
-const FAILURE_STATUS: Record<ExecFailureCode, number> = {
-  disposed: 503,
-  bad_request: 400,
-  unknown_command: 400,
-  unauthorized: 401,
-  timeout: 504,
-  command_failed: 500,
-};
 
 function bearerToken(header: string | null): string | null {
   if (header === null) return null;
@@ -37,30 +27,44 @@ export function createExecHandler(options: ExecHttpOptions): (req: Request) => P
     // 先看声明长度，避免为一个 100MB 的恶意请求把内存读爆。
     const declared = Number(req.headers.get("content-length") ?? "0");
     if (Number.isFinite(declared) && declared > maxBodyBytes) {
-      return fail(413, "payload_too_large", "payload too large");
+      return ResponseX.payloadTooLarge("payload too large");
     }
 
     const body = await req.text();
     if (new TextEncoder().encode(body).length > maxBodyBytes) {
-      return fail(413, "payload_too_large", "payload too large");
+      return ResponseX.payloadTooLarge("payload too large");
     }
 
     let parsed: unknown;
     try {
       parsed = JSON.parse(body);
     } catch {
-      return fail(400, "bad_request", "body 必须是 JSON");
+      return ResponseX.badRequest("body 必须是 JSON");
     }
 
     const line = (parsed as { line?: unknown } | null)?.line;
     if (typeof line !== "string") {
-      return fail(400, "bad_request", "line 必须是字符串");
+      return ResponseX.badRequest("line 必须是字符串");
     }
     // 空命令是畸形请求，不是业务结果，走 400。
-    if (line.trim() === "") return fail(400, "bad_request", "空命令");
+    if (line.trim() === "") return ResponseX.badRequest("空命令");
 
     const result = await options.source.exec(line, bearerToken(req.headers.get("authorization")));
     if (result.ok) return Response.json({ output: result.output });
-    return fail(FAILURE_STATUS[result.code], result.code, result.error);
+
+    // 内部失败原因比线上 code 细：一个状态码只配一个 code，细分靠 message。
+    switch (result.code) {
+      case "disposed":
+        return ResponseX.unavailable(result.error);
+      case "unauthorized":
+        return ResponseX.unauthorized(result.error);
+      case "timeout":
+        return ResponseX.gatewayTimeout(result.error);
+      case "command_failed":
+        return ResponseX.internalError(result.error);
+      case "bad_request":
+      case "unknown_command":
+        return ResponseX.badRequest(result.error);
+    }
   };
 }

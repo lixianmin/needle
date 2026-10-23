@@ -1,0 +1,31 @@
+/**
+ * 错误响应的唯一出口（spec §8.2）。
+ *
+ * 每个方法锁死一种失败：状态码与 `code` 都写在这里，调用方只给 `message` ——
+ * 不用记 401 配哪个 code、404 又配哪个。一个状态码只配一个 `code`，同一种状态
+ * 里的细分靠 `message` 表达。
+ *
+ * 成功响应不经过这里，也不加壳：页面是 HTML、事件流是 SSE、日志全文是
+ * `text/plain`、JSON 接口直接返回自己的载荷。
+ */
+function respond(status, code, message) {
+    return Response.json({ code, message }, { status });
+}
+export const ResponseX = {
+    /** 400：请求本身不合法（body 不是 JSON、字段类型不对、空命令、命令不存在）。 */
+    badRequest: (message) => respond(400, "bad_request", message),
+    /** 401：没带 token 或 token 无效。 */
+    unauthorized: (message) => respond(401, "unauthorized", message),
+    /** 401：口令错。与 unauthorized 分开，因为客户端该做的事不一样（重新登录 ≠ 改密码）。 */
+    badCredentials: (message) => respond(401, "bad_credentials", message),
+    /** 404：路径或方法没命中、日志文件不存在。 */
+    notFound: (message) => respond(404, "not_found", message),
+    /** 413：请求体超过上限。 */
+    payloadTooLarge: (message) => respond(413, "payload_too_large", message),
+    /** 500：命令抛错或服务内部出错。 */
+    internalError: (message) => respond(500, "internal_error", message),
+    /** 503：`dispose()` 之后，服务不再可用。 */
+    unavailable: (message) => respond(503, "service_unavailable", message),
+    /** 504：命令超时。 */
+    gatewayTimeout: (message) => respond(504, "gateway_timeout", message),
+};
