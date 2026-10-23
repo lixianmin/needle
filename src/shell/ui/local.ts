@@ -9,6 +9,24 @@ import type { AuthResult, ShellAdapter, ShellEvent, ExecResult, FileResult } fro
  * 没有 HTTP，没有 token —— 代码本来就跑在你的应用里，能看到 Shell 就等于
  * 能看到这个进程。鉴权在这一层没有意义，所以 source 用本地用户模式创建。
  */
+/**
+ * 从 href 里解出 /log/:name 的文件名：query / hash 不算，名字要解码。
+ * 解码失败按没匹配处理（恶意构造的百分号序列不值得报错）。
+ */
+function logNameFromHref(href: string): string | null {
+  const path = href.split(/[?#]/, 1)[0] ?? href;
+  const match = /^\/log\/(.+)$/.exec(path);
+  const raw = match?.[1];
+  if (raw === undefined) {
+    return null;
+  }
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return null;
+  }
+}
+
 export function createLocalAdapter(source:ShellSource):ShellAdapter {
   const listeners = new Set<(event:ShellEvent) => void>();
   let attached = false;
@@ -58,8 +76,21 @@ export function createLocalAdapter(source:ShellSource):ShellAdapter {
       };
     },
 
-    fetchFile(): Promise<FileResult> {
-      return Promise.resolve({ ok: false, error: "浏览器里没有日志文件可读，用 log.list 看不到内容" });
+    fetchFile(href: string): Promise<FileResult> {
+      const name = logNameFromHref(href);
+      if (name === null) {
+        return Promise.resolve({ ok: false, error: "浏览器里没有日志文件可读，用 log.list 看不到内容" });
+      }
+      const logFiles = source.logFiles;
+      if (logFiles === undefined) {
+        return Promise.resolve({ ok: false, error: "未配置日志存储，log.list 不可用" });
+      }
+      return logFiles.read(name).then((text) => {
+        if (text === null) {
+          return { ok: false as const, error: `日志文件不存在：${name}` };
+        }
+        return { ok: true as const, text };
+      });
     },
 
     async authenticate(user: string, password: string): Promise<AuthResult> {
