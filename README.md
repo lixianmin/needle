@@ -1,6 +1,6 @@
-# logo
+# Needle
 
-线上排障用的控制台和日志库：在浏览器里看实时日志、敲命令查进程状态、订阅指标，不用 `docker exec` 进去 `tail -f`。
+线上排障用的控制台和日志库（包名 `@needle/logo`）：在浏览器里看实时日志、敲命令查进程状态、订阅指标，不用 `docker exec` 进去 `tail -f`。
 
 零运行时依赖：日志库 2.7 KB，含控制台 13.7 KB（min+gzip，`bun run size` 可复现）。
 
