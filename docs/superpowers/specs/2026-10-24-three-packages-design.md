@@ -13,7 +13,12 @@
 - `@needle/logo` —— 结构化日志（原 `src/logo` + 原根入口）。
 - `@needle/shell` —— 浏览器 / 扩展里的 Web Shell 面板（原 `src/shell`）。
 
-为什么现在做：包还没发 npm，没有外部消费者，breaking 成本最低；`core` 目前只被自己的测试用，剥离零风险。
+为什么现在做（两个原因，人类原话）：
+
+1. **把模块拆小，边界才看得见。** 单包 + 三入口时，边界只存在于目录约定和测试里；人和 AI 读代码、写代码、review 时都要先在脑子里重建这张边界图。包一拆，依赖关系由 `package.json` 和路径写法直接表达，单次 review / 改动的上下文变小，不会因为模块太大把设计复杂度顶上去。
+2. **把边界拆干净，才不会有循环引用。** 三个包的单向依赖（`shell → logo`，`core` 谁都不靠）由构建顺序和包解析硬约束：谁反向引用，谁就构建不过，而不是等 review 时靠人盯。
+
+时机：包还没发 npm，没有外部消费者，breaking 成本最低；`core` 目前只被自己的测试用，剥离零风险。
 
 ## 2. 目标
 
@@ -56,7 +61,7 @@
 - 包内目录去掉重复层级：`packages/logo/src/*.ts`（不再有 `src/logo/`），`packages/shell/src/*.ts`（不再有 `src/shell/`）。
 - `@needle/core` 只导出 `SortedTable`、`Comparer`、`defaultComparer`，只有 `.` 一个入口。
 - `web/body.ts`、`web/responsex.ts` 搬进 `packages/shell/src/web/`，不对外导出（外部拿不到，也不需要）。
-- 生产依赖只有一条：`packages/shell/package.json` 里 `"@needle/logo": "workspace:*"`。其余（`@types/bun`、`happy-dom`、`fake-indexeddb`、`miniflare`）是开发依赖，留在根 `package.json`。
+- 生产依赖只有一条：`packages/shell/package.json` 里 `"@needle/logo": "workspace:*"`。根 `package.json` 额外把三个包声明为 `devDependencies`（同样 `workspace:*`），只为了让根目录的 `examples/demo.ts` 与根级测试能按包名解析；这是开发期链接，不是发布依赖，也不改变「无伞包」。其余（`@types/bun`、`happy-dom`、`fake-indexeddb`、`miniflare`）是开发依赖，留在根 `package.json`。
 
 ## 6. 目标仓库结构
 
