@@ -8,8 +8,7 @@
 
 ```ts
 // src/index.ts
-import { createConsole } from "@needle/logo/console";
-import { logo } from "@needle/logo";
+import { createConsole, logo } from "@needle/logo";
 
 const debug = createConsole({
   logger: logo,

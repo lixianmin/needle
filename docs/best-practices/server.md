@@ -17,8 +17,7 @@
 ```ts
 import { Hono } from "hono";
 import { serve } from "@hono/node-server";
-import { logo } from "@needle/logo";
-import { createConsole } from "@needle/logo/console";
+import { createConsole, logo } from "@needle/logo";
 import { createLogFiles } from "@needle/logo/node";
 
 const app = new Hono();
@@ -87,9 +86,8 @@ commands: [{
 默认实例够用时，直接用：
 
 ```ts
-import { logo } from "@needle/logo";
+import { logo, createLarkSink } from "@needle/logo";
 import { createFileSink } from "@needle/logo/node";
-import { createLarkSink } from "@needle/logo/lark";
 
 logo.info("order created", { orderId: 42 });
 

@@ -2,7 +2,7 @@
 
 Web 控制台（console/shell），可输入命令查看当前系统状态，如进程状态、业务数据等。
 
-零运行时依赖：日志库 2.7 KB，含控制台 13.7 KB（min+gzip，`bun run size` 可复现）。
+零运行时依赖：只导入日志 1.6 KB，连控制台 16.4 KB（min+gzip，`bun run size` 可复现）。
 
 ## 一、控制台（console）
 
@@ -36,8 +36,7 @@ $ auth username
 命令写在 `createConsole({ commands: [...] })` 里，`run` 拿到的上下文是 `{ args, user, log }`，返回 `text` / `table` / `json` 三种形态之一。下面是装好三个命令的完整文件：
 
 ```ts
-import { createConsole, type Command } from "@needle/logo/console";
-import { logo } from "@needle/logo";
+import { createConsole, logo, type Command } from "@needle/logo";
 
 // 你的业务数据
 const orders = new Map<string, Record<string, unknown>>();
@@ -83,7 +82,7 @@ export const debug = createConsole({
 
 细节：
 
-- **类型**：`Command` 从 `@needle/logo/console` 导出，给每个命令标注类型就能拿到补全和检查。
+- **类型**：`Command` 从 `@needle/logo` 导出，给每个命令标注类型就能拿到补全和检查。
 - **`args`**：按空白切开的数组，不做引号解析，`order 42` → `["42"]`；字段 `args: "<id>"` 只影响 `help` 里的用法显示。
 - **列语义**：`"bytes"` 走 `toHuman`（`36290560` → `34.61M`），`"duration"` 把数字当毫秒（`57720` → `57.7s`），`"number"` 不缩写，省略按 `auto`。点表头按原始数值排序。
 - **单元格**：`string | number | null | { text, href }`，带 `href` 的渲染成链接（`log.list` 就靠这个打开日志文件）。
@@ -124,8 +123,8 @@ logo.error("paid failed", err, { userId: 7 });
 3. **分发给所有 sink**：同一批记录给每一个挂上去的 sink，各自决定收哪些、写到哪。`logo` 默认挂了一个写 stdout 的。
 
 ```ts
+import { createLarkSink } from "@needle/logo";
 import { createFileSink } from "@needle/logo/node";
-import { createLarkSink } from "@needle/logo/lark";
 
 logo.addSink(createFileSink({ dir: "logs" }));                                       // 按级别分文件
 logo.addSink(createLarkSink({ webhook: process.env.LARK_HOOK!, minLevel: "error" })); // error 推飞书
@@ -175,8 +174,7 @@ bun add git+https://github.com/lixianmin/needle.git
 控制台对外只有一个接口 `(req: Request) => Promise<Response>`，挂载就是把它接到你的服务器上。Hono 是两条路由：
 
 ```ts
-import { logo } from "@needle/logo";
-import { createConsole } from "@needle/logo/console";
+import { createConsole, logo } from "@needle/logo";
 import { createLogFiles } from "@needle/logo/node";
 
 const debug = createConsole({

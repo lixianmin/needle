@@ -1,14 +1,14 @@
 {
   "name": "@needle/logo",
-  "version": "0.2.12",
-  "description": "内置调试控制台的 TypeScript 日志库：浏览器里看日志、敲命令、订指标",
+  "version": "0.2.13",
+  "description": "内置调试控制台的 TypeScript 日志库：浏览器里敲命令查状态、订阅指标",
   "type": "module",
   "sideEffects": false,
   "license": "MIT",
   "exports": {
     ".": {
-      "types": "./dist/core/index.d.ts",
-      "default": "./dist/core/index.js"
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
     },
     "./console": {
       "types": "./dist/console/index.d.ts",
@@ -31,7 +31,7 @@
     "build": "bun run build:ui && rm -rf dist && tsc -p tsconfig.build.json",
     "test": "bun test",
     "typecheck": "tsc --noEmit",
-    "size": "bun build src/core/index.ts --minify --target=browser | gzip -c | wc -c && bun build src/console/index.ts --minify --target=browser | gzip -c | wc -c"
+    "size": "bun build scripts/size-log-only.ts --minify --target=browser | gzip -c | wc -c && bun build src/index.ts --minify --target=browser | gzip -c | wc -c"
   },
   "devDependencies": {
     "@types/bun": "^1.4.3",

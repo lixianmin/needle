@@ -1,5 +1,4 @@
-import { createConsole } from "../../src/console/index.js";
-import { logo } from "../../src/core/index.js";
+import { createConsole, logo } from "../../src/index.js";
 import { TEST_VERSION } from "../fixtures.js";
 
 /**

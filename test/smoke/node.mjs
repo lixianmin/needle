@@ -2,8 +2,7 @@ import assert from "node:assert/strict";
 
 import { readFileSync } from "node:fs";
 
-import { newLogger } from "../../dist/core/index.js";
-import { createConsole } from "../../dist/console/index.js";
+import { createConsole, newLogger } from "../../dist/index.js";
 import { serve } from "../../dist/node/index.js";
 
 // 冒烟测试跑 dist，直接读 package.json 里的真版本号：这里不断言它的值，只是
