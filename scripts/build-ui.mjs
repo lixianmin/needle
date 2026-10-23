@@ -26,10 +26,13 @@ if (output === undefined) {
 }
 
 const text = await output.text();
+// 内联进 <script>：字符串里出现 "</script" 会让 HTML 解析器提前闭合标签。
+// 把 < 全转成 \u003c，运行时解码回来完全等价，顺带覆盖 "<!--"。
+const literal = JSON.stringify(text).replace(/</g, "\\u003c");
 const target = "packages/shell/src/ui/script.generated.ts";
 writeFileSync(
   target,
-  `// 由 scripts/build-ui.mjs 生成，请勿手改。改 UI 请改 src/shell/ui/ 下的源码后重跑。\nexport const UI_SCRIPT = ${JSON.stringify(text)};\n`,
+  `// 由 scripts/build-ui.mjs 生成，请勿手改。改 UI 请改 src/shell/ui/ 下的源码后重跑。\nexport const UI_SCRIPT = ${literal};\n`,
 );
 
 console.log(`${target}: ${(text.length / 1024).toFixed(1)} KB`);

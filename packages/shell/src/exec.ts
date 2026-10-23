@@ -1,3 +1,4 @@
+import { readTextLimited } from "./web/body.js";
 import { ResponseX } from "./web/responsex.js";
 import type { ShellSource } from "./source.js";
 
@@ -24,16 +25,9 @@ export function createExecHandler(options: ExecHttpOptions): (req: Request) => P
   const maxBodyBytes = options.maxBodyBytes ?? DEFAULT_MAX_BODY_BYTES;
 
   return async (req) => {
-    // 先看声明长度，避免为一个 100MB 的恶意请求把内存读爆。
-    const declared = Number(req.headers.get("content-length") ?? "0");
-    if (Number.isFinite(declared) && declared > maxBodyBytes) {
-      return ResponseX.payloadTooLarge("payload too large");
-    }
-
-    const body = await req.text();
-    if (new TextEncoder().encode(body).length > maxBodyBytes) {
-      return ResponseX.payloadTooLarge("payload too large");
-    }
+    // 边读边计数：chunked 请求没有 content-length，先读后检查等于没检查。
+    const body = await readTextLimited(req, maxBodyBytes);
+    if (body === null) return ResponseX.payloadTooLarge("payload too large");
 
     let parsed: unknown;
     try {

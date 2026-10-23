@@ -26,6 +26,10 @@ export function createLogList(doc, render, options = {}) {
     const rows = [];
     /** 每行的实测高度。 */
     const heights = [];
+    /** 插入时算一次的估算高度：resize 时不用对十万条重新 estimate（带栈的要 split）。 */
+    const estimates = [];
+    /** 面板不可见时渲染过、还没量过高度的行。切回来要补测。 */
+    const unmeasured = new Set();
     /** offsets[i] = heights[0..i-1] 的和；长度始终是 rows.length + 1。 */
     let offsets = [0];
     /** 高度或行数被改动过，offsets 需要重算。 */
@@ -79,36 +83,51 @@ export function createLogList(doc, render, options = {}) {
             if (index < first || index >= last) {
                 node.remove();
                 live.delete(index);
+                unmeasured.delete(index);
             }
         }
         // 面板不可见（切到别的 tab）时量到的是 0，会把估算高度冲掉，等可见了再量。
         const measurable = el.clientHeight > 0 || options.measure !== undefined;
         let remeasured = false;
         for (let index = first; index < last; index += 1) {
-            if (live.has(index))
+            const existing = live.get(index);
+            if (existing !== undefined) {
+                // 之前面板不可见，行建出来了但没量过；现在可见了补量一次。
+                if (measurable && unmeasured.has(index)) {
+                    unmeasured.delete(index);
+                    const height = measure(existing);
+                    if (height !== heights[index]) {
+                        heights[index] = height;
+                        remeasured = true;
+                    }
+                }
                 continue;
+            }
             const node = render(rows[index]);
             node.style.top = `${offsets[index]}px`;
             spacer.append(node);
             live.set(index, node);
-            if (!measurable)
+            if (!measurable) {
+                unmeasured.add(index);
                 continue;
+            }
             const height = measure(node);
             if (height !== heights[index]) {
                 heights[index] = height;
                 remeasured = true;
             }
         }
+        spacer.style.height = `${offsets[rows.length]}px`;
         if (remeasured) {
             dirty = true;
             ensureOffsets();
             for (const [index, node] of live)
                 node.style.top = `${offsets[index]}px`;
+            spacer.style.height = `${offsets[rows.length]}px`;
             // 高度一变，总高跟着变；贴着底看的时候要重新钉住，否则会往上飘一截。
             if (following)
                 el.scrollTop = offsets[rows.length];
         }
-        spacer.style.height = `${offsets[rows.length]}px`;
     }
     function schedule() {
         if (frame !== 0)
@@ -119,6 +138,7 @@ export function createLogList(doc, render, options = {}) {
         for (const node of live.values())
             node.remove();
         live.clear();
+        unmeasured.clear();
     }
     const onScroll = () => {
         following = el.scrollHeight - el.scrollTop - el.clientHeight <= ROW_HEIGHT;
@@ -134,7 +154,7 @@ export function createLogList(doc, render, options = {}) {
         if (rows.length === 0)
             return;
         for (let index = 0; index < rows.length; index += 1)
-            heights[index] = estimate(rows[index]);
+            heights[index] = estimates[index];
         dirty = true;
         rebuild();
         schedule();
@@ -151,6 +171,7 @@ export function createLogList(doc, render, options = {}) {
             const height = estimate(row);
             rows.push(row);
             heights.push(height);
+            estimates.push(height);
             if (!dirty)
                 offsets.push(offsets[offsets.length - 1] + height);
         }
@@ -158,12 +179,15 @@ export function createLogList(doc, render, options = {}) {
         if (excess > 0) {
             rows.splice(0, excess);
             heights.splice(0, excess);
+            estimates.splice(0, excess);
             dropped += excess;
             dirty = true;
             rebuild();
         }
         if (following) {
             ensureOffsets();
+            // 先把总高写够再滚：反过来的话 scrollTop 会被 clamp 到上一批的底部。
+            spacer.style.height = `${offsets[rows.length]}px`;
             el.scrollTop = offsets[rows.length];
         }
         schedule();
@@ -175,12 +199,14 @@ export function createLogList(doc, render, options = {}) {
         follow() {
             following = true;
             ensureOffsets();
+            spacer.style.height = `${offsets[rows.length]}px`;
             el.scrollTop = offsets[rows.length];
             schedule();
         },
         clear() {
             rows.length = 0;
             heights.length = 0;
+            estimates.length = 0;
             offsets = [0];
             dirty = false;
             dropped = 0;

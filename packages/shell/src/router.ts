@@ -51,7 +51,12 @@ function matchPattern(pattern: string[], path: string[]): Record<string, string>
     const value = path[index] ?? "";
     // `:name` 只吃一段：日志文件名不含 `/`，多段路径应当落到 404 而不是被当成文件名。
     if (part.startsWith(":")) {
-      params[part.slice(1)] = decodeURIComponent(value);
+      try {
+        params[part.slice(1)] = decodeURIComponent(value);
+      } catch {
+        // 畸形百分号编码（如 %E0%A4%A）不该冒成 500，按"这条路由不匹配"处理。
+        return null;
+      }
       continue;
     }
     if (part !== value) return null;

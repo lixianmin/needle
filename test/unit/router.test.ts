@@ -88,3 +88,15 @@ describe("normalizeBasePath", () => {
     expect(normalizeBasePath("/shell//")).toBe("/shell");
   });
 });
+
+describe("畸形路径", () => {
+  test("非法百分号编码按不匹配处理，不抛异常", () => {
+    const router = createRouter({
+      basePath: "/shell",
+      routes: [{ method: "GET", pattern: "/log/:name", handler: () => new Response("ok") }],
+    });
+
+    expect(() => router.match(new Request("http://x/shell/log/%E0%A4%A"))).not.toThrow();
+    expect(router.match(new Request("http://x/shell/log/%E0%A4%A"))).toBeNull();
+  });
+});

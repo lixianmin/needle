@@ -101,3 +101,65 @@ describe("控制台端到端", () => {
     }
   });
 });
+
+describe("SSE 断开", () => {
+  test("客户端断开后连接从 broadcast 摘除，主题定时器也停", async () => {
+    const http = await import("node:http");
+    let reads = 0;
+    const logger = newLogger({ flushIntervalMs: 0, batch: false });
+    const shell = createShell({
+      logger,
+      auth: { users: { admin: "secret" }, secret: "e2e-secret" },
+      topics: [
+        {
+          name: "tick",
+          note: "",
+          intervalMs: 20,
+          read: async () => {
+            reads += 1;
+            return {};
+          },
+        },
+      ],
+    });
+    const server = await serve(shell.handler, { port: 0 });
+
+    try {
+      const login = await fetch(`http://127.0.0.1:${server.port}/auth`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ user: "admin", password: "secret" }),
+      });
+      const token = ((await login.json()) as { token: string }).token;
+
+      await new Promise<void>((resolve, reject) => {
+        const request = http.get(
+          {
+            port: server.port,
+            path: "/events?topics=tick",
+            headers: { authorization: `Bearer ${token}` },
+          },
+          (response) => {
+            response.once("data", () => {
+              request.destroy();
+              resolve();
+            });
+          },
+        );
+        request.on("error", (error: NodeJS.ErrnoException) => {
+          if (error.code !== "ECONNRESET") reject(error);
+        });
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 120));
+      const before = reads;
+      await new Promise((resolve) => setTimeout(resolve, 120));
+
+      expect(shell.source.broadcast.count()).toBe(0);
+      expect(reads).toBe(before);
+    } finally {
+      await server.close();
+      shell.dispose();
+    }
+  });
+});

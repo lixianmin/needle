@@ -524,3 +524,105 @@ describe("调用栈直接铺在行里", () => {
     expect(document.querySelector(".detail")).toBeNull();
   });
 });
+
+describe("交互细节", () => {
+  const handshake = (): ShellEvent => ({
+    type: "handshake",
+    info: { title: "node", version: "1.0.0", user: "admin", commands: [], topics: [] },
+  });
+
+  test("表头降序时空值仍然排在最后", async () => {
+    const { document, root, replies, emit } = mount();
+    emit(handshake());
+    replies.push({
+      ok: true,
+      output: {
+        kind: "table",
+        columns: ["name", "size"],
+        rows: [
+          ["a", 1],
+          ["b", null],
+          ["c", 3],
+        ],
+      },
+    });
+
+    const input = document.querySelector("input") as unknown as HTMLInputElement;
+    input.value = "files";
+    (document.querySelector("form") as unknown as HTMLFormElement).dispatchEvent(
+      new (window as unknown as { Event: typeof Event }).Event("submit", { bubbles: true, cancelable: true }),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const headers = [...document.querySelectorAll("th")] as unknown as HTMLElement[];
+    (headers[1] as HTMLElement).click();
+    (headers[1] as HTMLElement).click();
+
+    const lastRow = [...document.querySelectorAll("tbody tr")].at(-1) as unknown as HTMLElement;
+    expect(lastRow.textContent).toContain("b");
+    expect(root.querySelector("table.grid")).not.toBeNull();
+  });
+
+  test("命令请求失败时给出可见提示", async () => {
+    const document = window.document as unknown as Document;
+    const root = document.createElement("div");
+    document.body.append(root);
+    const adapter: ShellAdapter = {
+      exec: () => Promise.reject(new Error("network down")),
+      authenticate: () => Promise.resolve({ ok: true as const, user: "admin" }),
+      setTopics: () => {},
+      fetchFile: () => Promise.resolve({ ok: true as const, text: "" }),
+      subscribe: () => () => {},
+    };
+    mountShell(root as unknown as HTMLElement, adapter);
+
+    const input = document.querySelector("input") as unknown as HTMLInputElement;
+    input.value = "ping";
+    (document.querySelector("form") as unknown as HTMLFormElement).dispatchEvent(
+      new (window as unknown as { Event: typeof Event }).Event("submit", { bubbles: true, cancelable: true }),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(document.querySelector(".output")?.textContent).toContain("network down");
+  });
+
+  test("密码模式下上下键不会翻出历史命令", () => {
+    const { document } = mount();
+    const input = document.querySelector("input") as unknown as HTMLInputElement;
+
+    input.value = "help";
+    (document.querySelector("form") as unknown as HTMLFormElement).dispatchEvent(
+      new (window as unknown as { Event: typeof Event }).Event("submit", { bubbles: true, cancelable: true }),
+    );
+
+    input.value = "auth admin";
+    (document.querySelector("form") as unknown as HTMLFormElement).dispatchEvent(
+      new (window as unknown as { Event: typeof Event }).Event("submit", { bubbles: true, cancelable: true }),
+    );
+    expect(input.type).toBe("password");
+
+    input.dispatchEvent(
+      new (window as unknown as { KeyboardEvent: typeof KeyboardEvent }).KeyboardEvent("keydown", {
+        key: "ArrowUp",
+        bubbles: true,
+      }),
+    );
+    expect(input.value).toBe("");
+  });
+
+  test("焦点在按钮上时回车不被输入框抢走", () => {
+    const { document } = mount();
+    const pause = document.querySelector(".tool") as unknown as HTMLElement;
+    pause.focus();
+
+    const event = new (window as unknown as { KeyboardEvent: typeof KeyboardEvent }).KeyboardEvent("keydown", {
+      key: "Enter",
+      bubbles: true,
+      cancelable: true,
+    });
+    pause.dispatchEvent(event);
+
+    expect(event.defaultPrevented).toBe(false);
+    expect(document.activeElement).toBe(pause);
+  });
+});

@@ -84,3 +84,41 @@ describe("createFileSink", () => {
     expect(read(dir, "info.log").length).toBe(1);
   });
 });
+
+describe("重启与清理", () => {
+  test("已有文件时按磁盘大小继续算 maxBytes", () => {
+    const dir = tempDir();
+    const { writeFileSync } = require("node:fs") as typeof import("node:fs");
+    writeFileSync(join(dir, "error.log"), "x".repeat(50));
+
+    const sink = createFileSink({ dir, maxBytes: 60 });
+    sink([record("error", "y".repeat(40))]);
+
+    // 50 + 40 > 60：先归档再写，error.log 里只剩新的一条
+    expect(read(dir, "error.log").length).toBe(1);
+    expect(readdirSync(dir).filter((name) => name.startsWith("error-")).length).toBe(1);
+  });
+
+  test("没有轮转也会清理过期归档", () => {
+    const dir = tempDir();
+    const day = 24 * 60 * 60 * 1000;
+    const { writeFileSync, utimesSync } = require("node:fs") as typeof import("node:fs");
+    const old = join(dir, "warn-2020-01-01T00-00-00-000Z.log");
+    writeFileSync(old, "{}\n");
+    utimesSync(old, new Date(0), new Date(0));
+
+    createFileSink({ dir, now: () => 300 * day })([record("info", "tiny")]);
+    expect(readdirSync(dir)).not.toContain("warn-2020-01-01T00-00-00-000Z.log");
+  });
+
+  test("同一毫秒的第二次轮转不会覆盖前一个归档", () => {
+    const dir = tempDir();
+    const sink = createFileSink({ dir, maxBytes: 60, now: () => 1_700_000_000_000 });
+
+    sink([record("error", "x".repeat(40))]);
+    sink([record("error", "y".repeat(40))]);
+    sink([record("error", "z".repeat(40))]);
+
+    expect(readdirSync(dir).filter((name) => name.startsWith("error-")).length).toBe(2);
+  });
+});

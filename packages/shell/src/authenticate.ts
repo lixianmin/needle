@@ -1,3 +1,4 @@
+import { readTextLimited } from "./web/body.js";
 import { ResponseX } from "./web/responsex.js";
 import type { ShellSource } from "./source.js";
 
@@ -20,15 +21,9 @@ export function createAuthRoute(options: AuthRouteOptions): (req: Request) => Pr
   const maxBodyBytes = options.maxBodyBytes ?? DEFAULT_MAX_BODY_BYTES;
 
   return async (req) => {
-    const declared = Number(req.headers.get("content-length") ?? "0");
-    if (Number.isFinite(declared) && declared > maxBodyBytes) {
-      return ResponseX.payloadTooLarge("payload too large");
-    }
-
-    const body = await req.text();
-    if (new TextEncoder().encode(body).length > maxBodyBytes) {
-      return ResponseX.payloadTooLarge("payload too large");
-    }
+    // 密码接口更该防这一手：它不需要 token，chunked 就能绕过声明长度。
+    const body = await readTextLimited(req, maxBodyBytes);
+    if (body === null) return ResponseX.payloadTooLarge("payload too large");
 
     let parsed: unknown;
     try {

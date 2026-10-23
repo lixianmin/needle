@@ -1,10 +1,34 @@
 import { LEVELS } from "../types.js";
 const DEFAULT_BATCH_MS = 1000;
 const DEFAULT_MAX_PER_MINUTE = 20;
-/** 飞书单条消息上限 30KB，留出信封与转义的余量。 */
-const MAX_TEXT_LENGTH = 18_000;
+/** 飞书单条消息上限 30KB；按 UTF-8 字节算，给信封和 JSON 转义留 6KB 余量。 */
+const MAX_TEXT_BYTES = 24_000;
 function truncate(text) {
-    return text.length <= MAX_TEXT_LENGTH ? text : `${text.slice(0, MAX_TEXT_LENGTH)}…(截断)`;
+    const encoder = new TextEncoder();
+    if (encoder.encode(text).length <= MAX_TEXT_BYTES)
+        return text;
+    // 按字节累加而不是按字符数：18000 个汉字是 54KB，飞书会直接拒收。
+    let bytes = 0;
+    let end = 0;
+    for (const char of text) {
+        const size = encoder.encode(char).length;
+        if (bytes + size > MAX_TEXT_BYTES)
+            break;
+        bytes += size;
+        end += char.length;
+    }
+    return `${text.slice(0, end)}…(截断)`;
+}
+/** 一条记录能给人看的部分：msg、Error 的 message、栈。 */
+function detailOf(record) {
+    const parts = [];
+    if (record.msg !== undefined && record.msg !== "")
+        parts.push(record.msg);
+    if (typeof record.message === "string" && record.message !== "")
+        parts.push(record.message);
+    if (typeof record.stack === "string" && record.stack !== "")
+        parts.push(record.stack);
+    return parts.join("\n");
 }
 async function sign(secret, timestamp) {
     const encoder = new TextEncoder();
@@ -32,11 +56,14 @@ export function createLarkSink(options) {
     let tokens = maxPerMinute;
     let lastRefill = now();
     function refill() {
-        const elapsed = now() - lastRefill;
-        if (elapsed < 60_000)
+        const at = now();
+        const elapsed = at - lastRefill;
+        if (elapsed <= 0)
             return;
-        tokens = maxPerMinute;
-        lastRefill = now();
+        // 按时间比例补充，而不是每满 60 秒整桶重置：后者允许在窗口边界连发
+        // 2× 配额，正好是限流要防的情况。
+        lastRefill = at;
+        tokens = Math.min(maxPerMinute, tokens + (elapsed / 60_000) * maxPerMinute);
     }
     async function send(lines) {
         if (lines.length === 0)
@@ -48,11 +75,14 @@ export function createLarkSink(options) {
             body.timestamp = timestamp;
             body.sign = await sign(options.secret, Number(timestamp));
         }
-        await doFetch(options.webhook, {
+        const response = await doFetch(options.webhook, {
             method: "POST",
             headers: { "content-type": "application/json" },
             body: JSON.stringify(body),
         });
+        // 静默失败等于告警没发出去：至少留一行到 stderr。
+        if (!response.ok)
+            console.error(`[logo] lark webhook 返回 HTTP ${response.status}`);
     }
     async function flush() {
         if (timer !== undefined) {
@@ -64,7 +94,7 @@ export function createLarkSink(options) {
         const pending = queue;
         queue = [];
         refill();
-        if (tokens <= 0)
+        if (tokens < 1)
             return; // 超出配额：这一批直接丢，不排队堆积
         tokens -= 1;
         try {
@@ -78,8 +108,7 @@ export function createLarkSink(options) {
         for (const record of batch) {
             if (LEVELS[record.level] < minLevel)
                 continue;
-            const detail = record.msg ?? "";
-            queue.push(`[${record.level}] ${detail}`.trim());
+            queue.push(`[${record.level}] ${detailOf(record)}`.trim());
         }
         if (queue.length > 0 && timer === undefined) {
             timer = setTimeout(() => {
@@ -90,5 +119,13 @@ export function createLarkSink(options) {
         }
     });
     sink.flush = flush;
+    // dispose() 只调用带 close 的 sink。没有它，队列里最后一条 error 会随进程消失。
+    sink.close = () => {
+        if (timer !== undefined) {
+            clearTimeout(timer);
+            timer = undefined;
+        }
+        void flush();
+    };
     return sink;
 }

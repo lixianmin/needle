@@ -26,10 +26,16 @@ describe("createMetrics", () => {
     expect(snapshot.connections).toBe(3);
   });
 
-  test("只探测一次，后续读取返回同一结果", async () => {
-    const metrics = createMetrics();
+  test("同一秒内复用一次探测，跨秒重新读", async () => {
+    let clock = 1_000_000;
+    const metrics = createMetrics({ now: () => clock });
+
     const first = await metrics.read();
     const second = await metrics.read();
     expect(first).toBe(second);
+
+    clock += 1000;
+    const third = await metrics.read();
+    expect(third).not.toBe(first);
   });
 });

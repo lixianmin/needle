@@ -60,3 +60,36 @@ describe("createLocalAdapter", () => {
     expect(events).toHaveLength(0);
   });
 });
+
+describe("卸载", () => {
+  test("最后一个订阅退掉后，主题定时器与广播连接一起停", async () => {
+    let reads = 0;
+    const withTopic = createShellSource({
+      logger: newLogger({ flushIntervalMs: 0, batch: false }),
+      auth: { users: {} },
+      user: "local-dev",
+      topics: [
+        {
+          name: "tick",
+          note: "",
+          intervalMs: 10,
+          read: async () => {
+            reads += 1;
+            return {};
+          },
+        },
+      ],
+    });
+    const local = createLocalAdapter(withTopic);
+    const unsubscribe = local.subscribe(() => {});
+    local.setTopics("tick");
+
+    await new Promise((resolve) => setTimeout(resolve, 40));
+    const before = reads;
+    unsubscribe();
+
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    expect(reads).toBe(before);
+    expect(withTopic.broadcast.count()).toBe(0);
+  });
+});

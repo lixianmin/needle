@@ -293,9 +293,13 @@ export function mountShell(root: HTMLElement, adapter: ShellAdapter): ShellView 
           sortIndex = index;
           direction = 1;
         }
-        const sorted = [...rows].sort(
-          (left, right) => compare(left[index], right[index]) * direction,
-        );
+        const sorted = [...rows].sort((left, right) => {
+          const a = left[index] ?? null;
+          const b = right[index] ?? null;
+          // 空值永远排最后：乘以 direction 会让降序时它们跑到最前面。
+          if (a === null || b === null) return a === null ? (b === null ? 0 : 1) : -1;
+          return compare(a, b) * direction;
+        });
         renderBody(sorted);
         headers.forEach((header, i) => {
           const mark = header.querySelector(".mark");
@@ -458,6 +462,8 @@ export function mountShell(root: HTMLElement, adapter: ShellAdapter): ShellView 
   const focusOnEnter = (event: KeyboardEvent): void => {
     if (event.key !== "Enter") return;
     if (isEditable(doc.activeElement)) return;
+    // Enter 是按钮/链接的默认激活方式，抢走它键盘就没法操作控制台自己的控件。
+    if (doc.activeElement?.closest?.("button, a, [role='button']") !== null) return;
     event.preventDefault();
     input.focus();
   };
@@ -618,10 +624,14 @@ export function mountShell(root: HTMLElement, adapter: ShellAdapter): ShellView 
       leavePasswordMode();
       if (password === "") return;
 
-      void adapter.authenticate(target, password).then((result) => {
-        if (result.ok) pushText(`已登录：${result.user}`, "status");
-        else pushText(result.error, "status");
-      });
+      void adapter.authenticate(target, password).then(
+        (result) => {
+          if (result.ok) pushText(`已登录：${result.user}`, "status");
+          else pushText(result.error, "status");
+        },
+        // 网络断开 / 网关塞了一页 HTML：不接 reject 的话这里完全没有提示。
+        (error: unknown) => pushText(`登录请求失败：${String(error)}`, "status"),
+      );
       return;
     }
 
@@ -636,7 +646,9 @@ export function mountShell(root: HTMLElement, adapter: ShellAdapter): ShellView 
     remember(line);
 
     if (runLocal(name, args)) return;
-    void adapter.exec(line).then(renderOutput);
+    void adapter.exec(line).then(renderOutput, (error: unknown) => {
+      pushText(`请求失败：${String(error)}`, "status");
+    });
   });
 
   input.addEventListener("keydown", (event) => {
@@ -654,6 +666,8 @@ export function mountShell(root: HTMLElement, adapter: ShellAdapter): ShellView 
     }
 
     if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+    // 密码框里翻历史会把上一条命令当密码提交，用户还看不出发生了什么。
+    if (pendingUser !== null) return;
     if (history.length === 0) return;
 
     event.preventDefault();

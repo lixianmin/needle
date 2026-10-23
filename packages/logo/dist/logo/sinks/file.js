@@ -31,6 +31,8 @@ export function createFileSink(options) {
     const fileLevels = LEVELS_BY_FILE.filter((level) => LEVELS[level] >= LEVELS[minLevel]);
     const bytes = new Map();
     let closed = false;
+    /** 过期归档每次进程只清一次：低流量时没有轮转，靠它兜底。 */
+    let pruned = false;
     function ensureDir() {
         if (!existsSync(options.dir))
             mkdirSync(options.dir, { recursive: true });
@@ -51,13 +53,32 @@ export function createFileSink(options) {
             }
         }
     }
+    /** 进程重启后磁盘上已经有同名文件：不清零的话 maxBytes 会按旧大小继续累加。 */
+    function seed(level, file) {
+        if (bytes.has(level))
+            return;
+        try {
+            bytes.set(level, statSync(file).size);
+        }
+        catch {
+            bytes.set(level, 0);
+        }
+    }
+    /** 同一毫秒内两次轮转不能让后者覆盖前者，那批日志就永久丢了。 */
+    function archivePath(level, stamp) {
+        let target = join(options.dir, `${level}-${stamp}.log`);
+        for (let index = 1; existsSync(target); index += 1) {
+            target = join(options.dir, `${level}-${stamp}-${index}.log`);
+        }
+        return target;
+    }
     function rotate(file, level) {
         if (!existsSync(file)) {
             bytes.set(level, 0);
             return;
         }
         const stamp = new Date(now()).toISOString().replace(/[:.]/g, "-");
-        renameSync(file, join(options.dir, `${level}-${stamp}.log`));
+        renameSync(file, archivePath(level, stamp));
         bytes.set(level, 0);
         prune();
     }
@@ -67,6 +88,7 @@ export function createFileSink(options) {
         const file = join(options.dir, `${level}.log`);
         const text = `${lines.join("\n")}\n`;
         const size = Buffer.byteLength(text, "utf8");
+        seed(level, file);
         const current = bytes.get(level) ?? 0;
         if (current > 0 && current + size > maxBytes)
             rotate(file, level);
@@ -77,6 +99,10 @@ export function createFileSink(options) {
         if (closed || batch.length === 0)
             return;
         ensureDir();
+        if (!pruned) {
+            pruned = true;
+            prune();
+        }
         // 先按目标文件分组：一条 warn 会同时进 info.log 与 warn.log，
         // 但只做两次批量写，而不是逐条写。
         const buckets = new Map();

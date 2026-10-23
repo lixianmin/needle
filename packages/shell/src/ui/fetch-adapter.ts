@@ -87,7 +87,10 @@ export function createFetchAdapter(options: FetchAdapterOptions): ShellAdapter {
   async function connect(): Promise<void> {
     if (disposed) return;
     controller?.abort();
-    controller = new AbortController();
+    // 每轮持有自己的 Controller：旧轮次被 abort 时，catch 里不能去读那个
+    // 已经被换成新轮次的 controller，否则守卫失效、旧轮次会把新连接再 abort 一遍。
+    const local = new AbortController();
+    controller = local;
 
     const token = readToken();
     const query = topicSpec === "" ? "" : `?topics=${encodeURIComponent(topicSpec)}`;
@@ -97,16 +100,17 @@ export function createFetchAdapter(options: FetchAdapterOptions): ShellAdapter {
     try {
       const response = await fetch(`${options.basePath}/events${query}`, {
         headers,
-        signal: controller.signal,
+        signal: local.signal,
       });
 
       if (response.status === 401) {
-        status("未登录：执行 login <user> <password> 后自动重连", "warn");
+        status("未登录：执行 auth <user> 登录后自动重连", "warn");
         return;
       }
       if (response.body === null) {
-        status(`无法读取事件流（HTTP ${response.status}）`, "error");
-        return;
+        // 没有正文也可能是网关的异常返回：走同一条退避重连，不能就此停摆。
+        status(`无法读取事件流（HTTP ${response.status}），稍后重试`, "error");
+        throw new Error(`empty event stream (HTTP ${response.status})`);
       }
 
       retry = 0;
@@ -117,8 +121,9 @@ export function createFetchAdapter(options: FetchAdapterOptions): ShellAdapter {
           if (event === "handshake") emit({ type: "handshake", info: JSON.parse(data) as HandshakeInfo });
           else if (event === "log") emit({ type: "logs", records: JSON.parse(data) as LogRecord[] });
           else if (event === "topic") {
-            const payload = JSON.parse(data) as { name: string; data: unknown };
-            emit({ type: "topic", name: payload.name, data: payload.data });
+            const payload = JSON.parse(data) as { name: string; data?: unknown; error?: unknown };
+            // 主题读取失败时服务端发的是 { error }，兜一下，别渲染成 "[top] undefined"。
+            emit({ type: "topic", name: payload.name, data: payload.data ?? payload.error });
           }
         } catch {
           // 单帧解析失败就跳过，没必要整条流重连。
@@ -133,11 +138,12 @@ export function createFetchAdapter(options: FetchAdapterOptions): ShellAdapter {
 
       if (!disposed) status("连接已断开，正在重连…", "warn");
     } catch (error) {
-      if (disposed || controller?.signal.aborted === true) return;
+      if (disposed || local.signal.aborted) return;
       status(`连接失败：${String(error)}`, "error");
     }
 
-    if (disposed) return;
+    // 只有这一轮仍是最新时才安排重连：被 abort 的旧轮次不该再拉起一次。
+    if (disposed || controller !== local) return;
     // 指数退避，封顶 10 秒：服务重启期间不要把浏览器打死。
     retry += 1;
     setTimeout(() => void connect(), Math.min(10_000, 500 * 2 ** retry));
