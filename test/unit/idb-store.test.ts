@@ -158,3 +158,41 @@ describe("createIndexedDbStore", () => {
     expect(await store.list()).toEqual([]);
   });
 });
+
+describe("review 修复回归", () => {
+  test("过期与超限同批出现：条数上限仍然精确", async () => {
+    const store = makeStore({ maxRecords: 10 });
+    store(Array.from({ length: 10 }, (_, index) => rec("info", `old-${index}`, index)));
+    // 4 条过期 + 8 条新鲜：先删过期，再按上限裁最旧
+    const batch = [
+      ...Array.from({ length: 4 }, (_, index) => rec("info", `stale-${index}`, -8 * DAY - index)),
+      ...Array.from({ length: 8 }, (_, index) => rec("info", `new-${index}`, 100 + index)),
+    ];
+    store(batch);
+
+    const text = await store.read("info.log");
+    const messages = text?.split("\n").map(msgOf) ?? [];
+    expect(messages).toHaveLength(10);
+    // 过期删的是 stale-*；超限按入库顺序裁掉 old-0..7，剩 old-8..9 + new-0..7
+    expect(messages[0]).toBe("old-8");
+    expect(messages).toContain("new-7");
+    expect(messages.join("\n")).not.toContain("stale");
+  });
+
+  test("日志行不带存储自增的 id 键", async () => {
+    const store = makeStore();
+    store([rec("info", "i")]);
+
+    const line = (await store.read("info.log"))?.split("\n")[0] ?? "";
+    const payload = JSON.parse(line.slice(line.indexOf("] ") + 2) as string) as Record<string, unknown>;
+    expect(payload).toEqual({ msg: "i" });
+  });
+
+  test("modified 取桶内最大 time（乱序批次也正确）", async () => {
+    const store = makeStore();
+    store([rec("info", "a", 500), rec("info", "b", 900), rec("info", "c", 100)]);
+
+    const entries = await store.list();
+    expect(entries[0]?.modified).toBe(BASE_TIME + 900);
+  });
+});

@@ -158,7 +158,7 @@ Shell 右栏只在面板打开时收实时日志，没有历史；Workers 又没
 - 平台侧的 Logpush / Tail Workers 收 stdout。
 - 自己的 sink 往外部收集端发。
 
-要按文件查日志，用 Node / Bun——那里才有 `createFileSink` 和 `log.list`。
+要按文件查日志，用 Node / Bun（磁盘文件）或浏览器（IndexedDB store）——Workers 两样都没有。
 
 ### 为什么不做定时批量
 

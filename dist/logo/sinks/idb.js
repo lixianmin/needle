@@ -39,14 +39,16 @@ function bucketize(records, minLevel) {
         if (LEVELS[level] < LEVELS[minLevel]) {
             continue;
         }
-        const lines = [];
+        const bucket = { lines: [], modified: 0 };
         for (const record of records) {
             if (LEVELS[record.level] >= LEVELS[level]) {
-                lines.push(formatLine(record));
+                bucket.lines.push(formatLine(record));
+                // modified 取桶内最大 time：比从行前缀反解精确（毫秒），乱序批次也对
+                bucket.modified = Math.max(bucket.modified, record.time);
             }
         }
-        if (lines.length > 0) {
-            buckets.set(level, lines);
+        if (bucket.lines.length > 0) {
+            buckets.set(level, bucket);
         }
     }
     return buckets;
@@ -127,9 +129,11 @@ export function createIndexedDbStore(options = {}) {
         })
             .catch(() => fallback);
     }
-    function readAll(database) {
+    async function readAll(database) {
         const tx = database.transaction(STORE_NAME, "readonly");
-        return awaitRequest(tx.objectStore(STORE_NAME).getAll()).then((all) => all);
+        const all = await awaitRequest(tx.objectStore(STORE_NAME).getAll());
+        // keyPath+autoIncrement 会把生成的 id 注入存储值：剥掉，别让它漏进日志行
+        return all.map(({ id, ...record }) => record);
     }
     /** 与写同一事务的清理：过期按时间索引删，超限按主键（入库顺序）删最旧。 */
     async function prune(store) {
@@ -138,7 +142,7 @@ export function createIndexedDbStore(options = {}) {
         for (const key of expiredKeys) {
             store.delete(key);
         }
-        const total = (await awaitRequest(store.count())) - expiredKeys.length;
+        const total = await awaitRequest(store.count());
         const overflow = total - maxRecords;
         if (overflow <= 0) {
             return;
@@ -177,14 +181,13 @@ export function createIndexedDbStore(options = {}) {
     sink.list = () => query(async (database) => {
         const records = await readAll(database);
         const entries = [];
-        for (const [level, lines] of bucketize(records, minLevel)) {
-            // modified 取该文件最新一行的时间；size 按「行 + 换行」估字节，展示用。
-            const lastLine = lines[lines.length - 1];
+        for (const [level, bucket] of bucketize(records, minLevel)) {
+            // size 按「行 + 换行」估字节，展示用
             entries.push({
                 name: `${level}.log`,
-                size: lines.reduce((total, line) => total + line.length + 1, 0),
-                modified: lastLine === undefined ? 0 : parseTime(lastLine),
-                sample: lines.slice(-SAMPLE_LINES).map(clipLine).join("\n"),
+                size: bucket.lines.reduce((total, line) => total + line.length + 1, 0),
+                modified: bucket.modified,
+                sample: bucket.lines.slice(-SAMPLE_LINES).map(clipLine).join("\n"),
             });
         }
         return entries;
@@ -212,12 +215,6 @@ export function createIndexedDbStore(options = {}) {
             }
         }
         return null;
-    }
-    /** 行前缀是秒级时间戳 `2026-10-22T15:04:05`（东八区），反解回 epoch 毫秒展示用。 */
-    function parseTime(line) {
-        const stamp = line.slice(0, line.indexOf(" "));
-        const parsed = Date.parse(`${stamp}+08:00`);
-        return Number.isNaN(parsed) ? 0 : parsed;
     }
     sink.close = () => {
         closed = true;

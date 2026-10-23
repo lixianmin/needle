@@ -11,7 +11,8 @@ import { parseTopicSpecs } from "../sse.js";
  */
 function logNameFromHref(href) {
     const path = href.split(/[?#]/, 1)[0] ?? href;
-    const match = /^\/log\/(.+)$/.exec(path);
+    // 匹配末段：log.list 生成的链接带 basePath 前缀（如 /shell/log/x），口径要一致
+    const match = /\/log\/([^/?#]+)$/.exec(path);
     const raw = match?.[1];
     if (raw === undefined) {
         return null;
