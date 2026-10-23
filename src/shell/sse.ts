@@ -57,8 +57,7 @@ export function createBroadcast(): Broadcast {
           try {
             if (connection.sendText === undefined) {
               connection.send("log", frame);
-            }
-            else {
+            } else {
               connection.sendText(text);
             }
           } catch {

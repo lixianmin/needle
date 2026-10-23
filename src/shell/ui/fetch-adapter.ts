@@ -36,8 +36,7 @@ function writeToken(token: string | null): void {
   try {
     if (token === null) {
       localStorage.removeItem(TOKEN_KEY);
-    }
-    else {
+    } else {
       localStorage.setItem(TOKEN_KEY, token);
     }
   } catch {
@@ -60,8 +59,7 @@ function createFrameParser(onFrame: (event: string, data: string) => void) {
       for (const line of frame.split("\n")) {
         if (line.startsWith("event:")) {
           event = line.slice(6).trim();
-        }
-        else if (line.startsWith("data:")) {
+        } else if (line.startsWith("data:")) {
           data.push(line.slice(5).trim());
         }
       }
@@ -143,11 +141,9 @@ export function createFetchAdapter(options: FetchAdapterOptions): ShellAdapter {
         try {
           if (event === "handshake") {
             emit({ type: "handshake", info: JSON.parse(data) as HandshakeInfo });
-          }
-          else if (event === "log") {
+          } else if (event === "log") {
             emit({ type: "logs", records: JSON.parse(data) as LogRecord[] });
-          }
-          else if (event === "topic") {
+          } else if (event === "topic") {
             const payload = JSON.parse(data) as { name: string; data?: unknown; error?: unknown };
             // 主题读取失败时服务端发的是 { error }，兜一下，别渲染成 "[top] undefined"。
             emit({ type: "topic", name: payload.name, data: payload.data ?? payload.error });

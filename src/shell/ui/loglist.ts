@@ -220,8 +220,7 @@ export function createLogList<T>(
     view?.ResizeObserver !== undefined ? new view.ResizeObserver(onResize) : undefined;
   if (resizeObserver === undefined) {
     view?.addEventListener("resize", onResize);
-  }
-  else {
+  } else {
     resizeObserver.observe(el);
   }
 
@@ -294,8 +293,7 @@ export function createLogList<T>(
       }
       if (resizeObserver === undefined) {
         view?.removeEventListener("resize", onResize);
-      }
-      else {
+      } else {
         resizeObserver.disconnect();
       }
       el.removeEventListener("scroll", onScroll);

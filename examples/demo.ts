@@ -97,11 +97,9 @@ const shell = createShell({
           // 三种级别混着写：右栏能看出着色，也能看出 warn / error 是立刻刷的。
           if (i % 17 === 0) {
             logo.error(line);
-          }
-          else if (i % 7 === 0) {
+          } else if (i % 7 === 0) {
             logo.warn(line);
-          }
-          else {
+          } else {
             logo.info(line);
           }
         }
