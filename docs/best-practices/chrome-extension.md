@@ -16,8 +16,7 @@
 
 ```ts
 // sidepanel.ts
-import { logo } from "@needle/logo";
-import { createBrowserConsole } from "@needle/logo/console";
+import { createBrowserConsole, logo } from "@needle/logo";
 
 const panel = createBrowserConsole({
   logger: logo,
@@ -42,7 +41,7 @@ const panel = createBrowserConsole({
 面板也可以连另一个服务端托管的控制台（比如开发机上那台），这时换 fetch 适配器，鉴权重新有意义：
 
 ```ts
-import { createFetchAdapter, mountConsole } from "@needle/logo/console";
+import { createFetchAdapter, mountConsole } from "@needle/logo";
 
 const view = mountConsole(
   document.getElementById("console")!,

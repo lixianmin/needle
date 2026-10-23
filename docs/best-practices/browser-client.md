@@ -9,8 +9,7 @@ Vite / 静态站，没有后端，用户在 Windows 上的 Chrome / Edge 里打�
 ### 接线
 
 ```ts
-import { logo } from "@needle/logo";
-import { createBrowserConsole } from "@needle/logo/console";
+import { createBrowserConsole, logo } from "@needle/logo";
 
 const panel = createBrowserConsole({
   logger: logo,
