@@ -230,7 +230,15 @@ export function createIndexedDbStore(options = {}) {
             done.catch(() => { });
             const store = tx.objectStore(STORE_NAME);
             for (const record of records) {
-                store.put(record);
+                try {
+                    store.put(record);
+                }
+                catch (error) {
+                    // 单条写不进去（不可结构克隆的值等）不能拖累同批其余记录：
+                    // 抛出去会让后面所有记录一起丢，而日志 sink 绝不能因为一条脏数据
+                    // 把整批证据吞掉。
+                    reportOnce(error);
+                }
             }
             await prune(store);
             await done;
