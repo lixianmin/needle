@@ -1,4 +1,5 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import type { Socket } from "node:net";
 import { Readable } from "node:stream";
 
 export interface ServeOptions {
@@ -126,6 +127,14 @@ export async function serve(
 ): Promise<RunningServer> {
   const server = createServer((req, res) => respond(handler, req, res));
 
+  // Bun 的 node:http 里，SSE 这类长连接会让 server.close() 的回调永远不触发，
+  // 连 closeAllConnections() 都救不回来。自己记住 socket，停机时直接 destroy。
+  const sockets = new Set<Socket>();
+  server.on("connection", (socket) => {
+    sockets.add(socket);
+    socket.once("close", () => sockets.delete(socket));
+  });
+
   await new Promise<void>((resolve, reject) => {
     server.once("error", reject);
     server.listen(options.port, options.hostname, () => {
@@ -142,6 +151,12 @@ export async function serve(
     close: () =>
       new Promise<void>((resolve, reject) => {
         server.close((error) => (error === undefined || error === null ? resolve() : reject(error)));
+        // SSE 是长连接，浏览器不断开就永远不进入 idle：给正在收尾的响应 250ms，
+        // 然后强制断开剩下的 socket，close() 才会回调。
+        const timer = setTimeout(() => {
+          for (const socket of sockets) socket.destroy();
+        }, 250);
+        (timer as unknown as { unref?: () => void }).unref?.();
       }),
   };
 }

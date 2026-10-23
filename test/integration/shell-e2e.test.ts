@@ -163,3 +163,37 @@ describe("SSE 断开", () => {
     }
   });
 });
+
+describe("停机", () => {
+  test("有活跃 SSE 连接时 close() 也能返回", async () => {
+    const http = await import("node:http");
+    const logger = newLogger({ flushIntervalMs: 0, batch: false });
+    const shell = createShell({
+      logger,
+      auth: { users: { admin: "secret" }, secret: "e2e-secret" },
+    });
+    const server = await serve(shell.handler, { port: 0 });
+
+    const login = await fetch(`http://127.0.0.1:${server.port}/auth`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ user: "admin", password: "secret" }),
+    });
+    const token = ((await login.json()) as { token: string }).token;
+
+    const request = http.get({
+      port: server.port,
+      path: "/events",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    request.on("error", () => {});
+    await new Promise((resolve) => setTimeout(resolve, 150));
+
+    const started = Date.now();
+    await server.close();
+    expect(Date.now() - started).toBeLessThan(2000);
+
+    request.destroy();
+    shell.dispose();
+  });
+});

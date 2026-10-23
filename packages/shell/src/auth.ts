@@ -56,6 +56,10 @@ export function createAuth(options: AuthOptions & { now?: () => number }): Auth 
   const ttlMs = options.ttlMs ?? DEFAULT_TTL_MS;
   const encoder = new TextEncoder();
 
+  if (options.secret === "") {
+    // 空 key 会让 crypto.subtle.importKey 抛 DataError，表现为第一次登录 500。
+    throw new Error("auth.secret 不能是空字符串：要么给一个值，要么不传让库随机生成");
+  }
   let secret = options.secret === undefined ? undefined : encoder.encode(options.secret);
   if (secret === undefined) {
     // 随机 secret 只在这个进程里有效。重启后已签发的 token 全部作废，
