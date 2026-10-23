@@ -198,6 +198,25 @@ describe("review 修复回归", () => {
   });
 });
 
+/**
+ * 临时接管 console.error。
+ *
+ * store 在故意出错的路径上会打一条 reportOnce，测试里这是预期输出：
+ * 不接管的话大段堆栈会混进测试结果，真正的失败反而被淹没。
+ */
+async function withConsoleErrors<T>(fn: (errors: string[]) => Promise<T>): Promise<T> {
+  const errors: string[] = [];
+  const original = console.error;
+  console.error = (...args: unknown[]) => {
+    errors.push(args.map((arg) => String(arg)).join(" "));
+  };
+  try {
+    return await fn(errors);
+  } finally {
+    console.error = original;
+  }
+}
+
 /** 造一个 v1 布局的库（keyPath "id"）并返回打开的连接。 */
 function openLegacyV1(name: string): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -327,20 +346,6 @@ describe("复审修复", () => {
 });
 
 describe("升级被挡", () => {
-  /** 临时接管 console.error：blocked 是异步上报的，等到它真的发生再继续。 */
-  async function withConsoleErrors<T>(fn: (errors: string[]) => Promise<T>): Promise<T> {
-    const errors: string[] = [];
-    const original = console.error;
-    console.error = (...args: unknown[]) => {
-      errors.push(args.map((arg) => String(arg)).join(" "));
-    };
-    try {
-      return await fn(errors);
-    } finally {
-      console.error = original;
-    }
-  }
-
   test("blocked 解除后连接不残留，store 也不会永久降级", async () => {
     const name = uniqueName();
     const legacy = await openLegacyV1(name); // 旧标签页占着 v1 连接
@@ -372,62 +377,59 @@ describe("升级被挡", () => {
 
 describe("版本升级让路", () => {
   test("别的上下文要升级版本时让路，不把对方卡死", async () => {
-    const name = uniqueName();
-    const store = createIndexedDbStore({ name, now: () => BASE_TIME + DAY });
-    store([rec("info", "a")]);
-    await store.list(); // 确保连接已建立
+    await withConsoleErrors(async () => {
+      const name = uniqueName();
+      const store = createIndexedDbStore({ name, now: () => BASE_TIME + DAY });
+      store([rec("info", "a")]);
+      await store.list(); // 确保连接已建立
 
-    const upgraded = await new Promise<boolean>((resolve) => {
-      const request = indexedDB.open(name, 3);
-      request.onupgradeneeded = () => {};
-      request.onsuccess = () => {
-        request.result.close();
-        resolve(true);
-      };
-      request.onblocked = () => resolve(false);
-      request.onerror = () => resolve(false);
+      const upgraded = await waitFor(async () => ((await tryOpenVersion(name, 3)) ? true : null));
+      expect(upgraded).toBe(true);
     });
-    expect(upgraded).toBe(true);
   });
 });
 
 describe("版本变更让路", () => {
   test("versionchange 让路时不吞掉已排队的批次", async () => {
-    const name = uniqueName();
-    const store = createIndexedDbStore({ name, now: () => BASE_TIME + DAY });
-    store([rec("info", "warmup", 0)]);
-    await store.list(); // 等连接建立
+    await withConsoleErrors(async () => {
+      const name = uniqueName();
+      const store = createIndexedDbStore({ name, now: () => BASE_TIME + DAY });
+      store([rec("info", "warmup", 0)]);
+      await store.list(); // 等连接建立
 
-    // 排一批在队列里，再立刻请求升级：versionchange 必然在队列还没跑完时到达
-    const BURST = 100;
-    for (let index = 0; index < BURST; index += 1) {
-      store([rec("info", `burst-${index}`, index + 1)]);
-    }
+      // 排一批在队列里，再立刻请求升级：versionchange 必然在队列还没跑完时到达
+      const BURST = 100;
+      for (let index = 0; index < BURST; index += 1) {
+        store([rec("info", `burst-${index}`, index + 1)]);
+      }
 
-    const upgraded = await waitFor(async () => ((await tryOpenVersion(name, 3)) ? true : null));
-    expect(upgraded).toBe(true);
+      const upgraded = await waitFor(async () => ((await tryOpenVersion(name, 3)) ? true : null));
+      expect(upgraded).toBe(true);
 
-    const rows = await waitFor(async () => {
-      const all = await rawAll(name);
-      return all.length >= BURST ? all : null;
+      const rows = await waitFor(async () => {
+        const all = await rawAll(name);
+        return all.length >= BURST ? all : null;
     });
     // 立刻 close 连接的实现会把队列后半截丢掉，这里只剩前面几条
     expect(rows.map((row) => row.msg)).toContain(`burst-${BURST - 1}`);
+    });
   });
 });
 
 describe("脏记录隔离", () => {
   test("单条不可克隆的记录不会拖累同批其它记录", async () => {
-    const store = makeStore();
-    store([
-      { time: BASE_TIME, level: "info", msg: "before" },
-      // 函数值不可结构化克隆：put 会同步抛 DataCloneError
-      { time: BASE_TIME, level: "info", msg: "poison", bad: () => {} },
-      { time: BASE_TIME, level: "info", msg: "after" },
-    ]);
+    await withConsoleErrors(async () => {
+      const store = makeStore();
+      store([
+        { time: BASE_TIME, level: "info", msg: "before" },
+        // 函数值不可结构化克隆：put 会同步抛 DataCloneError
+        { time: BASE_TIME, level: "info", msg: "poison", bad: () => {} },
+        { time: BASE_TIME, level: "info", msg: "after" },
+      ]);
 
-    const lines = (await store.read("info.log"))?.split("\n") ?? [];
-    expect(lines.map(msgOf)).toEqual(["before", "after"]);
+      const lines = (await store.read("info.log"))?.split("\n") ?? [];
+      expect(lines.map(msgOf)).toEqual(["before", "after"]);
+    });
   });
 });
 
