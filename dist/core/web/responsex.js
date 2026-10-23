@@ -12,6 +12,11 @@ function fail(status, code, message) {
     return Response.json({ code, message }, { status });
 }
 export const ResponseX = {
+    /**
+     * 逃生口：8 个具名方法没覆盖的情况（403、429 之类，或某个领域专属 code）。
+     * 同一个 code 用到第二次就该补成一个具名方法——名字比调用方记住数字强。
+     */
+    fail,
     /** 400：请求本身不合法（body 不是 JSON、字段类型不对、空命令、命令不存在）。 */
     badRequest: (message) => fail(400, "bad_request", message),
     /** 401：没带 token 或 token 无效。 */

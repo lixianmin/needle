@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import { createConsole, type Console } from "../../src/console/index.js";
 import { newLogger } from "../../src/core/logo/logo.js";
+import { ResponseX } from "../../src/core/web/responsex.js";
 import { TEST_VERSION } from "../fixtures.js";
 
 /**
@@ -127,5 +128,20 @@ describe("错误响应契约", () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ ok: true });
     api.dispose();
+  });
+});
+
+describe("ResponseX", () => {
+  test("具名方法锁死状态码与 code，只收 message", async () => {
+    const res = ResponseX.notFound("日志文件不存在");
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ code: "not_found", message: "日志文件不存在" });
+  });
+
+  // 逃生口：8 个具名方法没覆盖的情况（403/429 之类，或某个领域专属 code）。
+  test("fail 是逃生口：状态码与 code 由调用方给", async () => {
+    const res = ResponseX.fail(403, "forbidden", "没有权限");
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({ code: "forbidden", message: "没有权限" });
   });
 });
