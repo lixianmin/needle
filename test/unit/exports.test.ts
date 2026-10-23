@@ -36,6 +36,7 @@ describe("包的导出映射", () => {
 
     expect(typeof root.logo.info).toBe("function");
     expect(typeof root.createLarkSink).toBe("function");
+    expect(typeof root.createIndexedDbStore).toBe("function");
     expect(typeof shell.createServerShell).toBe("function");
     expect(typeof shell.table).toBe("function");
     expect(typeof node.createFileSink).toBe("function");

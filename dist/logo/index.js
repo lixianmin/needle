@@ -2,6 +2,7 @@ import { newLogger } from "./logo.js";
 import { stdoutSink } from "./sinks/stdout.js";
 export { newLogger } from "./logo.js";
 export { stdoutSink, hasStdout } from "./sinks/stdout.js";
+export { createIndexedDbStore } from "./sinks/idb.js";
 export { buildRecord, safeStringify } from "./record.js";
 export { LEVEL_HINTS, formatLine, parseLine } from "./line.js";
 export { UTC_OFFSET_MINUTES, formatTime } from "./line.js";

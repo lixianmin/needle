@@ -1,6 +1,8 @@
 export { newLogger } from "./logo.js";
 export type { Logger, LoggerOptions } from "./logo.js";
 export { stdoutSink, hasStdout } from "./sinks/stdout.js";
+export { createIndexedDbStore } from "./sinks/idb.js";
+export type { IndexedDbStoreOptions, LogStore } from "./sinks/idb.js";
 export { buildRecord, safeStringify } from "./record.js";
 export type { BuildOptions } from "./record.js";
 export { LEVEL_HINTS, formatLine, parseLine } from "./line.js";
