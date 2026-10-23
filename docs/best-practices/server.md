@@ -73,6 +73,7 @@ commands: [{
 }]
 ```
 
+- 查日志用 `log.list`（读 `logFiles` 指向的目录），别指望页面里的实时滚动：只有最近 500 行，量大就淹，也不留档。
 - 输出只有 `text` / `table` / `json`。要人读的排成 `table`，要贴给别人的用 `json`。
 - 表格列可声明语义：`bytes` 走 `toHuman`（`36290560` → `34.61M`），`duration` 走 `formatDuration`（`57720` → `57.7s`），点表头按原始数值排序。
 - 超时默认 10 秒（`timeoutMs`），超了返回 `timeout`，不会把请求挂住。
