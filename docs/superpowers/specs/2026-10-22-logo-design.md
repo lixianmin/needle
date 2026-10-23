@@ -1,4 +1,4 @@
-# logo 设计文档
+# Needle 设计文档
 
 日期：2026-10-22
 状态：草案（待人类确认）
@@ -13,8 +13,8 @@
 
 ## 2. 目标
 
-1. 一个包，挂在任意 Node 服务的 HTTP 上，浏览器打开就有终端样式的控制台。
-2. 浏览器里能做三件事：看实时日志、敲命令看结果、订阅周期性指标推送。
+1. 两个包（`@needle/logo`、`@needle/shell`），shell 挂在任意 Node 服务的 HTTP 上，浏览器打开就有终端样式的界面。
+2. 浏览器里能做两件事：敲命令看结果、订阅周期性指标推送（日志不推送到页面，见 §8.1）。
 3. 日志默认 JSON，可同时写 stdout、文件、飞书群。
 4. 同一份代码能在 Cloudflare Workers 上 import 并运行——不需要改代码、不需要为 Workers 维护一份分支实现（部署参数如 `secret` 另行传入）。
 5. 零运行时依赖，包体尽量小。
@@ -42,27 +42,30 @@
 
 ## 5. 总体结构
 
-一个 npm 包，四个入口。核心入口不认识任何运行时 API。
+两个 npm 包，各自两个入口。依赖是单向的：shell 依赖 logo，logo 不依赖 shell。
 
 ```
-.             → logo 日志门面（默认入口）
-./shell     → 控制台：kernel + HTTP/SSE 适配器 + 可挂载的 UI
-./node        → 文件 sink、Node HTTP 挂载助手、Node 指标
-./lark        → 飞书 sink
+@needle/logo
+  .        → 日志门面、sink（stdout / 飞书）、SortedTable
+  ./node    → 文件 sink、createLogFiles
+
+@needle/shell（依赖 @needle/logo）
+  .        → shell：kernel + HTTP/SSE 适配器 + 可挂载的 DOM 面板
+  ./node    → serve / attach：把 (Request) => Response 挂到 node:http
 ```
 
-控制台分两层，因为它的宿主不止服务器：
+shell 分两层，因为它的宿主不止服务器：
 
 ```
-createShellSource()   → 纯逻辑：命令注册、exec、主题、环形缓冲、鉴权
+createShellSource(options)   → 纯逻辑：命令注册、exec、主题订阅、鉴权，不认识 HTTP
       ↓ 同一个 source
-createShell(source)   → (Request) => Response，给 Node / Bun / Workers
-mountShell(el, source) → 直接挂到页面 DOM，给浏览器与扩展
+createShell(options)         → (Request) => Response，给 Node / Bun / Workers
+createBrowserShell({ element }) → DOM 面板：source + 本地适配器，给浏览器与扩展
 ```
 
-UI 只有一份实现（`src/shell/ui/view.ts`，DOM 构建 + Solarized Dark 样式）。服务端要吐 HTML，所以构建时用 `scripts/build-ui.mjs` 把 `ui/app.ts` 打包成字符串常量（`ui/script.generated.ts`），页面模板直接内联它。浏览器/扩展场景直接 import `mountShell`，不走字符串、不走 eval——扩展的 CSP 不允许内联脚本，这条路必须干净。
+UI 只有一份实现（`packages/shell/src/ui/view.ts`，DOM 构建 + Solarized Dark 样式）。服务端要吐 HTML，所以构建时用 `scripts/build-ui.mjs` 把 `ui/app.ts` 打包成字符串常量（`ui/script.generated.ts`），页面模板直接内联它。浏览器/扩展场景直接 import `mountShell`，不走字符串、不走 eval——扩展的 CSP 不允许内联脚本，这条路必须干净。
 
-`core` 的入口只使用 `fetch`、`crypto.subtle`、`TextEncoder` 这些跨运行时 API。唯一的例外是 `core/logo/sinks/file.ts`：它依赖 `node:fs`，因此**只从 `./node` 入口导出**，`.  ` 入口不会把它拉进包里（Workers 集成测试会断言产物里没有 `node:`）。`node` 入口里的 `node:fs` 用静态 import——那个入口本来就只有 Node 会加载。
+`@needle/logo` 的 `.` 入口只使用 `fetch`、`crypto.subtle`、`TextEncoder` 这些跨运行时 API。唯一的例外是 `logo/sinks/file.ts`：它依赖 `node:fs`，因此**只从 `./node` 入口导出**，`.` 入口不会把它拉进包里（Workers 集成测试会断言产物里没有 `node:`）。`./node` 里的 `node:fs` 用静态 import——那个入口本来就只有 Node 会加载。
 
 ## 6. 日志 API
 
@@ -186,16 +189,16 @@ sink 是同步函数。抛错被捕获并忽略（一条坏 sink 不能拖垮业
 
 按大小滚动，单文件默认 10MB，归档名形如 `info-2026-10-22T12-00-00-000Z.log`，保留 7 天。用 `appendFileSync` 一次写一个 batch——反正已经是每 100ms 一次，阻塞时间可以接受，换来的是「warn/error 立即落盘」和「退出前 flush 就真的写下去了」。
 
-**飞书**（`./lark`）：把 batch 推到群机器人 webhook。默认只推 `error` 级别，超出窗口的记录合并成一条消息，令牌桶限流（默认 20 条/分钟），支持可选签名密钥。用 `fetch`，Workers 可用。
+**飞书**（`@needle/logo` 的默认入口）：把 batch 推到群机器人 webhook。默认只推 `error` 级别，超出窗口的记录合并成一条消息，令牌桶限流（默认 20 条/分钟），支持可选签名密钥。用 `fetch`，Workers 可用。
 
 ## 8. 控制台
 
 ### 8.1 挂载
 
-`createShell()` 返回一个 `(Request) => Response` 的 handler 和一个 `dispose()`。
+`createShell()` 返回一个 `(Request) => Response` 的 handler、内部 source 和 `dispose()`。
 
 ```ts
-const debug = createShell({
+const shell = createShell({
   logger: logo,
   auth: { users: { admin: "secret" }, secret: process.env.DBG_SECRET! },
   commands: [myCommand],
@@ -205,21 +208,21 @@ const debug = createShell({
 })
 
 // Hono
-app.all("/shell", (c) => debug.handler(c.req.raw))
-app.all("/shell/*", (c) => debug.handler(c.req.raw))
+app.all("/shell", (c) => shell.handler(c.req.raw))
+app.all("/shell/*", (c) => shell.handler(c.req.raw))
 // 已有 node:http server（裸 Node / Express / Fastify 底层都是它）
-attach(server, debug, { basePath: "/shell" })
+attach(server, shell, { basePath: "/shell" })
 // 自己起一个端口
-const running = await serve(debug.handler, { port: 7701 })
+const running = await serve(shell.handler, { port: 7701 })
 // Bun（本地开发）
-Bun.serve({ port: 7701, fetch: debug.handler })
+Bun.serve({ port: 7701, fetch: shell.handler })
 ```
 
-对外只有一个接口：`handler` 是 `(Request) => Response`。所以挂载分两类：Fetch 形态（Hono、Bun、Workers、React Router 资源路由的 `loader`/`action`）直接接这个函数；Node 形态用 `attach(server, debug, { basePath })`，它接管 `request` 事件，前缀内交给控制台、前缀外交回原 listener，Express/Fastify 一行不改。`attach` 在原来的路由/中间件之前处理自己的路径，不经过它们。
+对外只有一个接口：`handler` 是 `(Request) => Response`。所以挂载分两类：Fetch 形态（Hono、Bun、Workers、React Router 资源路由的 `loader`/`action`）直接接这个函数；Node 形态用 `attach(server, shell, { basePath })`，它接管 `request` 事件，前缀内交给 shell、前缀外交回原 listener，Express/Fastify 一行不改。`attach` 在原来的路由/中间件之前处理自己的路径，不经过它们。
 
 不提供框架适配入口：没有 `./hono`、`./koa` 这类 subpath。框架集成就是上面那两行调用方代码，needle 的依赖表里不出现任何框架（`hono` 连 devDependency 都不进，否则"装了 Hono 的人"和"没装的人"拿到的就不是同一个包）。
 
-控制台内部自己建两个 sink：一个环形缓冲（历史，供 `log.list` 命令）和一个广播器（实时，供 SSE），两者都由 `logger.addSink` 挂上，`dispose()` 时摘掉。因此日志视图在实现上仍然只是一个 sink，但装配细节不丢给调用方。不引入全局单例，依赖从参数进来，装配关系在调用处一眼看全。
+shell **不接收日志**：它只把调用方传进来的 logger 交给命令（`CommandContext.log`），自身不往 logger 上挂 sink。日志流向只有一条——`logo` → 你挂的 sink（stdout / 文件 / 飞书）；查历史日志走 `log.list` 读磁盘文件。早期版本曾把日志实时推到页面，量一大就淹掉整个输出区，已删除。
 
 `basePath` 可选，默认空字符串。挂在子路径上时必须给（Hono 的 `app.all("/shell/*")` 里 `c.req.raw.url` 仍带前缀，`attach` 也要靠它区分前缀），router 按它剥前缀，页面里的 JS 也用它拼 `/events` 和 `/exec` 的地址。
 
@@ -229,7 +232,7 @@ Bun.serve({ port: 7701, fetch: debug.handler })
 |---|---|---|
 | GET | `/` | 页面（单个 HTML，内联 JS/CSS） |
 | GET | `/index.html` | 同上，静态托管默认入口的别名 |
-| GET | `/events?topics=top:5000` | SSE 流：日志、主题推送。需鉴权 |
+| GET | `/events?topics=top:5000` | SSE 流：握手与主题推送。需鉴权 |
 | POST | `/exec` | 执行一条命令，同步返回结果 |
 | POST | `/auth` | 口令换 token，请求体上限 512 字节 |
 | GET | `/health` | `{"ok":true}` |
@@ -287,23 +290,23 @@ POST /exec   { "line": "log.list" }
 event: handshake
 data: {"title":"Needle","version":"0.1.0","user":"admin","commands":[...],"topics":[...]}
 
-event: log
-data: {"time":...,"level":"info","msg":"..."}
-
 event: topic
 data: {"name":"top","data":{...}}
 ```
 
-**`/events` 必须带合法 token，否则 401。** 日志流是这套东西里最敏感的数据，匿名只应该能拿到页面和 `help`。页面加载时若没有 token 或 token 已失效，显示"先 auth"，不反复重试；`auth` 成功后再建立连接。
+**`/events` 必须带合法 token，否则 401。** 命令表和订阅数据不对外公开，匿名只应该能拿到页面、`help` 与 `auth`。页面加载时若没有 token 或 token 已失效，显示"先 auth"，不反复重试；`auth` 成功后再建立连接。
 
 `handshake` 在连接建立后立即发送，前端用它拿项目名、命令表、主题表和当前身份。名字照 gonsole `road` 层的握手语义：连接建立后服务端先发一帧配置，客户端据此决定怎么渲染和补全。`topics` 用查询参数声明，断线重连时自动重新订阅（`fetch`+`ReadableStream` 读流，不用原生 `EventSource`，因为要带 `Authorization` 头）。
 
 ### 8.4 命令
 
 ```ts
+type Cell = string | number | null | { text: string; href: string }  // { text, href } 渲染成链接
+type ColumnFormat = "auto" | "bytes" | "duration" | "number"
+
 type CommandOutput =
   | { kind: "text";  text: string }
-  | { kind: "table"; columns: string[]; rows: Array<Array<string | number | null>> }
+  | { kind: "table"; columns: string[]; rows: Cell[][]; formats?: ColumnFormat[] }
   | { kind: "json";  value: unknown }
 
 interface Command {
@@ -329,10 +332,23 @@ interface CommandContext {
 
 输出形态固定三种：`help` 用 `text`，`log.list`/`top` 用 `table`（浏览器里渲染成真表格），需要嵌套结构时用 `json`。前端只需处理这三种，不做字符串解析。
 
+作者侧不手写 `columns`/`rows`/`formats` 三个同序数组，用 `table<Row>()` 声明一次：
+
+```ts
+const routes = table<{ path: string; reads: number; latencyMs: number }>({
+  path: {},
+  reads: { format: "number" },
+  latencyMs: { format: "duration", title: "latency" },
+})
+routes.output([{ path: "/api/user", reads: 1520, latencyMs: 57_720 }])
+```
+
+列顺序 = schema 里 key 的书写顺序；`Row` 与 schema 双向约束（少写或多写字段 `tsc` 报错）；行对象按 key 取值，与字段顺序无关；空结果仍保留列定义。
+
 表格的两条约定：
 
-- **数字传原始值，不预格式化**。`table.rows` 允许 `number`，展示层负责转成人话，排序也按原始数值而不是字符串。
-- **列语义用 `formats` 声明**，不是靠猜。`auto`（缺省）：整数且 ≥1024 用 `toHuman`；`bytes`：字节，永远走 `toHuman`；`duration`：毫秒，走 `formatDuration`（`57720` → `57.7s`）；`number`：计数原样。
+- **数字传原始值，不预格式化**。`rows` 允许 `number`，展示层负责转成人话，排序也按原始数值而不是字符串。
+- **列语义用 `format` 声明**，不是靠猜。`auto`（缺省）：整数且 ≥1024 用 `toHuman`；`bytes`：字节，永远走 `toHuman`；`duration`：毫秒，走 `formatDuration`（`57720` → `57.7s`）；`number`：计数原样。
   这一条是修 bug 修出来的：曾经把 `uptimeMs` 当普通整数套 `toHuman`，显示成 `57.72K`——毫秒不是字节，单位错了就是错。
 - **表头可点击排序**，再点一次反向（照 gonsole `JsonTable` 的交互）。
 
@@ -375,9 +391,9 @@ interface Topic {
 - Node：`process.memoryUsage()` 的 `rss`/`heapUsed`、事件循环利用率（`globalThis.performance.eventLoopUtilization`，没有就跳过）、运行时长、SSE 连接数。
 - Workers：没有 `process.memoryUsage` 这类读数（Workers 的 `process` 是部分实现，未实现的方法直接抛错）。只能给自维护计数器：启动时间、SSE 连接数。
 
-返回字段固定为 `runtime`（`"node"` | `"workers"`）与 `uptimeMs`；Node 额外有 `rss`、`heapUsed`、`loopDelayMs`。Workers 分支不返回这几个键，前端按存在与否渲染。
+返回字段固定为 `runtime`（`"node"` | `"workers"`）、`uptimeMs` 与 `connections`（当前 SSE 连接数）；Node 额外有 `rss`、`heapUsed`，浏览器有 `eventLoopUtilization` 时再加 `loopUtilization`。Workers 分支不返回这几个键，前端按存在与否渲染。
 
-运行时检测不用 `typeof window`，用能力检测：能动态 import 到 `node:perf_hooks` 就是 Node，否则走 Workers 分支。
+运行时检测不用 `typeof window`，也不做任何 import（workerd 只接受静态模块说明符）：`typeof process?.memoryUsage === "function"` 就是 Node，否则走 Workers 分支。
 
 ## 10. Workers 降级清单
 
@@ -388,13 +404,11 @@ interface Topic {
 | 文件 sink | 有 | 无（`node:fs` 不存在） |
 | 飞书 sink | 有 | 有（`fetch`） |
 | 控制台页面 / SSE | 有 | 有 |
-| 命令执行 | 完整 | 完整（只是看到的是本 isolate） |
-| 日志视图 | 全进程 | **仅本 isolate** |
+| 命令执行 | 完整 | 完整（读到的是本 isolate 的内存状态） |
 | CPU / 内存指标 | 真实读数 | 自维护计数器 |
-| 历史日志 | 进程内环形缓冲 | 同左，isolate 重建即丢失 |
 | 登录态 | 重启失效 | 每次 isolate 回收失效（必须配固定 secret，见 §12） |
 
-关键限制写在部署文档里：Workers 上控制台那条 SSE 连接活在某个 isolate 里，别的 isolate 产生的日志看不到。要跨 isolate 必须引入 Durable Object 或外部汇聚，那是另一个决定，不在本期范围。
+关键限制写在部署文档里：shell 不接收日志，Workers 又没有文件系统，所以 `log.list` 在那边用不了——日志只能靠 sink（飞书、Logpush、自建收集端）拿出去。跨 isolate 汇聚属于外部系统的事，不在本期范围。
 
 ## 11. 前端
 
@@ -402,7 +416,7 @@ interface Topic {
 
 主题推送落成输出区的一行（`[top] rss=36.3MB heap=1.6MB`），不做常驻面板：常驻面板会一直占着版面，而人看指标是"瞟一眼"，不是"盯着"。想持续看就 `sub top 2000`，输出区跟着滚。
 
-界面三块：上方输出区（日志与命令结果混排，按类型着色）、中间主题面板（`top` 的表格）、底部输入框（回车发送，上下键翻历史，历史存 localStorage）。
+界面三块：头栏（项目名 + 版本 + 当前用户）、输出区（命令结果与主题推送混排）、底部输入框（回车发送，上下键翻历史，历史存 localStorage）。
 
 配色用 Solarized Dark（Ethan Schoonover 那套），不自己调色：
 
@@ -410,17 +424,16 @@ interface Topic {
 |---|---|
 | 页面背景 | `#002b36` (base03) |
 | 强调块/输入区 | `#073642` (base02) |
-| 次要文字、debug | `#586e75` (base01) |
+| 次要文字、主题推送 | `#586e75` (base01) |
 | 正文 | `#839496` (base0) |
-| 强调正文 | `#93a1a1` (base1) |
-| info | `#2aa198` (cyan) |
-| warn | `#b58900` (yellow) |
-| error | `#dc322f` (red) |
+| 强调正文/表头 | `#93a1a1` (base1) |
+| 当前用户/输入提示 | `#2aa198` (cyan) |
+| 状态提示 | `#b58900` (yellow) |
 | 命令回显/link | `#268bd2` (blue) |
 
 等宽字体栈 `ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`，不下载字体。
 
-前端 JS 同样按教材标准写：`renderLog` / `runCommand` / `connect` 各管一件事。
+前端 JS 同样按教材标准写：`mountShell` / `runCommand` / `connect` 各管一件事。
 
 **Tab 补全**：只按行尾补全，候选来自 handshake 的命令表（所以服务器上自定义的命令一样能补），加上 `auth`/`sub`/`unsub` 这几个客户端命令；`sub`/`unsub` 的第二个词补主题名。唯一候选直接补全，多个候选先补公共前缀，再按一次列出候选。Tab 永远 `preventDefault`，不会把焦点移走。
 
@@ -435,79 +448,90 @@ payload = base64url({"sub":"admin","exp":1758994834567})
 token   = payload + "." + base64url(HMAC-SHA256(secret, payload))
 ```
 
-- 配置形如 `auth: { users: { admin: "secret" }, secret: "..." }`。core 不读环境变量（Workers 上没有 `process.env` 的常规语义），secret 必须由宿主传进来。
+- 配置形如 `auth: { users: { admin: "secret" }, secret: "..." }`。库不读环境变量（Workers 上没有 `process.env` 的常规语义），secret 必须由宿主传进来。
 - 没传 secret 就随机生成，重启后所有 token 失效，启动时打一行警告。Workers 上必须传固定 secret，否则每次 isolate 回收都会让已登录的浏览器掉线。
 - 密码直接以字符串保存在内存里，比较时逐字节等时比较（内存里存摘要不增加任何安全性）。
-- 前端存 localStorage，请求时放 `Authorization: Bearer <token>`。token 带 `exp`，默认 12 小时（`auth.ttlMs` 可调）；过期后前端回到未登录态，重新 `auth` 即可。
+- 前端把 token 存 localStorage（`logo.shell.token`），请求时放 `Authorization: Bearer <token>`。token 带 `exp`，默认 12 小时（`auth.ttlMs` 可调）；过期后前端回到未登录态，重新 `auth` 即可。
 - 未登录：`public` 命令可跑，其余返回 401，前端提示"先 auth"。
 - 不做 Basic auth：浏览器原生弹窗是一刀切的，而且凭据会被自动带给同源的其他接口。
 
 ## 13. 包与构建
 
-包名 `@needle/logo`。
+两个包：`@needle/logo` 与 `@needle/shell`（`dependencies` 里写 `@needle/logo`），版本号同步递增。
 
 ```
-package.json exports:
-  "."           → dist/core/index.js
-  "./shell"   → dist/shell/index.js
-  "./node"      → dist/node/index.js
-  "./lark"      → dist/lark/index.js   // 飞书 sink 单独入口，不拖累 shell 的体积
+@needle/logo
+  "."        → packages/logo/dist/index.js
+  "./node"   → packages/logo/dist/node/index.js     // 文件 sink 与 createLogFiles
+
+@needle/shell
+  "."        → packages/shell/dist/index.js
+  "./node"   → packages/shell/dist/node.js          // serve / attach
 ```
 
-`"type": "module"`、`"sideEffects": false`。入口靠 subpath 显式区分，不用条件导出——文件 sink 已经在 `./node` 里，核心入口不存在需要按运行时分支的模块。`./node` 内部对 `node:fs` 一律动态 `import()`。
+`"type": "module"`、`"sideEffects": false`。入口靠 subpath 显式区分，不用条件导出——文件 sink 已经在 `./node` 里，核心入口不存在需要按运行时分支的模块。`./node` 内部对 `node:fs` 用静态 import，那个入口本来就只有 Node 会加载。
 
 构建：`tsc`（TypeScript 7.0.2 原生版已验证能产出 `.js` + `.d.ts`）。不做额外打包，`bun build` 只在测体积时用。
 
-`dist/` 随源码一起提交，否则 Git 依赖（`git+https://…`）拿到的是没有产物的源码。`.githooks/pre-commit` 在每次提交时重跑 `bun run build` 并把 `dist/`、`src/shell/ui/script.generated.ts` stage 进同一个 commit——产物和源码永远同版本，不依赖 CI。
+`dist/` 随源码一起提交，否则从仓库直接引用（`file:` / `git+https://…`）拿到的是没有产物的源码。`.githooks/pre-commit` 在每次提交时重跑 `bun run build` 并把两个包的 `dist/`、`packages/shell/src/ui/script.generated.ts` stage 进同一个 commit——产物和源码永远同版本，不依赖 CI。
 
-体积实测：入口 `.` 1.7KB（min+gzip），`./shell` 9.2KB（含内联页面脚本）。
+体积实测（min+gzip，`bun run size`）：只导入日志 1.6KB；shell 15.8KB（含内联页面脚本）。
 
 ## 14. 目录
 
 ```
-src/
-  core/
-    logo/
-      logo.ts       # newLogger + 默认实例
-      record.ts     # 记录构造与 JSON 安全化
-      line.ts       # 落盘行格式 + 东八区时间
-      human.ts      # 人读数字/时长
-      types.ts      # Level / LogRecord / Sink
-      index.ts      # 汇总 + 默认 logo 实例
-      sinks/
-        stdout.ts   # stdout sink + 能力探测
-        file.ts     # 文件 sink（依赖 node:fs，只从 ./node 导出）
-        lark.ts     # 飞书 sink（独立入口 ./lark）
-    collections/    # 与业务无关的通用数据结构
-      sorted-table.ts
-    web/
-      responsex.ts  # ResponseX：错误响应的唯一出口（不对外导出）
-    logger.ts       # logo 门面
-    record.ts       # 记录构造与参数归一化
-    sink.ts         # Sink 类型、stdout sink
-    ring.ts         # 环形缓冲（带 read 的 sink）
-    types.ts        # 共享类型（level、LogRecord）
+packages/
+  logo/
+    src/
+      index.ts          # 汇总：默认 logo 实例 + 全部导出
+      logo/
+        logo.ts         # newLogger
+        record.ts       # 记录构造与 JSON 安全化
+        line.ts         # 落盘行格式 + 东八区时间
+        human.ts        # 人读数字/时长
+        types.ts        # Level / LogRecord / Sink / LogFiles
+        index.ts        # 日志门面的汇总导出
+        sinks/
+          stdout.ts     # stdout sink + 能力探测
+          file.ts       # 文件 sink（node:fs，只从 ./node 导出）
+          lark.ts       # 飞书 sink
+      collections/
+        sorted-table.ts
+      node/
+        index.ts        # createFileSink / createLogFiles 出口
+        log-files.ts    # 日志目录读取（log.list 的数据源）
+    dist/               # 提交进仓库
   shell/
-    index.ts        # createShell：装配
-    router.ts       # 路由表（method + 模式 → handler）与分派
-    sse.ts          # SSE 编码与连接生命周期
-    commands.ts     # 参数切分与命令查找
-    builtins.ts     # 内置命令
-    exec.ts         # POST /exec：鉴权、限额、超时
-    types.ts        # 命令与输出类型
-    auth.ts         # token 签发/校验
-    metrics.ts      # 指标读取（能力检测）
-    page.ts         # 单文件 HTML
-  lark/
-    index.ts        # 飞书 sink（批量 + 限流 + 签名）
-  node/
-    index.ts
-    file-sink.ts    # 滚动文件
-    serve.ts        # (Request)=>Response 挂到 node:http（serve 起新端口 / attach 接管已有 server）
+    src/
+      index.ts          # createShell / createBrowserShell：装配
+      source.ts         # 纯逻辑：命令、主题、鉴权
+      router.ts         # 路由表与分派
+      sse.ts            # SSE 编码、广播、连接生命周期
+      commands.ts       # 参数切分与命令查找
+      builtins.ts       # 内置命令
+      exec.ts           # POST /exec：鉴权、限额、超时
+      auth.ts           # token 签发/校验
+      authenticate.ts   # POST /auth
+      metrics.ts        # 指标读取（能力检测）
+      page.ts           # 单文件 HTML
+      table.ts          # table<Row>()：声明式表格
+      types.ts          # 命令与输出类型
+      ui/
+        view.ts         # DOM 面板（唯一一份 UI 实现）
+        adapter.ts      # 适配器契约
+        local.ts        # 进程内适配器（浏览器 / 扩展）
+        fetch-adapter.ts# HTTP/SSE 适配器
+        app.ts          # 内联脚本入口
+        style.ts        # Solarized Dark
+        script.generated.ts  # 由 scripts/build-ui.mjs 生成，勿手改
+      web/
+        responsex.ts    # 错误响应出口
+      node.ts           # serve / attach
+    dist/               # 提交进仓库
 test/
-  unit/...
-  integration/...
-docs/deploy/workers.md
+  unit/  integration/  smoke/  workers/
+examples/demo.ts
+docs/best-practices/  docs/deploy/
 ```
 
 ## 15. 代码风格契约
@@ -525,12 +549,8 @@ docs/deploy/workers.md
 
 ## 16. 测试
 
-- 单元：参数归一化（字符串/对象/Error/循环引用）、字段冲突、批量刷新（连写 N 条只触发 1 次 sink、warn/error 立即触发、缓冲上限丢最旧并计数）、调用栈采集开关、环形缓冲、token 签发与过期、命令解析、路由分发、限流器。
-- 集成：起一个 `node:http` 服务挂上 handler，用 `fetch` 走完整流程——登录、跑公开命令、跑受限命令、收 SSE 日志、收主题推送。
+- 单元：参数归一化（字符串/对象/Error/循环引用）、字段冲突、批量刷新（连写 N 条只触发 1 次 sink、warn/error 立即触发、缓冲上限丢最旧并计数）、调用栈采集开关、token 签发与过期、命令解析、路由分发、限流器、`table<Row>()` 的列顺序与空结果、两个包的 exports 映射。
+- 集成：起一个 `node:http` 服务挂上 handler，用 `fetch` 走完整流程——登录、跑公开命令、跑受限命令、收 SSE 握手、收主题推送。
 - 无运行时依赖验证：单元与集成测试都在 Bun 下跑（Bun 能解析 `.js` 后缀到 `.ts`，已实测）；Node 侧由 `test/smoke/node.mjs` 跑构建产物做冒烟断言。
-- Workers 兼容性必须实测：用 miniflare 起 workerd 环境，跑一遍登录、公开命令、受限命令、SSE 日志流、主题推送，断言 fs/process 相关能力不存在时也能正常工作。这一项是 §2 目标 4 的唯一成立依据。
+- Workers 兼容性必须实测：用 miniflare 起 workerd 环境，跑一遍登录、公开命令、受限命令、SSE 握手、主题推送，断言 fs/process 相关能力不存在时也能正常工作。这一项是 §2 目标 4 的唯一成立依据。
 - 覆盖率目标 ≥ 80%（AGENTS.md §11）。
-
-## 17. 待定
-
-1. Workers 上要不要提供 Durable Object 版本的共享日志缓冲。默认不做，文档里留说明。
