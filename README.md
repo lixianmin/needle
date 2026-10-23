@@ -116,13 +116,13 @@ export const shell = createShell({
 });
 ```
 
-## 二、日志模块
+## 二、日志（logo）
 
-### 1. 为什么要有它
+### 1. 如何使用
 
 `console.log` 只是把一行字符串丢给 stdout，它的问题是：
 
-- **性能**：`console.log`瞬间发送1000条，会卡死 IO。
+- **性能**：console.log 瞬间发送1000条，会卡死 IO。
 - **去处**：stdout 走了就没了；想按级别分文件、想把 error 推到飞书，得自己接。
 
 所以在日志进 stdout 之前加一层：一次调用变成一条结构化记录，再由你挂的 sink 决定它去哪。
@@ -138,13 +138,7 @@ logo.error("paid failed", err, { userId: 7 });
 // Error 展开成 message + stack
 ```
 
-### 它是怎么走的
-
-一条调用经过三步：
-
-1. **组记录**：字符串拼成 `msg`，对象合并进字段，`Error` 展开成 `message` + `stack`。
-2. **按级别决定节奏**：`warn` / `error` 立即写出（`error` 还带调用栈）；`info` 攒批 100ms，一个循环写 1000 条只产生一次 IO。默认级别是 `info`，`debug` 要 `setLevel("debug")` 才出来。
-3. **分发给所有 sink**：同一批记录给每一个挂上去的 sink，各自决定收哪些、写到哪。`logo` 默认挂了一个写 stdout 的。
+### 2. 分发到不同的 sink
 
 ```ts
 import { createLarkSink } from "@needle/logo";
@@ -155,11 +149,7 @@ logo.addSink(createLarkSink({ webhook: process.env.LARK_HOOK!, minLevel: "error"
 process.on("SIGTERM", () => logo.dispose());                                         // 退出前冲缓冲区
 ```
 
-要另起一个实例（换级别、换名字）用 `newLogger()`；`newLogger({ sinks: [...] })` 可以在创建时就把 sink 配好。
 
-日志是批量写出去的：一个循环写 1000 条只产生 1 次 IO，`warn` / `error` 例外。
-
-设计文档见 `docs/superpowers/specs/2026-10-22-logo-design.md`。
 
 ## 三、平台支持
 
@@ -174,77 +164,83 @@ process.on("SIGTERM", () => logo.dispose());                                    
 
 文件 sink 只在有 `node:fs` 的地方能用：`@needle/logo/node` 顶层 `import "node:fs"`，浏览器和 Workers 打包时不能碰它；`@needle/logo` 的 `.` 入口是干净的。
 
-三篇文档按平台各自写全（接线、鉴权、日志落点、坑），跨篇重复是故意的——你只需要读自己那篇。
 
-## 四、安装与使用
 
-### 装
+## 四、安装、测试与开发
 
-两个包，二选一：
+### 1. 安装
+
+两个包还没发到 npm，所以走 `bun link`：**仓库只注册一次，之后每个新项目两条命令**。
 
 ```bash
-bun add @needle/shell   # 要 shell；它的依赖里有 @needle/logo，会一起装上
-bun add @needle/logo    # 只要日志，不要 shell
-```
+# ── 1. 一次性：把仓库拉到本地，注册两个包（以后拉新代码不用再跑）──
+git clone https://github.com/lixianmin/needle.git ~/needle
+cd ~/needle && bun run link:local     # bun install + 把 packages/{logo,shell} 注册给 bun link
 
-两个包都还没发到 npm。仓库内是 bun workspace（`packages/logo`、`packages/shell`），
-外部现在只能 `git clone` 后 `bun link`；发布后上面的 `bun add` 直接可用。`dist/` 随源码
-提交，所以不需要构建步骤。
+# ── 2. 每个新项目：建目录并接上这两个包 ──
+mkdir -p ~/my-service && cd ~/my-service
+bun init -y
+bun link @needle/shell @needle/logo
 
-### 接日志
-
-业务代码里直接 `logo.info(...)`，退出前 `logo.dispose()`。挂 sink、改级别、换名字、`newLogger()` 都在「二、日志模块」。
-
-### 挂控制台
-
-控制台对外只有一个接口 `(req: Request) => Promise<Response>`，挂载就是把它接到你的服务器上。Hono 是两条路由：
-
-```ts
-import { logo } from "@needle/logo";
-import { createLogFiles } from "@needle/logo/node";
+# ── 3. 写入口：控制台挂在 /shell，业务日志自动进右栏 ──
+cat > server.ts <<'TS'
 import { createShell } from "@needle/shell";
+import { serve } from "@needle/shell/node";
+import { logo } from "@needle/logo";
 
+// 不传 logger 时用 @needle/logo 的全局实例：业务里 logo.info(...) 都会出现在右栏
 const shell = createShell({
-  logger: logo,
-  basePath: "/shell",     // 必须与下面路由前缀一致：handler 内部按它剥前缀
-  title: "order-service",
-  auth: {
-    // 用户名 → 口令。想开几个账号就写几项，比如 { alice: "...", bob: "..." }
-    users: { admin: process.env.CONSOLE_PASSWORD! },
-    // 签 token 的密钥，不是口令；不传就每次启动随机生成
-    secret: process.env.CONSOLE_SECRET!,
-  },
-  logFiles: createLogFiles({ dir: "logs" }),   // 不给的话 log.list 用不了
+  basePath: "/shell",                                         // 控制台路径；不写就挂在站点根目录
+  auth: { users: { admin: "admin" }, secret: "change-me" },    // 用户名→口令；secret 是签 token 的密钥
+  commands: [
+    {
+      name: "ping",
+      note: "回一句 pong，并写一条日志",
+      run: () => {
+        logo.info("ping 被调用");                               // 会出现在右栏「日志」里
+        return { kind: "text", text: "pong" };
+      },
+    },
+  ],
 });
 
-// 先注册控制台，再注册业务中间件：app.use 只作用于它之后注册的路由。
-app.all("/shell", (c) => shell.handler(c.req.raw));
-app.all("/shell/*", (c) => shell.handler(c.req.raw));
+const server = await serve(shell.handler, { port: 3000 });
+console.log(`控制台: http://127.0.0.1:${server.port}/shell`);
+TS
+
+# ── 4. 跑起来（前台运行，Ctrl+C 退出）──
+bun server.ts
+
+# ── 5. 服务跑着的时候，在浏览器里操作 ──
+# 打开 http://127.0.0.1:3000/shell
+# 输入 auth admin 回车 → 提示「密码:」后输入 admin 回车
+# 输入 ping 回车：左栏回 pong，右栏「日志」出现「ping 被调用」
+# 输入 help 回车：列出全部命令
 ```
 
-两条路由缺一不可：`/shell` 是页面，`/shell/*` 是 `/events`、`/exec`、`/log/:name`。只挂一条的话页面能打开，登录和命令全是 404。
+`bun link` 只是在项目里写一条 `"@needle/shell": "link:@needle/shell"` 指向 `~/needle/packages/...`，
+拉取新代码后不用重新 link；只有把 `~/needle` 挪走或删掉时才需要重来一次。
 
-`auth.users` 非空即服务端模式；`user: "local"` 是「能看到页面的人本来就能碰这个进程」时才用的本机开关，绑 `0.0.0.0` 或公网时不能用。其它框架（Express / Fastify / 裸 `node:http`）用 `@needle/shell/node` 的 `attach(server, shell, { basePath: "/shell" })`；平台细节见「三、平台支持」指向的三篇。
 
-### 跑一遍
+### 2. 测试
 
 ```bash
-bun examples/demo.ts    # http://127.0.0.1:1234/shell，账号 xmli / 123456
+# 运行以下命令
+# 打开 http://127.0.0.1:1234/shell
+# 使用 auth xmli 登录，密码 123456
+# 使用 help 查看命令列表
+bun examples/demo.ts
 ```
 
-`room` 读业务状态、`io` 看表格排序、`burst 200` 看批量推送、`boom` 验证 error 带栈、`slow` 验证 10 秒超时。
 
-### 会踩的坑
 
-- **正文在 `msg`，不是 `message`。** 只有传 `Error` 才会出现 `message`（+`stack`）。
-- **`time` / `level` 不在打印出的 JSON 里。** 落盘行是 `2026-10-23T10:50:43 [I] {…}`：时间与级别只在前缀，记录的 `time` 是 epoch 毫秒。时间固定东八区，与机器 `TZ` 无关；`parseLine()` 也只还原 JSON 那段。
-- **`info` 不会立刻到 sink。** 测试与脚本里断言前先 `flush()`；`warn` / `error` 立即写，并把积压一起带出去。
-- **默认只有 `error` 带 `stack`**（和 Go 版一致，warn 只记消息）。`stackLevel` 默认 `"error"`，要 warn 也带设 `"warn"`，关掉用 `"off"`。传 `Error` 时用的是它自己的栈（抛出点）。
-- **`dispose()` 之后日志静默丢弃。** 退出前调一次，别在长生命周期进程里早调。
-- **库自己的字段不让业务改。** `level` / `time` / `msg` / `name` / `stack` 由库填：`info("x", { level: "error", msg: "fake" })` 仍记成 `level:"info", msg:"x"`。
-- **普通对象以外的值会整个进 `msg`。** 数组、`Date`、`Map`、类实例都序列化后拼进 `msg`，不会变成可查询的字段；要按字段过滤就传普通对象。
-- **`@needle/shell` 依赖 `@needle/logo`，版本要一致。** 两个包版本号同步递增；混用两个不同版本的 logo 会有两份副本，`logo` 变成两个对象，各自的 sink 互不可见。
+### 3. 开发
 
-## 开发
+```bash
+git clone https://github.com/lixianmin/needle.git
 
-`dist/` 随源码一起提交，这样 git 依赖不需要构建步骤就能用。克隆后执行一次 `git config core.hooksPath .githooks`，之后每次提交都会自动重建 `dist/` 并 stage 进同一个 commit。
+# `dist/` 随源码一起提交，这样 git 依赖不需要构建步骤就能用。
+# 每次提交都会自动重建 `dist/` 并 stage 进同一个 commit。
+git config core.hooksPath .githooks
+```
+
