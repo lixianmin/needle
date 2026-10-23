@@ -53,27 +53,36 @@ const ping: Command = {
 };
 
 // 2. 表格：列在这里定义一次，之后一行一个对象
-//
-// format 决定数字怎么显示：
-//   bytes    走 toHuman    36290560 → 34.61M
-//   duration 把数字当毫秒   57720    → 57.7s
-//   number   原样不缩写     3629056  → 3629056
-//   auto     默认；整数且 ≥1024 时按 K/M 缩
-const ioTable = table<{ path: string; reads: number; bytes: number; hitRate: number }>({
-  path: {},                                   // 不写 title 就用字段名当表头
-  reads: { format: "number" },
-  bytes: { format: "bytes", title: "size" },  // title 换表头文字
-  hitRate: { format: "number" },
+const routesTable = table<{
+  path: string;
+  reads: number;
+  bytes: number;
+  latencyMs: number;
+  // 单元格可以是 string | number | null | { text, href }
+  // 这里演示后两种：null 渲染成空格子，{ text, href } 渲染成链接
+  file: { text: string; href: string } | null;
+}>({
+  path: { format: "auto" },                     // auto：默认值，整数且 ≥1024 时按 K/M 缩
+  reads: { format: "number" },                  // number：原样显示，1520 还是 1520
+  bytes: { format: "bytes", title: "traffic" }, // bytes：3_600_000 → 3.43M；title 换表头文字
+  latencyMs: { format: "duration" },            // duration：当毫秒，57_720 → 57.7s
+  file: {},                                     // 不写 title 就用字段名当表头
 });
 
-const io: Command = {
-  name: "io",
+const routes: Command = {
+  name: "routes",
   note: "按接口看流量",
-  // 列顺序就是上面 schema 的书写顺序；行对象里字段的先后无关
+  // 列顺序 = 上面 schema 的书写顺序；点表头按原始数值排序，不是按显示出来的字符串
   run: () =>
-    ioTable.output([
-      { path: "/api/user", reads: 1520, bytes: 3_600_000, hitRate: 0.982 },
-      { path: "/health", reads: 12, bytes: 512, hitRate: 1 },
+    routesTable.output([
+      {
+        path: "/api/user",
+        reads: 1520,
+        bytes: 3_600_000,
+        latencyMs: 57_720,
+        file: { text: "info.log", href: "/shell/log/info.log" },
+      },
+      { path: "/health", reads: 12, bytes: 512, latencyMs: 3, file: null },
     ]),
 };
 
@@ -97,20 +106,15 @@ export const shell = createShell({
   logger: logo,              // 命令里的 log 就是这个实例
   basePath: "/shell",
   auth: {
-    // 用户名 → 口令。想开几个账号就写几项，比如 { admin: "...", ops: "..." }
+    // 用户名 → 口令。想开几个账号就写几项，比如 { alice: "...", bob: "..." }
     users: { admin: process.env.CONSOLE_PASSWORD! },
     // 签 token 的密钥，不是口令；不传就每次启动随机生成
     secret: process.env.CONSOLE_SECRET!,
   },
   timeoutMs: 10_000,         // 命令超时，超了返回 timeout；默认 10 秒
-  commands: [ping, io, order],
+  commands: [ping, routes, order],
 });
 ```
-
-还有两点代码里看不出来：
-
-- 表格单元格可以是 `string | number | null | { text, href }`，带 `href` 的渲染成链接——`log.list` 就是靠这个点开日志文件的。
-- 点表头按原始数值排序，不是按显示出来的字符串。
 
 ## 二、日志模块
 
@@ -210,7 +214,7 @@ const shell = createShell({
   basePath: "/shell",     // 必须与下面路由前缀一致：handler 内部按它剥前缀
   title: "order-service",
   auth: {
-    // 用户名 → 口令。想开几个账号就写几项，比如 { admin: "...", ops: "..." }
+    // 用户名 → 口令。想开几个账号就写几项，比如 { alice: "...", bob: "..." }
     users: { admin: process.env.CONSOLE_PASSWORD! },
     // 签 token 的密钥，不是口令；不传就每次启动随机生成
     secret: process.env.CONSOLE_SECRET!,
