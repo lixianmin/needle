@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import * as nodeEntry from "../../src/node/index.js";
+import * as nodeEntry from "../../src/node.js";
 import * as rootEntry from "../../src/index.js";
 import * as shellEntry from "../../src/shell/index.js";
 

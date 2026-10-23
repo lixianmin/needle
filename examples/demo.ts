@@ -11,7 +11,7 @@ import { readFileSync } from "node:fs";
 import { createShell, table } from "../src/shell/index.js";
 import { CommandError } from "../src/shell/commands.js";
 import { logo } from "../src/index.js";
-import { createFileSink, createLogFiles, serve } from "../src/node/index.js";
+import { createFileSink, createLogFiles, serve } from "../src/node.js";
 
 // 版本号的唯一来源是包的 package.json（AGENTS.md §14），别在这里硬编码。
 const pkg = JSON.parse(

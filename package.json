@@ -1,6 +1,6 @@
 {
   "name": "@needle/needle",
-  "version": "0.2.32",
+  "version": "0.2.33",
   "description": "结构化日志 + 浏览器里的调试 shell：一个包，三个入口",
   "type": "module",
   "sideEffects": false,
@@ -15,8 +15,8 @@
       "default": "./dist/shell/index.js"
     },
     "./node": {
-      "types": "./dist/node/index.d.ts",
-      "default": "./dist/node/index.js"
+      "types": "./dist/node.d.ts",
+      "default": "./dist/node.js"
     }
   },
   "files": [

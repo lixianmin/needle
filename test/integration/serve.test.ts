@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { serve } from "../../src/node/index.js";
+import { serve } from "../../src/node.js";
 
 describe("serve", () => {
   test("把 handler 挂到 node:http 上，返回实际端口", async () => {
