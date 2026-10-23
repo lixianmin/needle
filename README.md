@@ -1,8 +1,8 @@
 # logo
 
-线上排障用的控制台日志库（npm 包名 `@needle/logo`）：在浏览器里看实时日志、敲命令查进程状态、订阅指标，不用 `docker exec` 进去 `tail -f`。
+线上排障用的控制台日志库：把 `docker exec` + `tail -f` 换成浏览器里的一个页面。
 
-零运行时依赖。core 2.7 KB、含控制台 13.7 KB（min+gzip，`bun run size` 可复现）。
+零运行时依赖。只做日志 2.7 KB，带控制台 13.7 KB（min+gzip，`bun run size` 可复现）。
 
 ```ts
 import { logo } from "@needle/logo";
@@ -12,34 +12,34 @@ logo.info("order created", { orderId: 42 });
 // sink 收到：{"orderId":42,"time":1758991234567,"level":"info","msg":"order created"}
 
 logo.error("paid failed", err, { userId: 7 });
+// Error 展开成 message + stack
 ```
 
-它能干三件事，都是「出事那天才发现没有」的那类：
+它能干三件事，都在同一个控制台页面里：
 
-- **看**：日志实时滚动，磁盘上的历史也能翻，不用登服务器。
+- **看**：日志实时滚动，磁盘上的历史也能翻。
 - **问**：一条命令读进程内状态——订单、连接池、队列深度。
 - **盯**：订阅指标，每 N 毫秒落一行。
 
-## 装
+## 安装
 
 ```bash
-bun add @needle/logo
-# 或直接跟仓库（dist 随源码提交，不需要构建步骤）：
+# 还没发到 npm，从仓库装。dist 随源码提交，所以不需要构建步骤。
 bun add git+https://github.com/lixianmin/needle.git
 ```
 
 ## 写日志
 
-字符串拼成 `msg`，对象合并进字段，`Error` 展开成 `message` + `stack`；`time` / `level` / `name` 由库填，业务对象伪造不了。`child()` 给一组记录钉住公共字段：
+字符串拼成 `msg`，对象合并进字段，`Error` 展开成 `message` + `stack`。`child()` 给一组记录钉住公共字段：
 
 ```ts
 const db = logo.child({ name: "db", traceId: "t1" });
 db.warn("slow query", { ms: 1200 });
 ```
 
-`warn` / `error` 立即写出并带调用栈，`info` 攒批 100ms——一个循环写 1000 条只产生一次 IO。`logo` 是写 stdout 的默认实例；要换级别、名字、sink，用 `newLogger()`。
+`warn` / `error` 立即写出并带调用栈；`info` 攒批 100ms，一个循环写 1000 条只产生一次 IO。`logo` 是写 stdout 的默认实例，换级别、名字、sink 用 `newLogger()`。
 
-sink 是事后挂的，不必在构造时定死：
+sink 事后挂，不必在构造时定死：
 
 ```ts
 import { createFileSink } from "@needle/logo/node";
@@ -52,7 +52,9 @@ process.on("SIGTERM", () => logo.dispose());                                    
 
 ## 挂控制台
 
-控制台不是第二个 logger：它挂在同一个 `logo` 上——一块 sink 收实时日志，一张命令表读进程状态。对外只有一个接口 `(req: Request) => Promise<Response>`，挂载就是把它接到你的服务器上。Hono 是两条路由：
+控制台不是第二个 logger：它挂在同一个 `logo` 上，一块 sink 收实时日志、一张命令表读进程状态。对外只有一个接口 `(req: Request) => Promise<Response>`。
+
+### 挂载（Hono）
 
 ```ts
 import { createConsole } from "@needle/logo/console";
@@ -71,16 +73,22 @@ app.all("/console", (c) => debug.handler(c.req.raw));
 app.all("/console/*", (c) => debug.handler(c.req.raw));
 ```
 
-打开 `/console`：
+两条路由缺一不可：`/console` 是页面，`/console/*` 是 `/events`、`/exec`、`/log/:name`。只挂一条的话页面能打开，登录和命令全是 404。
+
+### 登录
+
+打开 `http://localhost:3000/console`：
 
 ```
-$ help            列出所有命令（Tab 补全，候选来自服务端命令表）
-$ auth ops        登录：下一步提示输密码，不回显、不进历史
-$ log.list        列日志文件，点文件名看全文
-$ top             看一眼进程指标
+$ help        列出所有命令（Tab 补全）
+$ auth ops    登录，下一步输密码：不回显、不进历史
+$ log.list    列日志文件，点文件名看全文
+$ top         看一眼进程指标
 ```
 
-`auth` 是唯一登录入口，口令走独立的 `POST /auth`，密码不进命令行。`users` 非空即服务端模式，非 public 命令与 `/events` 都要 token；`user: "local"` 是「能看到页面的人本来就能碰这个进程」时才用的本机开关。`secret` 不传就随机生成，重启后所有已签发 token 失效。
+`auth` 是唯一登录入口，口令走独立的 `POST /auth`，所以密码永远不会出现在命令行里。`users` 非空即服务端模式，非 public 命令与 `/events` 都要 token；`user: "local"` 是「能看到页面的人本来就能碰这个进程」时才用的本机开关。`secret` 不传就随机生成，重启后已签发的 token 全失效。
+
+### 命令
 
 命令返回 `text` / `table` / `json` 三种形态，前端照着渲染。表格列可声明语义：`bytes` 走 `toHuman`（`36290560` → `34.61M`），`duration` 走 `formatDuration`（`57720` → `57.7s`），点表头按原始数值排序。
 
@@ -116,7 +124,7 @@ $ top             看一眼进程指标
 - **`dispose()` 之后日志静默丢弃。** 它先 `flush()` 再 `close()` 各 sink；退出前调一次，别在长生命周期进程里早调。
 - **信封字段会被丢弃。** 业务对象不能伪造 `level` / `time` / `msg` / `name` / `stack`：`info("x", { level: "error", msg: "fake" })` 仍记成 `level:"info", msg:"x"`。
 - **非纯对象进 `msg`，不进字段。** 数组、`Date`、`Map`、类实例都会序列化后拼进 `msg`；要可查询的字段就传纯对象。
-- **git 依赖不会自己跟 main。** lockfile 钉住 sha 后 `bun install` 不动，升级要 `bun update @needle/logo`；两个 spec 解析到不同 sha 时 `logo` 会变成两个对象，各自 sink 互不可见。
+- **git 依赖不会自己跟 main。** lockfile 钉住 sha 之后 `bun install` 不会动它，要显式重取（重新 `bun add` 那个 git 地址，或换到新的 sha）；两个 spec 解析到不同 sha 时 `logo` 会变成两个对象，各自 sink 互不可见。
 
 ## 本地跑一遍
 
@@ -124,7 +132,7 @@ $ top             看一眼进程指标
 bun examples/demo.ts    # http://127.0.0.1:1234/console，账号 xmli / 123456
 ```
 
-`log.list` 列日志、`top` 看指标、`room` 读业务状态、`io` 演示表格排序、`burst 200` 看批量与实时推送、`boom` 验证 error 带栈、`slow` 验证 10 秒超时。
+`log.list` 看日志文件、`top` 看指标、`room` 读业务状态、`io` 看表格排序、`burst 200` 看批量推送、`boom` 验证 error 带栈、`slow` 验证 10 秒超时。
 
 ## 设计
 

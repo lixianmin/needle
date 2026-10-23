@@ -1,16 +1,16 @@
 # Chrome 扩展（MV3）
 
-扩展里没有服务器，也没有文件系统。三块地方能放代码，能不能挂面板、日志去哪，各不相同：
+扩展里没有服务器，也没有文件系统。代码只能待在三块地方，面板放哪、日志去哪由这块决定：
 
-| 位置 | 有 DOM | 日志去哪 | 能挂控制台 |
+| 位置 | 有 DOM | 日志去哪 | 能放面板 |
 |---|---|---|---|
-| service worker | 无 | `console` → `chrome://extensions` 的「检查视图」 | 不能（没有 `document`） |
+| service worker | 无 | `console` → `chrome://extensions` 的检查视图 | 不能（没有 `document`） |
 | 扩展页面（side panel / popup / options / devtools） | 有 | `console` + DOM 面板 | 能 |
-| content script（注入宿主页面） | 有（宿主页） | 宿主的 console + 扩展自己的 console | 不推荐，见 §4 |
+| content script（注入宿主页面） | 有（宿主页） | 宿主的 console + 扩展自己的 console | 不推荐，见下文 |
 
-## 1. service worker 里只写日志，不挂面板
+没有文件 sink：`@needle/logo/node` 顶层 `import "node:fs"`，扩展里 import 它会在打包或运行时报错。
 
-SW 没有 `window`、没有 `document`，`localStorage` 也不可用（用 `chrome.storage`）。空闲约 30 秒就可能被终止，下次事件再把脚本拉起来——所以这里只做日志，不做长驻 UI。
+## service worker：只写日志
 
 ```ts
 import { logo } from "@needle/logo";
@@ -19,24 +19,29 @@ logo.info("extension installed", { id: chrome.runtime.id });
 logo.error("fetch failed", err, { url });
 ```
 
-默认 stdout sink 在这里退化成 `console.log`，输出的还是那一行 `2026-10-23T10:50:43 [I] {…}`。看它的地方是 `chrome://extensions` → 你的扩展 → Service Worker → 检查视图。
+SW 没有 `window` / `document`，`localStorage` 也不可用（要用 `chrome.storage`）；空闲约 30 秒就可能被终止，下一次事件再把脚本拉起来。所以这里只写日志，不放常驻 UI。
 
-需要留证据（用户环境里出过一次错、想事后看）就加一个自定义 sink 往 `chrome.storage.local` 或自己的上报接口写，别指望文件：
+输出走 `console.log`，格式仍是那一行 `2026-10-23T10:50:43 [I] {…}`。看它的地方是 `chrome://extensions` → 你的扩展 → Service Worker → 检查视图。
+
+要留证据（用户那边出过一次错，想事后看）就挂一个 sink 到 `chrome.storage.local`。只落 `warn` / `error`：浏览器里没有批量，逐条写 storage 会把日志变成 IO 瓶颈。
 
 ```ts
-import type { Sink } from "@needle/logo";
+import type { LogRecord, Sink } from "@needle/logo";
 
-const ring: string[] = [];
-logo.addSink((batch) => {
-  for (const record of batch) ring.push(JSON.stringify(record));
-  if (ring.length > 500) ring.splice(0, ring.length - 500);   // 500 条足够定位一次故障
-  void chrome.storage.local.set({ recentLogs: ring.slice(-200) });
-});
+const kept: LogRecord[] = [];
+const persist: Sink = (batch) => {
+  const worth = batch.filter((record) => record.level === "warn" || record.level === "error");
+  if (worth.length === 0) return;
+  kept.push(...worth);
+  if (kept.length > 200) kept.splice(0, kept.length - 200);   // 200 条够定位一次故障
+  void chrome.storage.local.set({ recentIssues: kept });
+};
+logo.addSink(persist);
 ```
 
-## 2. 面板挂在扩展页面里
+## 扩展页面：面板挂这儿
 
-`createBrowserConsole` 要一个 `HTMLElement`，所以只能在有 `document` 的扩展页面用。用 side panel 或 devtools 面板，别用 popup——popup 一失焦就销毁，面板和历史一起没了。
+`createBrowserConsole` 要一个 `HTMLElement`，只能在有 `document` 的扩展页面用。选 side panel 或 devtools 面板，别用 popup——popup 一失焦就销毁，面板和历史一起没了。
 
 ```ts
 // sidepanel.ts
@@ -48,7 +53,7 @@ const panel = createBrowserConsole({
   title: "my-extension",
   version: chrome.runtime.getManifest().version,
   auth: { users: {} },       // 扩展页面没有鉴权意义
-  user: "local",             // 能在扩展里打开面板的人，本来就能看到这些数据
+  user: "local",             // 能打开这个面板的人，本来就能看到这些数据
   element: document.getElementById("console")!,
 });
 ```
@@ -59,39 +64,27 @@ const panel = createBrowserConsole({
 { "side_panel": { "default_path": "sidepanel.html" } }
 ```
 
-popup 里要放的话同一份代码即可，接受「关掉就没了」。
+`user` 设成非空就是本地模式：不签发 token、不发 `/events`，所有命令直接可跑。在扩展里，能看到面板就等于能看到这些数据，再要一次口令只是仪式。
 
-登录这件事在扩展里没有意义：`user` 设成非空就是本地模式，所有命令直接可跑，不发 token、不连 `/events`。
+## MV3 的 CSP 挡不住它
 
-## 3. MV3 的 CSP 挡不住这个面板
+MV3 扩展页面默认 CSP 只限制 `script-src` 与 `object-src`，禁止内联脚本和 `eval`。控制台 UI 全程 `document.createElement`，样式是往 `head` 里塞一个 `<style>` 元素，没有内联 `onclick`、没有 `new Function`、没有远程脚本。所以 popup / side panel / devtools / options 直接能用。
 
-MV3 扩展页面默认 `script-src 'self'`，禁止内联脚本和 `eval`。控制台 UI 全程 `document.createElement`，样式是往 `head` 里塞一个 `<style>` 元素（`style-src` 不受默认 CSP 限制），没有任何内联 `onclick`、没有 `new Function`、没有远程脚本。所以 popup / side panel / devtools / options 直接能用，不需要放宽 CSP。
+反过来说：**不要为了挂面板去改 `content_security_policy`**。真要放宽，说明代码里用了 `eval` 或内联脚本，那是修代码，不是改清单。
 
-反过来说：**不要为了挂面板去改 `content_security_policy`**。放宽了说明代码里用了 `eval` 或内联脚本，那是要修代码，不是要改清单。
+## 别把面板塞进宿主页面
 
-## 4. 别把面板塞进宿主页面
-
-content script 能拿到宿主页的 `document`，看起来能挂，但两件事会咬你：
+content script 拿得到宿主页的 `document`，看起来能挂，但两件事会咬人：
 
 - 宿主页的 CSP 可能砍掉注入的 `<style>`，面板变成一堆裸 HTML。
-- 日志和命令结果会进用户可见、可滚动的 DOM，还会被宿主页的脚本读到。
+- 日志和命令结果会进用户可见、可滚动的 DOM，也会被宿主页的脚本读到。
 
-要面板就在扩展自己的页面里开。要在宿主页上做小的状态提示，自己画一个，别把整个控制台搬过去。
+要面板就在扩展自己的页面里开。要在宿主页上做小提示，自己画一个，别把整个控制台搬过去。
 
-## 5. 日志落点
+## 坑
 
-三条路，按需要选：
-
-- **开发期**：默认 stdout sink 走 `console.log`，看 service worker / 页面各自的 DevTools。
-- **排障期**：`createBrowserConsole` 的 DOM 面板，实时滚动，命令能读扩展内部状态（`chrome.storage`、当前标签页、token 有效期）。
-- **事后**：自定义 sink 写 `chrome.storage.local`（容量有限，只留最近 N 条）或 `fetch` 上报。
-
-没有文件 sink：`@needle/logo/node` 顶层 `import "node:fs"`，扩展里 import 它会在打包或运行时报错。
-
-## 6. 扩展里的坑
-
-- **`info` 不会攒批。** 批量刷新依赖能同步写 stdout，扩展里探测不到（没有 `process.stdout`），库自动改成逐条立即写出。所以「等 100ms 再看 console」这套在扩展里不成立。
-- **面板块要显式 `dispose()`。** side panel 被用户关掉时把 `panel.dispose()` 挂到 `unload`，否则订阅和定时器跟着页面一起泄漏。
-- **`localStorage` 在扩展页面可用，在 SW 里抛错。** 命令历史存在 `localStorage`（key `logo.console.history`，留 50 条），隐私模式或沙箱环境写入失败会被静默忽略，不影响面板功能。
+- **`info` 不会攒批。** 批量刷新依赖能同步写 stdout，扩展里探测不到（没有 `process.stdout`），库自动改成逐条立即写出。所以「等 100ms 再看 console」在扩展里不成立。
+- **面板要显式 `dispose()`。** side panel 被关掉时把 `panel.dispose()` 挂到 `unload`，否则订阅和定时器跟着页面一起泄漏。
+- **命令历史存在 `localStorage`，写入失败会被静默忽略。** 隐私模式、沙箱页面都可能抛错，功能不该依赖它。
 - **`version` 从 `chrome.runtime.getManifest()` 读。** 扩展版本只在 `manifest.json` 一处维护，别在代码里再硬编码一份。
-- **打包后 `process.env` 可能不存在。** 只在构建期注入的常量（如上报地址）别写 `process.env.X`，扩展运行时会抛 `process is not defined`。
+- **打包后没有 `process`。** 只在构建期注入的常量（上报地址之类）别写 `process.env.X`，扩展运行时会抛 `process is not defined`。
