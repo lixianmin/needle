@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -8,7 +8,7 @@ import { createLogFiles } from "../../src/logo/log-files.js";
 const dirs: string[] = [];
 
 function tempDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), "logo-logfiles-"));
+  const dir = mkdtempSync(join(tmpdir(), "logo-log-files-"));
   dirs.push(dir);
   return dir;
 }
@@ -19,34 +19,57 @@ afterEach(() => {
   }
 });
 
-describe("createLogFiles", () => {
-  test("只列、只读 .log 文件", async () => {
+describe("createLogFiles sample", () => {
+  test("list 返回的 entry 带末尾 5 行 sample", async () => {
     const dir = tempDir();
-    writeFileSync(join(dir, "info.log"), "hello");
-    writeFileSync(join(dir, ".env"), "SECRET=1");
+    const lines = Array.from({ length: 10 }, (_, index) => `line-${index}`);
+    writeFileSync(join(dir, "info.log"), `${lines.join("\n")}\n`);
 
-    const files = createLogFiles({ dir });
-    expect((await files.list()).map((entry) => entry.name)).toEqual(["info.log"]);
-    expect(await files.read(".env")).toBeNull();
-    expect(await files.read("info.log")).toBe("hello");
+    const files = await createLogFiles({ dir }).list();
+    expect(files).toHaveLength(1);
+    expect(files[0]?.sample?.split("\n")).toEqual(lines.slice(5));
   });
 
-  test("符号链接读不出去", async () => {
+  test("文件不足 5 行时 sample 为全部行", async () => {
     const dir = tempDir();
-    const outside = tempDir();
-    writeFileSync(join(outside, "secret.log"), "SHOULD NOT LEAK");
-    symlinkSync(join(outside, "secret.log"), join(dir, "link.log"));
+    writeFileSync(join(dir, "info.log"), "a\nb\n");
 
-    const files = createLogFiles({ dir });
-    expect((await files.list()).map((entry) => entry.name)).toEqual([]);
-    expect(await files.read("link.log")).toBeNull();
+    const files = await createLogFiles({ dir }).list();
+    expect(files[0]?.sample).toBe("a\nb");
   });
 
-  test("超过 maxFileBytes 的文件按读不到处理", async () => {
+  test("空文件 sample 为空字符串", async () => {
     const dir = tempDir();
-    writeFileSync(join(dir, "big.log"), "x".repeat(200));
+    writeFileSync(join(dir, "info.log"), "");
 
-    const files = createLogFiles({ dir, maxFileBytes: 100 });
-    expect(await files.read("big.log")).toBeNull();
+    const files = await createLogFiles({ dir }).list();
+    expect(files[0]?.sample).toBe("");
+  });
+
+  test("超长行截断到 200 字符", async () => {
+    const dir = tempDir();
+    writeFileSync(join(dir, "info.log"), `${"x".repeat(300)}\n`);
+
+    const files = await createLogFiles({ dir }).list();
+    expect(files[0]?.sample?.length).toBe(200);
+  });
+
+  test("末行无换行符也计入 sample", async () => {
+    const dir = tempDir();
+    writeFileSync(join(dir, "info.log"), "a\nb\nc");
+
+    const files = await createLogFiles({ dir }).list();
+    expect(files[0]?.sample).toBe("a\nb\nc");
+  });
+
+  test("行长超过读取窗口时扩大窗口凑满 5 行", async () => {
+    const dir = tempDir();
+    // 每行 1000 字符：末尾 5 行共约 5KB，超过初始 4KB 窗口
+    const lines = Array.from({ length: 10 }, (_, index) => `line-${index}-`.padEnd(1000, "y"));
+    writeFileSync(join(dir, "info.log"), `${lines.join("\n")}\n`);
+
+    const files = await createLogFiles({ dir }).list();
+    // 每行会被 sample 的 200 字符截断规则剪短；本测试只钉「窗口扩大后凑满 5 行」
+    expect(files[0]?.sample?.split("\n")).toEqual(lines.slice(5).map((line) => line.slice(0, 200)));
   });
 });

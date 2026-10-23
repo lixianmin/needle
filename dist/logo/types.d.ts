@@ -31,6 +31,8 @@ export interface LogFileEntry {
     size: number;
     /** epoch 毫秒 */
     modified: number;
+    /** 文件末尾几行的预览，hover tips 用；读不到时为空串。 */
+    sample?: string;
 }
 /**
  * 日志文件的读取端口。
