@@ -8,7 +8,7 @@ import { writeFileSync } from "node:fs";
  * 一份源码、两种产物，比写两套 UI 靠谱。
  */
 const result = await Bun.build({
-  entrypoints: ["packages/shell/src/ui/app.ts"],
+  entrypoints: ["src/shell/ui/app.ts"],
   target: "browser",
   format: "iife",
   minify: true,
@@ -29,7 +29,7 @@ const text = await output.text();
 // 内联进 <script>：字符串里出现 "</script" 会让 HTML 解析器提前闭合标签。
 // 把 < 全转成 \u003c，运行时解码回来完全等价，顺带覆盖 "<!--"。
 const literal = JSON.stringify(text).replace(/</g, "\\u003c");
-const target = "packages/shell/src/ui/script.generated.ts";
+const target = "src/shell/ui/script.generated.ts";
 writeFileSync(
   target,
   `// 由 scripts/build-ui.mjs 生成，请勿手改。改 UI 请改 src/shell/ui/ 下的源码后重跑。\nexport const UI_SCRIPT = ${literal};\n`,

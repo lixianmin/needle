@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { Window } from "happy-dom";
 
-import { ROW_HEIGHT, createLogList } from "../../packages/shell/src/ui/loglist.js";
+import { ROW_HEIGHT, createLogList } from "../../src/shell/ui/loglist.js";
 
 function setup(
   capacity = 20_000,

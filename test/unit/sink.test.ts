@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 
-import { logo, stdoutSink } from "../../packages/logo/src/index.js";
-import type { LogRecord } from "../../packages/logo/src/logo/types.js";
+import { logo, stdoutSink } from "../../src/index.js";
+import type { LogRecord } from "../../src/logo/types.js";
 
 const record = (msg: string): LogRecord => ({ time: 1, level: "info", msg });
 

@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test";
 
-import { createShellSource } from "../../packages/shell/src/source.js";
-// 必须是 shell 内部用的那个实例：source.ts 走包名解析到 dist，测试从 src 拿是另一个单例。
-import { logo } from "@needle/logo";
-import { newLogger } from "../../packages/logo/src/logo/logo.js";
-import type { Command, Topic } from "../../packages/shell/src/types.js";
+import { createShellSource } from "../../src/shell/source.js";
+// 必须跟 shell 内部用的是同一个模块实例：两边都从 src 解析。
+import { logo } from "../../src/index.js";
+import { newLogger } from "../../src/logo/logo.js";
+import type { Command, Topic } from "../../src/shell/types.js";
 
 const auth = { users: { admin: "secret" }, secret: "unit-test-secret" };
 

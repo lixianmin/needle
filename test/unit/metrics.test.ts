@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 
-import { createMetrics } from "../../packages/shell/src/metrics.js";
+import { createMetrics } from "../../src/shell/metrics.js";
 
 const originalProcess = globalThis.process;
 

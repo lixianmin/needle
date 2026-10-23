@@ -5,7 +5,7 @@ Vite / 静态站，没有后端：**没有落盘、没有鉴权、也没有第�
 ## 一、面板
 
 ```ts
-import { createBrowserShell } from "@needle/shell";
+import { createBrowserShell } from "@needle/needle/shell";
 
 const panel = createBrowserShell({
   element: document.getElementById("shell")!,
@@ -39,7 +39,7 @@ if (enabled) {
 页面里默认**不攒批**（库探测不到可同步写的 stdout，和 Workers 一样逐条立即写出），要批量必须显式打开：
 
 ```ts
-import { newLogger } from "@needle/logo";
+import { newLogger } from "@needle/needle";
 
 const log = newLogger({
   name: "web",
@@ -50,10 +50,10 @@ const log = newLogger({
 });
 ```
 
-没有 `node:fs`，`@needle/logo/node` 打包会直接失败。要事后查就自己挂 sink 往收集端发；页面正在关闭时 `sendBeacon` 是唯一可靠的出口：
+没有 `node:fs`：`@needle/needle/node` 里全是 Node 专属 API，浏览器打包会把它换成空实现，别在浏览器代码里 import 它。要事后查就自己挂 sink 往收集端发；页面正在关闭时 `sendBeacon` 是唯一可靠的出口：
 
 ```ts
-import type { Sink } from "@needle/logo";
+import type { Sink } from "@needle/needle";
 
 const queue: string[] = [];
 

@@ -2,7 +2,17 @@
 
 Web Shell 控制台，支持命令查看当前系统状态，如进程状态、业务数据等。
 
-零运行时依赖：只导入日志 1.6 KB，连 shell 20.4 KB（min+gzip，`bun run size` 可复现）。
+零运行时依赖：只导入日志 1.8 KB，连 shell 23.7 KB（min+gzip，`bun run size` 可复现）。
+
+一个包 `@needle/needle`，三个入口，按环境取用：
+
+| 你要什么 | 从哪 import | 能跑在哪 |
+|---|---|---|
+| 日志：`logo` / `newLogger` / `createLarkSink` / `formatTime` / `toHuman` | `@needle/needle` | 任何地方（含浏览器、Workers） |
+| 控制台：`createShell` / `createBrowserShell` / `mountShell` / `createFetchAdapter` | `@needle/needle/shell` | 任何地方（含浏览器、Chrome 扩展） |
+| Node 专属：`createFileSink` / `createLogFiles` / `serve` / `attach` | `@needle/needle/node` | 仅 Node / Bun（`node:fs`、`node:http`） |
+
+根入口与 `./shell` 都不 import 任何 `node:` 模块，所以浏览器和 Workers 打包时不会把 Node 代码带进来。
 
 ## 一、控制台（shell）
 
@@ -38,9 +48,9 @@ $ auth username
 命令写在 `createShell({ commands: [...] })` 里，`run` 拿到的上下文是 `{ args, user, log }`，返回 `text` / `table` / `json` 三种形态之一。下面是装好三个命令的完整文件：
 
 ```ts
-import { createLogFiles } from "@needle/logo/node";
-import { createShell, table, type Command } from "@needle/shell";
-import { serve } from "@needle/shell/node";
+import { createLogFiles } from "@needle/needle/node";
+import { createShell, table, type Command } from "@needle/needle/shell";
+import { serve } from "@needle/needle/node";
 
 // 命令在进程内执行，直接读它就行，不用先把状态打进日志
 const orders = new Map<string, Record<string, unknown>>();
@@ -113,7 +123,7 @@ export const shell = createShell({
   timeoutMs: 10_000,         // 命令超时，超了返回 timeout；默认 10 秒
   logFiles: createLogFiles({ dir: "logs" }),   // 不传的话 log.list 会报"没有配置日志目录"
   commands: [ping, routes, order],
-  // 不传 logger 时，命令里的 log 就是 @needle/logo 的全局 logo 实例
+  // 不传 logger 时，命令里的 log 就是根入口的全局 logo 实例
 });
 
 const server = await serve(shell.handler, { port: 3000 });
@@ -132,7 +142,7 @@ const server = await serve(shell.handler, { port: 3000 });
 所以在日志进 stdout 之前加一层：一次调用变成一条结构化记录，再由你挂的 sink 决定它去哪。
 
 ```ts
-import { logo } from "@needle/logo";
+import { logo } from "@needle/needle";
 
 logo.info("order created", { orderId: 42 });
 // 打印：2026-10-23T10:50:43 [I] {"orderId":42,"msg":"order created"}
@@ -146,8 +156,8 @@ logo.error("paid failed", err, { userId: 7 });
 ### 2. 分发到不同的 sink
 
 ```ts
-import { createLarkSink } from "@needle/logo";
-import { createFileSink } from "@needle/logo/node";
+import { createLarkSink } from "@needle/needle";
+import { createFileSink } from "@needle/needle/node";
 
 logo.addSink(createFileSink({ dir: "logs" }));                                       // 按级别分文件
 logo.addSink(createLarkSink({ webhook: process.env.LARK_HOOK!, minLevel: "error" })); // error 推飞书
@@ -167,7 +177,7 @@ process.on("SIGTERM", () => logo.dispose());                                    
 | Chrome 扩展（MV3） | DOM 面板 | 无 | [chrome-extension.md](docs/best-practices/chrome-extension.md) |
 | 浏览器纯前端页 | DOM 面板 | 无 | [browser-client.md](docs/best-practices/browser-client.md) |
 
-文件 sink 只在有 `node:fs` 的地方能用：`@needle/logo/node` 顶层 `import "node:fs"`，浏览器和 Workers 打包时不能碰它；`@needle/logo` 的 `.` 入口是干净的。
+文件 sink 只在有 `node:fs` 的地方能用：`@needle/needle/node` 顶层 `import "node:fs"`，浏览器和 Workers 打包时不能碰它；`.` 与 `./shell` 两个入口是干净的（`test/unit/browser-safety.test.ts` 对打包产物做内容断言）。
 
 
 
@@ -175,25 +185,25 @@ process.on("SIGTERM", () => logo.dispose());                                    
 
 ### 1. 安装
 
-两个包还没发到 npm，所以走 `bun link`：**仓库只注册一次，之后每个新项目两条命令**。
+还没发到 npm，所以走 `bun link`：**仓库只注册一次，之后每个新项目一条命令**。
 
 ```bash
-# ── 1. 一次性：把仓库拉到本地，注册两个包（以后拉新代码不用再跑）──
+# ── 1. 一次性：把仓库拉到本地，注册这个包（以后拉新代码不用再跑）──
 git clone https://github.com/lixianmin/needle.git ~/needle
-cd ~/needle && bun run link:local     # bun install + 把 packages/{logo,shell} 注册给 bun link
+cd ~/needle && bun install && bun link     # 注册 @needle/needle
 
-# ── 2. 每个新项目：建目录并接上这两个包 ──
+# ── 2. 每个新项目：建目录并接上这个包 ──
 mkdir -p ~/my-service && cd ~/my-service
 bun init -y
-bun link @needle/shell @needle/logo
+bun link @needle/needle
 
 # ── 3. 写入口：控制台挂在 /shell，业务日志自动进右栏 ──
 cat > server.ts <<'TS'
-import { createShell } from "@needle/shell";
-import { serve } from "@needle/shell/node";
-import { logo } from "@needle/logo";
+import { createShell } from "@needle/needle/shell";
+import { serve } from "@needle/needle/node";
+import { logo } from "@needle/needle";
 
-// 不传 logger 时用 @needle/logo 的全局实例：业务里 logo.info(...) 都会出现在右栏
+// 不传 logger 时用根入口的全局实例：业务里 logo.info(...) 都会出现在右栏
 const shell = createShell({
   basePath: "/shell",                                         // 控制台路径；不写就挂在站点根目录
   auth: { users: { admin: "admin" }, secret: "change-me" },    // 用户名→口令；secret 是签 token 的密钥
@@ -223,7 +233,7 @@ bun server.ts
 # 输入 help 回车：列出全部命令
 ```
 
-`bun link` 只是在项目里写一条 `"@needle/shell": "link:@needle/shell"` 指向 `~/needle/packages/...`，
+`bun link` 只是在项目里写一条 `"@needle/needle": "link:@needle/needle"` 指向 `~/needle`，
 拉取新代码后不用重新 link；只有把 `~/needle` 挪走或删掉时才需要重来一次。
 
 

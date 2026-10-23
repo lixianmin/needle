@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { buildRecord, safeStringify } from "../../packages/logo/src/logo/record.js";
+import { buildRecord, safeStringify } from "../../src/logo/record.js";
 
 describe("buildRecord", () => {
   test("原始值按空格拼进 msg", () => {

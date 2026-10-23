@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { formatTime } from "../../packages/logo/src/logo/line.js";
+import { formatTime } from "../../src/logo/line.js";
 
 describe("formatTime", () => {
   test("固定东八区，精确到秒", () => {

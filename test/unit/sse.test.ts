@@ -4,9 +4,9 @@ import {
   createBroadcast,
   createSseResponse,
   parseTopicSpecs,
-} from "../../packages/shell/src/sse.js";
-import type { Command, Topic } from "../../packages/shell/src/types.js";
-import type { LogRecord } from "../../packages/logo/src/index.js";
+} from "../../src/shell/sse.js";
+import type { Command, Topic } from "../../src/shell/types.js";
+import type { LogRecord } from "../../src/index.js";
 import { TEST_VERSION } from "../fixtures.js";
 
 const record = (msg: string): LogRecord => ({ time: 1, level: "info", msg });

@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test";
 
-import { createAuth } from "../../packages/shell/src/auth.js";
-import { createAuthRoute } from "../../packages/shell/src/authenticate.js";
-import { createShellSource } from "../../packages/shell/src/source.js";
-import { newLogger } from "../../packages/logo/src/logo/logo.js";
+import { createAuth } from "../../src/shell/auth.js";
+import { createAuthRoute } from "../../src/shell/authenticate.js";
+import { createShellSource } from "../../src/shell/source.js";
+import { newLogger } from "../../src/logo/logo.js";
 
 const options = { users: { admin: "secret" }, secret: "unit-test-secret" } as const;
 

@@ -13,7 +13,7 @@
 
 ## 2. 目标
 
-1. 两个包（`@needle/logo`、`@needle/shell`），shell 挂在任意 Node 服务的 HTTP 上，浏览器打开就有终端样式的界面。
+1. 一个包 `@needle/needle`，三个入口（`.` 日志、`./shell` 控制台、`./node` Node 专属能力），shell 挂在任意 Node 服务的 HTTP 上，浏览器打开就有终端样式的界面。
 2. 浏览器里能做两件事：敲命令看结果、订阅周期性指标推送（日志不推送到页面，见 §8.1）。
 3. 日志默认 JSON，可同时写 stdout、文件、飞书群。
 4. 同一份代码能在 Cloudflare Workers 上 import 并运行——不需要改代码、不需要为 Workers 维护一份分支实现（部署参数如 `secret` 另行传入）。
@@ -42,17 +42,16 @@
 
 ## 5. 总体结构
 
-两个 npm 包，各自两个入口。依赖是单向的：shell 依赖 logo，logo 不依赖 shell。
+一个 npm 包，三个入口。依赖是单向的：shell 依赖 logo，logo 不依赖 shell——合并成一个包之后，这条约束由源码目录保证（`src/logo` 下不出现指向 `src/shell` 的导入，测试钉住）。
 
 ```
-@needle/logo
-  .        → 日志门面、sink（stdout / 飞书）、SortedTable
-  ./node    → 文件 sink、createLogFiles
-
-@needle/shell（依赖 @needle/logo）
-  .        → shell：kernel + HTTP/SSE 适配器 + 可挂载的 DOM 面板
-  ./node    → serve / attach：把 (Request) => Response 挂到 node:http
+@needle/needle
+  .          → 日志门面、sink（stdout / 飞书）、SortedTable
+  ./shell    → 控制台：kernel + HTTP/SSE 适配器 + 可挂载的 DOM 面板
+  ./node     → 所有 Node 专属能力：文件 sink、createLogFiles、serve / attach
 ```
+
+为什么 `./node` 合成一个入口：`serve` / `attach` 只在 Node 有意义，文件 sink 与日志目录读取同样依赖 `node:fs`；合成一个之后最长路径只有三段，不会出现 `@needle/needle/shell/node` 这种四段。代价是只用文件 sink 的 Node 进程会连带加载 `node:http`——在 Node 里可以忽略。
 
 shell 分两层，因为它的宿主不止服务器：
 
@@ -63,9 +62,11 @@ createShell(options)         → (Request) => Response，给 Node / Bun / Worker
 createBrowserShell({ element }) → DOM 面板：source + 本地适配器，给浏览器与扩展
 ```
 
-UI 只有一份实现（`packages/shell/src/ui/view.ts`，DOM 构建 + Solarized Dark 样式）。服务端要吐 HTML，所以构建时用 `scripts/build-ui.mjs` 把 `ui/app.ts` 打包成字符串常量（`ui/script.generated.ts`），页面模板直接内联它。浏览器/扩展场景直接 import `mountShell`，不走字符串、不走 eval——扩展的 CSP 不允许内联脚本，这条路必须干净。
+UI 只有一份实现（`src/shell/ui/view.ts`，DOM 构建 + Solarized Dark 样式）。服务端要吐 HTML，所以构建时用 `scripts/build-ui.mjs` 把 `ui/app.ts` 打包成字符串常量（`ui/script.generated.ts`），页面模板直接内联它。浏览器/扩展场景直接 import `mountShell`，不走字符串、不走 eval——扩展的 CSP 不允许内联脚本，这条路必须干净。
 
-`@needle/logo` 的 `.` 入口只使用 `fetch`、`crypto.subtle`、`TextEncoder` 这些跨运行时 API。唯一的例外是 `logo/sinks/file.ts`：它依赖 `node:fs`，因此**只从 `./node` 入口导出**，`.` 入口不会把它拉进包里（Workers 集成测试会断言产物里没有 `node:`）。`./node` 里的 `node:fs` 用静态 import——那个入口本来就只有 Node 会加载。
+根入口（`.`）只使用 `fetch`、`crypto.subtle`、`TextEncoder` 这些跨运行时 API。唯一的例外是 `src/logo/sinks/file.ts`：它依赖 `node:fs`，因此**只从 `./node` 入口导出**，`.` 入口不会把它拉进包里。`./node` 里的 `node:fs` 用静态 import——那个入口本来就只有 Node 会加载。
+
+注意打包器的行为：`bun build --target=browser` 遇到 `node:` 不报错，它把 `node:fs` 静默替换成 `{}`、给 `node:path` 塞一个垫片，产物照样生成、运行时才炸。因此"浏览器里只用日志不沾 node:"不能靠构建失败来保证，`test/unit/browser-safety.test.ts` 与 `test/integration/workers.test.ts` 都对产物内容做断言。
 
 ## 6. 日志 API
 
@@ -189,7 +190,7 @@ sink 是同步函数。抛错被捕获并忽略（一条坏 sink 不能拖垮业
 
 按大小滚动，单文件默认 10MB，归档名形如 `info-2026-10-22T12-00-00-000Z.log`，保留 7 天。用 `appendFileSync` 一次写一个 batch——反正已经是每 100ms 一次，阻塞时间可以接受，换来的是「warn/error 立即落盘」和「退出前 flush 就真的写下去了」。
 
-**飞书**（`@needle/logo` 的默认入口）：把 batch 推到群机器人 webhook。默认只推 `error` 级别，超出窗口的记录合并成一条消息（按 UTF-8 字节截到 24KB），令牌桶限流（默认 20 条/分钟，按时间比例补充），支持可选签名密钥。用 `fetch`，Workers 可用。
+**飞书**（根入口）：把 batch 推到群机器人 webhook。默认只推 `error` 级别，超出窗口的记录合并成一条消息（按 UTF-8 字节截到 24KB），令牌桶限流（默认 20 条/分钟，按时间比例补充），支持可选签名密钥。用 `fetch`，Workers 可用。
 
 ## 8. 控制台
 
@@ -222,7 +223,7 @@ Bun.serve({ port: 7701, fetch: shell.handler })
 
 不提供框架适配入口：没有 `./hono`、`./koa` 这类 subpath。框架集成就是上面那两行调用方代码，needle 的依赖表里不出现任何框架（`hono` 连 devDependency 都不进，否则"装了 Hono 的人"和"没装的人"拿到的就不是同一个包）。
 
-shell 把日志推到页面的**日志分栏**（§11），不进命令输出区：`logger.addSink(broadcast.sink)`，`dispose()` 时摘掉。`logger` 不传就用 `@needle/logo` 的全局实例——全项目写同一个 logger 时，右栏自然接管所有日志。**服务端不按级别二次过滤**——级别由 `logger` 自己决定（`setLevel`/`newLogger({ level })`），logger 交出来的记录原样转发；单帧最多 200 条，避免一次突发变成几 MB 的帧。这里没有任何历史存储：不打开 shell 时一条也不留；`log.list` 仍然读磁盘文件（有文件系统时），分栏只负责「此刻在发生什么」。
+shell 把日志推到页面的**日志分栏**（§11），不进命令输出区：`logger.addSink(broadcast.sink)`，`dispose()` 时摘掉。`logger` 不传就用根入口的全局实例——全项目写同一个 logger 时，右栏自然接管所有日志。**服务端不按级别二次过滤**——级别由 `logger` 自己决定（`setLevel`/`newLogger({ level })`），logger 交出来的记录原样转发；单帧最多 200 条，避免一次突发变成几 MB 的帧。这里没有任何历史存储：不打开 shell 时一条也不留；`log.list` 仍然读磁盘文件（有文件系统时），分栏只负责「此刻在发生什么」。
 
 上一版曾把日志直接追加到命令输出区，量一大就把输入区冲走；现在改成右侧分栏 + 虚拟滚动，见 §11。
 
@@ -490,82 +491,84 @@ token   = payload + "." + base64url(HMAC-SHA256(secret, payload))
 
 ## 13. 包与构建
 
-两个包：`@needle/logo` 与 `@needle/shell`（`dependencies` 里写 `@needle/logo`），版本号同步递增。
+单包 `@needle/needle`，三个入口，一个 `package.json` 一个版本号。
 
 ```
-@needle/logo
-  "."        → packages/logo/dist/index.js
-  "./node"   → packages/logo/dist/node/index.js     // 文件 sink 与 createLogFiles
-
-@needle/shell
-  "."        → packages/shell/dist/index.js
-  "./node"   → packages/shell/dist/node.js          // serve / attach
+@needle/needle
+  "."        → dist/index.js          // 日志门面、sink、SortedTable
+  "./shell"  → dist/shell/index.js    // createShell / createBrowserShell / mountShell
+  "./node"   → dist/node/index.js     // 文件 sink、createLogFiles、serve / attach
 ```
+
+`src/shell/**` 用相对路径 import `../logo/*.js`，不写包名——同一个包内部不自己引用自己。
 
 `"type": "module"`、`"sideEffects": false`。入口靠 subpath 显式区分，不用条件导出——文件 sink 已经在 `./node` 里，核心入口不存在需要按运行时分支的模块。`./node` 内部对 `node:fs` 用静态 import，那个入口本来就只有 Node 会加载。
 
 构建：`tsc`（TypeScript 7.0.2 原生版已验证能产出 `.js` + `.d.ts`）。不做额外打包，`bun build` 只在测体积时用。
 
-`dist/` 随源码一起提交，否则从仓库直接引用（`file:` / `git+https://…`）拿到的是没有产物的源码。`.githooks/pre-commit` 在每次提交时重跑 `bun run build` 并把两个包的 `dist/`、`packages/shell/src/ui/script.generated.ts` stage 进同一个 commit——产物和源码永远同版本，不依赖 CI。
+`dist/` 随源码一起提交，否则从仓库直接引用（`file:` / `git+https://…`）拿到的是没有产物的源码。`.githooks/pre-commit` 在每次提交时重跑 `bun run build` 并把 `dist/`、`src/shell/ui/script.generated.ts` stage 进同一个 commit——产物和源码永远同版本，不依赖 CI。
 
-体积实测（min+gzip，`bun run size`）：只导入日志 1.6KB；shell 15.8KB（含内联页面脚本）。
+体积实测（min+gzip，`bun run size`）：只导入日志 1.8KB；连 shell 23.7KB（含内联页面脚本）。
 
 ## 14. 目录
 
 ```
-packages/
+src/
+  index.ts              # 根入口：默认 logo 实例 + 全部日志导出
   logo/
-    src/
-      index.ts          # 汇总：默认 logo 实例 + 全部导出
-      logo/
-        logo.ts         # newLogger
-        record.ts       # 记录构造与 JSON 安全化
-        line.ts         # 落盘行格式 + 东八区时间
-        human.ts        # 人读数字/时长
-        types.ts        # Level / LogRecord / Sink / LogFiles
-        index.ts        # 日志门面的汇总导出
-        sinks/
-          stdout.ts     # stdout sink + 能力探测
-          file.ts       # 文件 sink（node:fs，只从 ./node 导出）
-          lark.ts       # 飞书 sink
-      collections/
-        sorted-table.ts
-      node/
-        index.ts        # createFileSink / createLogFiles 出口
-        log-files.ts    # 日志目录读取（log.list 的数据源）
-    dist/               # 提交进仓库
+    logo.ts             # newLogger
+    record.ts           # 记录构造与 JSON 安全化
+    line.ts             # 落盘行格式 + 东八区时间
+    human.ts            # 人读数字/时长
+    types.ts            # Level / LogRecord / Sink / LogFiles
+    index.ts            # 日志门面的汇总导出
+    sinks/
+      stdout.ts         # stdout sink + 能力探测
+      file.ts           # 文件 sink（node:fs，只从 ./node 导出）
+      lark.ts           # 飞书 sink
+  collections/
+    sorted-table.ts
   shell/
-    src/
-      index.ts          # createShell / createBrowserShell：装配
-      source.ts         # 纯逻辑：命令、主题、鉴权
-      router.ts         # 路由表与分派
-      sse.ts            # SSE 编码、广播、连接生命周期
-      commands.ts       # 参数切分与命令查找
-      builtins.ts       # 内置命令
-      exec.ts           # POST /exec：鉴权、限额、超时
-      auth.ts           # token 签发/校验
-      authenticate.ts   # POST /auth
-      metrics.ts        # 指标读取（能力检测）
-      page.ts           # 单文件 HTML
-      table.ts          # table<Row>()：声明式表格
-      types.ts          # 命令与输出类型
-      ui/
-        view.ts         # DOM 面板（唯一一份 UI 实现）
-        adapter.ts      # 适配器契约
-        local.ts        # 进程内适配器（浏览器 / 扩展）
-        fetch-adapter.ts# HTTP/SSE 适配器
-        app.ts          # 内联脚本入口
-        style.ts        # Solarized Dark
-        script.generated.ts  # 由 scripts/build-ui.mjs 生成，勿手改
-      web/
-        responsex.ts    # 错误响应出口
-      node.ts           # serve / attach
-    dist/               # 提交进仓库
+    index.ts            # createShell / createBrowserShell：装配
+    source.ts           # 纯逻辑：命令、主题、鉴权
+    router.ts           # 路由表与分派
+    sse.ts              # SSE 编码、广播、连接生命周期
+    commands.ts         # 参数切分与命令查找
+    builtins.ts         # 内置命令
+    exec.ts             # POST /exec：鉴权、限额、超时
+    auth.ts             # token 签发/校验
+    authenticate.ts     # POST /auth
+    metrics.ts          # 指标读取（能力检测）
+    page.ts             # 单文件 HTML
+    table.ts            # table<Row>()：声明式表格
+    types.ts            # 命令与输出类型
+    node.ts             # serve / attach
+    ui/
+      view.ts           # DOM 面板（唯一一份 UI 实现）
+      adapter.ts        # 适配器契约
+      local.ts          # 进程内适配器（浏览器 / 扩展）
+      fetch-adapter.ts  # HTTP/SSE 适配器
+      app.ts            # 内联脚本入口
+      style.ts          # Solarized Dark
+      script.generated.ts  # 由 scripts/build-ui.mjs 生成，勿手改
+    web/
+      responsex.ts      # 错误响应出口
+  node/
+    index.ts            # ./node 入口的汇总：文件 sink + log-files + serve/attach
+    log-files.ts        # 日志目录读取（log.list 的数据源）
+dist/                   # 提交进仓库
 test/
   unit/  integration/  smoke/  workers/
 examples/demo.ts
 docs/best-practices/  docs/deploy/
 ```
+
+依赖方向（合并成一个包之后靠源码约束，不靠包依赖声明）：
+
+- `src/logo/**` 只 import `src/logo/**` 与 `src/collections/**`，**不出现** `../shell/`。
+- `src/shell/**` 可以 import `../logo/**`，反向不允许。
+- `src/node/index.ts` 是唯一的 Node 出口，它可以同时 import logo 与 shell。
+- 三处 `node:` 依赖（`logo/sinks/file.ts`、`node/log-files.ts`、`shell/node.ts`）都只从 `./node` 可达。
 
 ## 15. 代码风格契约
 
@@ -582,7 +585,8 @@ docs/best-practices/  docs/deploy/
 
 ## 16. 测试
 
-- 单元：参数归一化（字符串/对象/Error/循环引用）、字段冲突、批量刷新（连写 N 条只触发 1 次 sink、warn/error 立即触发、缓冲上限丢最旧并计数）、调用栈采集开关、token 签发与过期、命令解析、路由分发、限流器、`table<Row>()` 的列顺序与空结果、两个包的 exports 映射。
+- 单元：参数归一化（字符串/对象/Error/循环引用）、字段冲突、批量刷新（连写 N 条只触发 1 次 sink、warn/error 立即触发、缓冲上限丢最旧并计数）、调用栈采集开关、token 签发与过期、命令解析、路由分发、限流器、`table<Row>()` 的列顺序与空结果、三个入口的 exports 映射与边界。
+- 浏览器安全：`.` 与 `./shell` 两个入口各打一次 browser 包，断言产物里没有 `from "node:`、`require(`、`import(`；`src/logo` 下不许出现指向 `src/shell` 的导入（依赖单向）。
 - 集成：起一个 `node:http` 服务挂上 handler，用 `fetch` 走完整流程——登录、跑公开命令、跑受限命令、收 SSE 握手、收主题推送。
 - 无运行时依赖验证：单元与集成测试都在 Bun 下跑（Bun 能解析 `.js` 后缀到 `.ts`，已实测）；Node 侧由 `test/smoke/node.mjs` 跑构建产物做冒烟断言。
 - Workers 兼容性必须实测：用 miniflare 起 workerd 环境，跑一遍登录、公开命令、受限命令、SSE 握手、主题推送，断言 fs/process 相关能力不存在时也能正常工作。这一项是 §2 目标 4 的唯一成立依据。

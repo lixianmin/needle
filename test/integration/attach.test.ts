@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { createServer, type Server } from "node:http";
 
-import { attach } from "../../packages/shell/src/node.js";
+import { attach } from "../../src/node/index.js";
 
 /** 假控制台：只要一个 (Request) => Response，够 attach 用。 */
 function fakeShell() {

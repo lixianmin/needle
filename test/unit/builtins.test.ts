@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test";
 
-import { createBuiltinCommands } from "../../packages/shell/src/builtins.js";
-import { CommandError, findCommand } from "../../packages/shell/src/commands.js";
-import type { CommandContext, CommandOutput } from "../../packages/shell/src/types.js";
-import { newLogger } from "../../packages/logo/src/logo/logo.js";
+import { createBuiltinCommands } from "../../src/shell/builtins.js";
+import { CommandError, findCommand } from "../../src/shell/commands.js";
+import type { CommandContext, CommandOutput } from "../../src/shell/types.js";
+import { newLogger } from "../../src/logo/logo.js";
 
 const metrics = { read: async () => ({ runtime: "node", uptimeMs: 1234 }) };
 
