@@ -183,7 +183,9 @@ describe("newLogger", () => {
     expect(find("i")?.stack).toBeUndefined();
     expect(find("w")?.stack).toBeUndefined();
     expect(find("e")?.stack).toContain("logger.test.ts");
-    expect(find("e")?.stack).not.toContain("core/logo.ts");
+    expect(find("e")?.stack).not.toContain("logo/src/logo/logo.ts");
+    // 剪完内部帧，第一条就是调用点本身。
+    expect(find("e")?.stack?.split("\n")[1]).toContain("logger.test.ts");
   });
 
   test("stackLevel 可显式设成 warn", () => {
