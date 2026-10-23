@@ -39,27 +39,35 @@ $ auth username
 import { logo } from "@needle/logo";
 import { createShell, table, type Command } from "@needle/shell";
 
-// 你的业务数据
+// 命令在进程内执行，直接读它就行，不用先把状态打进日志
 const orders = new Map<string, Record<string, unknown>>();
 
-// 1. 纯文本：一段字符串
+// 1. 纯文本：返回一段字符串
 const ping: Command = {
-  name: "ping",
-  note: "确认控制台还活着",
+  name: "ping",              // help 里显示的名字
+  note: "确认 shell 还活着",  // help 里显示的说明
+  public: true,              // 不登录也能跑，留给 help 这类无副作用的命令
   run: () => ({ kind: "text", text: `pong ${new Date().toISOString()}` }),
 };
 
-// 2. 表格：列定义一次（顺序、表头、显示语义），行对象按字段名填
+// 2. 表格：列在这里定义一次，之后一行一个对象
+//
+// format 决定数字怎么显示：
+//   bytes    走 toHuman    36290560 → 34.61M
+//   duration 把数字当毫秒   57720    → 57.7s
+//   number   原样不缩写     3629056  → 3629056
+//   auto     默认；整数且 ≥1024 时按 K/M 缩
 const ioTable = table<{ path: string; reads: number; bytes: number; hitRate: number }>({
-  path: {},
+  path: {},                                   // 不写 title 就用字段名当表头
   reads: { format: "number" },
-  bytes: { format: "bytes" },
+  bytes: { format: "bytes", title: "size" },  // title 换表头文字
   hitRate: { format: "number" },
 });
 
 const io: Command = {
   name: "io",
   note: "按接口看流量",
+  // 列顺序就是上面 schema 的书写顺序；行对象里字段的先后无关
   run: () =>
     ioTable.output([
       { path: "/api/user", reads: 1520, bytes: 3_600_000, hitRate: 0.982 },
@@ -67,37 +75,35 @@ const io: Command = {
     ]),
 };
 
-// 3. JSON：任意可序列化的值，适合嵌套结构或要贴给别人的结果
+// 3. JSON：任意可序列化的值，适合嵌套结构，或要贴给别人的结果
 const order: Command = {
   name: "order",
   note: "按 id 看订单",
-  args: "<id>",
-  run: async ({ args }) => {
+  args: "<id>",              // 只影响 help 里的用法提示；真实参数在 run 的 args 里
+  run: async ({ args, user, log }) => {
+    // args 按空白切开、不解析引号：`order 42` → ["42"]
+    // user 是跑这条命令的人；public 命令没登录时是 null
+    log.info("查看订单", { id: args[0], user });   // 写进业务日志的 sink，不显示在 shell 页面上
+
     const found = orders.get(args[0]!);
-    if (found === undefined) throw new Error(`没有订单 ${args[0]}`);
+    if (found === undefined) throw new Error(`没有订单 ${args[0]}`);   // 抛错会作为命令失败回显
     return { kind: "json", value: found };
   },
 };
 
 export const shell = createShell({
-  logger: logo,
+  logger: logo,              // 命令里的 log 就是这个实例
   basePath: "/shell",
   auth: { users: { ops: process.env.CONSOLE_PASSWORD! }, secret: process.env.CONSOLE_SECRET! },
+  timeoutMs: 10_000,         // 命令超时，超了返回 timeout；默认 10 秒
   commands: [ping, io, order],
 });
 ```
 
-细节：
+还有两点代码里看不出来：
 
-- **类型**：`Command` 从 `@needle/shell` 导出，给每个命令标注类型就能拿到补全和检查。
-- **`args`**：按空白切开的数组，不做引号解析，`order 42` → `["42"]`；字段 `args: "<id>"` 只影响 `help` 里的用法显示。
-- **列语义**：`"bytes"` 走 `toHuman`（`36290560` → `34.61M`），`"duration"` 把数字当毫秒（`57720` → `57.7s`），`"number"` 不缩写，省略按 `auto`。点表头按原始数值排序。
-- **单元格**：`string | number | null | { text, href }`，带 `href` 的渲染成链接（`log.list` 就靠这个打开日志文件）。
-- **`user`**：跑这条命令的人。服务端模式是登录用户名；本地模式是配置里的 `user`；标了 `public: true` 的命令（如 `help`）不登录也能跑，这时是 `null`。
-- **`log`**：`createShell({ logger })` 传进来的那个 logger。命令里 `log.info(...)` 写的是业务日志，落点跟你挂的 sink 一致（文件、飞书），不会显示在 shell 页面上。
-- **错误与超时**：抛错会作为命令失败回显；默认 10 秒超时（`timeoutMs`），超了返回 `timeout`，不会把请求挂住。
-- **`public: true`**：不登录也能跑，留给 `help` 这类无副作用的命令，默认 false。
-- **进程内执行**：能直接读内存状态——订单表、连接池、队列长度，不用先为它打一条日志。
+- 表格单元格可以是 `string | number | null | { text, href }`，带 `href` 的渲染成链接——`log.list` 就是靠这个点开日志文件的。
+- 点表头按原始数值排序，不是按显示出来的字符串。
 
 ## 二、日志模块
 
