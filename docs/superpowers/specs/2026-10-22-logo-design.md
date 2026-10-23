@@ -526,6 +526,7 @@ src/
       stdout.ts         # stdout sink + 能力探测
       file.ts           # 文件 sink（node:fs，只从 ./node 导出）
       lark.ts           # 飞书 sink
+    log-files.ts        # 日志目录读取（node:fs；log.list 的数据源，只从 ./node 导出）
   collections/
     sorted-table.ts
   shell/
@@ -554,8 +555,7 @@ src/
     web/
       responsex.ts      # 错误响应出口
   node/
-    index.ts            # ./node 入口的汇总：文件 sink + log-files + serve/attach
-    log-files.ts        # 日志目录读取（log.list 的数据源）
+    index.ts            # ./node 入口：只做转出，自身没有实现
 dist/                   # 提交进仓库
 test/
   unit/  integration/  smoke/  workers/
@@ -568,7 +568,8 @@ docs/best-practices/  docs/deploy/
 - `src/logo/**` 只 import `src/logo/**` 与 `src/collections/**`，**不出现** `../shell/`。
 - `src/shell/**` 可以 import `../logo/**`，反向不允许。
 - `src/node/index.ts` 是唯一的 Node 出口，它可以同时 import logo 与 shell。
-- 三处 `node:` 依赖（`logo/sinks/file.ts`、`node/log-files.ts`、`shell/node.ts`）都只从 `./node` 可达。
+- 三处 `node:` 依赖（`logo/sinks/file.ts`、`logo/log-files.ts`、`shell/node.ts`）都只从 `./node` 可达。
+- `src/node/` 只剩入口转出（一个 `index.ts`），实现都住在它所属的领域目录里。
 
 ## 15. 代码风格契约
 

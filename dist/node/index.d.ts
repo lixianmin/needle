@@ -7,8 +7,8 @@
  *
  * 文件 sink、日志目录读取、起 HTTP 服务合成一个入口，路径最长三段。
  */
-export { createLogFiles } from "./log-files.js";
-export type { LogFilesOptions } from "./log-files.js";
+export { createLogFiles } from "../logo/log-files.js";
+export type { LogFilesOptions } from "../logo/log-files.js";
 export { createFileSink } from "../logo/sinks/file.js";
 export type { FileSink, FileSinkOptions } from "../logo/sinks/file.js";
 export { attach, serve } from "../shell/node.js";
