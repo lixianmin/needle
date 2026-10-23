@@ -45,7 +45,8 @@ export function createShell(options) {
         return verified === null ? null : verified.sub;
     }
     async function logRoute({ req, params }) {
-        if ((await resolveUser(req)) === null)
+        const user = await resolveUser(req);
+        if (user === null)
             return ResponseX.unauthorized("未登录或 token 无效");
         const body = await source.logFiles?.read(params.name ?? "");
         if (body === null || body === undefined)
