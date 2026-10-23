@@ -89,30 +89,25 @@ export const STYLE = `
 .logo-shell .tool.on { color: var(--yellow); border-color: var(--yellow); }
 .logo-shell .dropped { margin-left: auto; color: var(--yellow); }
 
-/* 定高虚拟列表：行高与 loglist.ts 的 ROW_HEIGHT 必须一致 */
+/* 变高虚拟列表：行高由 loglist.ts 实测，普通行就是 ROW_HEIGHT（18px） */
 .logo-shell .list { position: relative; flex: 1; min-height: 0; overflow: auto; }
 .logo-shell .spacer { position: relative; }
-.logo-shell .row {
-  position: absolute; left: 0; right: 0; height: 18px; line-height: 18px;
-  padding: 0 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+.logo-shell .row { position: absolute; left: 0; right: 0; }
+.logo-shell .row .head {
+  height: 18px; line-height: 18px; padding: 0 12px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .logo-shell .row .t { color: var(--dim); margin-right: 8px; }
 .logo-shell .row .lv-debug { color: var(--dim); }
 .logo-shell .row .lv-info { color: var(--text); }
 .logo-shell .row .lv-warn { color: var(--yellow); }
 .logo-shell .row .lv-error { color: var(--red); }
-.logo-shell .row { cursor: pointer; }
-.logo-shell .row.on { background: rgba(38, 139, 210, 0.18); }
 
-/* 点某一行后展开的详情：完整消息 + 调用栈 + 其它字段，可整段复制 */
-.logo-shell .detail {
-  max-height: 45%; overflow: auto; padding: 6px 12px;
-  border-top: 1px solid var(--line); background: var(--bg-alt);
-}
-.logo-shell .detail[hidden] { display: none; }
-.logo-shell .detail pre {
-  margin: 0; white-space: pre-wrap; word-break: break-word;
-  color: var(--text-strong); font: inherit;
+/* error 行里的调用栈：缩进、折行，整段跟着行一起滚 */
+.logo-shell .row .stack {
+  margin: 0; padding: 0 12px 4px 24px;
+  white-space: pre-wrap; word-break: break-word;
+  color: var(--dim); font: inherit; font-size: 12px; line-height: 16px;
 }
 
 .logo-shell .toggle {

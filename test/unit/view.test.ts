@@ -502,47 +502,25 @@ describe("mountShell", () => {
   });
 });
 
-describe("日志详情", () => {
-  const errorRecord = {
-    time: 1,
-    level: "error" as const,
-    msg: "boom",
-    stack: "Error: boom\n    at run (demo.ts:99:38)",
-    seq: 7,
-  };
-
-  test("点一行看完整内容，Esc 收起", () => {
-    const { document, root, emit } = mount();
-    emit({ type: "logs", records: [errorRecord] });
-    (document.querySelectorAll(".tab")[0] as unknown as HTMLElement).click();
-
-    const detail = document.querySelector(".detail") as unknown as HTMLElement;
-    expect(detail.hidden).toBe(true);
-
-    (document.querySelector(".panel.active .row") as unknown as HTMLElement).click();
-    expect(detail.hidden).toBe(false);
-    expect(detail.textContent).toContain("boom");
-    expect(detail.textContent).toContain("at run (demo.ts:99:38)");
-    expect(detail.textContent).toContain('"seq":7');
-
-    root.dispatchEvent(
-      new (window as unknown as { KeyboardEvent: typeof KeyboardEvent }).KeyboardEvent("keydown", {
-        key: "Escape",
-        bubbles: true,
-      }),
-    );
-    expect(detail.hidden).toBe(true);
-    expect(document.querySelector(".row.on")).toBeNull();
-  });
-
-  test("没有栈的日志只显示消息", () => {
+describe("调用栈直接铺在行里", () => {
+  test("error 行带完整栈，info / warn 没有", () => {
     const { document, emit } = mount();
-    emit({ type: "logs", records: [{ time: 1, level: "info", msg: "plain" }] });
+    emit({
+      type: "logs",
+      records: [
+        { time: 1, level: "error", msg: "boom", stack: "Error: boom\n    at run (demo.ts:99:38)" },
+        { time: 2, level: "warn", msg: "careful" },
+        { time: 3, level: "info", msg: "plain" },
+      ],
+    });
     (document.querySelectorAll(".tab")[0] as unknown as HTMLElement).click();
 
-    (document.querySelector(".panel.active .row") as unknown as HTMLElement).click();
-    const detail = document.querySelector(".detail") as unknown as HTMLElement;
-    expect(detail.textContent).toContain("[I] plain");
-    expect(detail.textContent).not.toContain("at ");
+    const rows = [...document.querySelectorAll(".panel.active .row")] as unknown as HTMLElement[];
+    const byText = (text: string) => rows.find((row) => row.textContent?.includes(text)) as HTMLElement;
+
+    expect(byText("boom").querySelector(".stack")?.textContent).toContain("at run (demo.ts:99:38)");
+    expect(byText("careful").querySelector(".stack")).toBeNull();
+    expect(byText("plain").querySelector(".stack")).toBeNull();
+    expect(document.querySelector(".detail")).toBeNull();
   });
 });

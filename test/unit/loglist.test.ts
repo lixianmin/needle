@@ -3,7 +3,11 @@ import { Window } from "happy-dom";
 
 import { ROW_HEIGHT, createLogList } from "../../packages/shell/src/ui/loglist.js";
 
-function setup(capacity = 20_000, onSelect?: (row: number | undefined) => void) {
+function setup(
+  capacity = 20_000,
+  measure?: (node: HTMLElement) => number,
+  estimate?: (row: number) => number,
+) {
   const window = new Window();
   const doc = window.document as unknown as Document;
   const list = createLogList<number>(
@@ -14,7 +18,11 @@ function setup(capacity = 20_000, onSelect?: (row: number | undefined) => void) 
       row.textContent = String(value);
       return row;
     },
-    { capacity, onSelect },
+    {
+      capacity,
+      ...(measure === undefined ? {} : { measure }),
+      ...(estimate === undefined ? {} : { estimate }),
+    },
   );
   doc.body.append(list.el);
   return { doc, list };
@@ -23,8 +31,9 @@ function setup(capacity = 20_000, onSelect?: (row: number | undefined) => void) 
 const rowsOf = (doc: Document): HTMLElement[] =>
   [...doc.querySelectorAll(".row")] as unknown as HTMLElement[];
 
-const click = (row: HTMLElement): void => {
-  row.click();
+const scrollTo = (doc: Document, el: HTMLElement, top: number): void => {
+  el.scrollTop = top;
+  el.dispatchEvent(new (doc.defaultView as unknown as { Event: typeof Event }).Event("scroll"));
 };
 
 describe("createLogList", () => {
@@ -50,9 +59,9 @@ describe("createLogList", () => {
     expect((doc.querySelector(".spacer") as unknown as HTMLElement).style.height).toBe(
       `${100 * ROW_HEIGHT}px`,
     );
+
     // 滚回顶部：窗口里第一条是第 50 条（前 50 条被丢掉）
-    list.el.scrollTop = 0;
-    list.el.dispatchEvent(new (doc.defaultView as unknown as { Event: typeof Event }).Event("scroll"));
+    scrollTo(doc, list.el, 0);
     list.flush();
     const first = rowsOf(doc).sort(
       (a, b) => Number.parseInt(a.style.top, 10) - Number.parseInt(b.style.top, 10),
@@ -65,8 +74,7 @@ describe("createLogList", () => {
     list.append(Array.from({ length: 1000 }, (_, index) => index));
     list.flush();
 
-    list.el.scrollTop = 360 * ROW_HEIGHT;
-    list.el.dispatchEvent(new (doc.defaultView as unknown as { Event: typeof Event }).Event("scroll"));
+    scrollTo(doc, list.el, 360 * ROW_HEIGHT);
     list.flush();
 
     const tops = rowsOf(doc).map((row) => Number.parseInt(row.style.top, 10));
@@ -94,47 +102,53 @@ describe("createLogList", () => {
   });
 });
 
-describe("选中一行看详情", () => {
-  test("点一下选中，再点一下取消", () => {
-    const picked: (number | undefined)[] = [];
-    const { doc, list } = setup(100, (row) => picked.push(row));
-    list.append([11, 22, 33]);
+describe("变高行", () => {
+  test("按行高累加定位，错开的高度不会把后面的行盖住", () => {
+    const { doc, list } = setup(
+      100,
+      (node) => (node.textContent ?? "").length * 10,
+      (row) => String(row).length * 10,
+    );
+    list.append([11, 2222222222, 33]);
     list.flush();
 
-    const rows = rowsOf(doc).sort(
-      (a, b) => Number.parseInt(a.style.top, 10) - Number.parseInt(b.style.top, 10),
-    );
-    click(rows[1] as HTMLElement);
-    expect(picked).toEqual([22]);
-    expect((rows[1] as HTMLElement).classList.contains("on")).toBe(true);
+    const topOf = (text: string) =>
+      Number.parseInt(rowsOf(doc).find((row) => row.textContent === text)!.style.top, 10);
 
-    click(rows[1] as HTMLElement);
-    expect(picked).toEqual([22, undefined]);
-    expect((rows[1] as HTMLElement).classList.contains("on")).toBe(false);
+    expect(topOf("11")).toBe(0);
+    expect(topOf("2222222222")).toBe(20);
+    expect(topOf("33")).toBe(120);
+    expect((doc.querySelector(".spacer") as unknown as HTMLElement).style.height).toBe("140px");
   });
 
-  test("丢弃旧记录时选中项跟着下移，被丢掉了就清空", () => {
-    const picked: (number | undefined)[] = [];
-    const { doc, list } = setup(5, (row) => picked.push(row));
-    list.append([1, 2, 3, 4, 5]);
+  test("滚动落点按前缀和二分，窗口从落点往前 overscan 行开始", () => {
+    const { doc, list } = setup(100, () => 10, () => 10);
+    list.append(Array.from({ length: 100 }, (_, index) => index));
     list.flush();
 
-    const at = (index: number): HTMLElement => {
-      const rows = rowsOf(doc).sort(
-        (a, b) => Number.parseInt(a.style.top, 10) - Number.parseInt(b.style.top, 10),
-      );
-      return rows[index] as HTMLElement;
-    };
-
-    click(at(3)); // 选中 4
-    list.append([6, 7, 8]); // 丢 1 2 3，4 变成第 0 条
+    scrollTo(doc, list.el, 500); // 每行 10px → 落在第 50 条
     list.flush();
-    expect(at(0).textContent).toBe("4");
-    expect(at(0).classList.contains("on")).toBe(true);
 
-    list.append([9, 10, 11, 12, 13]); // 选中项 4 也被丢掉
+    const tops = rowsOf(doc).map((row) => Number.parseInt(row.style.top, 10));
+    expect(Math.min(...tops)).toBe(30 * 10);
+    expect((doc.querySelector(".spacer") as unknown as HTMLElement).style.height).toBe("1000px");
+  });
+
+  test("超过容量丢最旧的，高度也跟着挪", () => {
+    const { doc, list } = setup(
+      2,
+      (node) => (node.textContent ?? "").length * 10,
+      (row) => String(row).length * 10,
+    );
+    list.append([11, 2222222222]);
     list.flush();
-    expect(picked.at(-1)).toBeUndefined();
-    expect(rowsOf(doc).some((row) => row.classList.contains("on"))).toBe(false);
+    list.append([33]);
+    list.flush();
+
+    expect(list.dropped()).toBe(1);
+    const topOf = (text: string) =>
+      Number.parseInt(rowsOf(doc).find((row) => row.textContent === text)!.style.top, 10);
+    expect(topOf("2222222222")).toBe(0);
+    expect(topOf("33")).toBe(100);
   });
 });

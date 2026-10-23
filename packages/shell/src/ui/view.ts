@@ -4,13 +4,12 @@ import {
   displayNumber,
   formatDuration,
   formatTime,
-  safeStringify,
   toHuman,
 } from "@needle/logo";
 import type { Level, LogRecord } from "@needle/logo";
 import type { Cell, ColumnFormat, CommandOutput, LinkedCell } from "../types.js";
 import type { ShellAdapter, ShellEvent, ExecResult } from "./adapter.js";
-import { createLogList } from "./loglist.js";
+import { ROW_HEIGHT, createLogList } from "./loglist.js";
 import { STYLE, STYLE_ID } from "./style.js";
 
 /** 输出区保留的最大行数。再多浏览器会开始卡，而且人也不会往回翻那么远。 */
@@ -133,16 +132,11 @@ export function mountShell(root: HTMLElement, adapter: ShellAdapter): ShellView 
   const droppedLabel = el(doc, "span", "dropped");
   tools.append(pause, level, clear, droppedLabel);
 
-  const logList = createLogList<LogRecord>(doc, renderLogLine, { onSelect: showDetail });
+  const logList = createLogList<LogRecord>(doc, renderLogLine, { estimate: estimateLogHeight });
   const topicList = createLogList<{ name: string; data: unknown }>(doc, renderTopicLine, { capacity: 2000 });
 
-  const detail = el(doc, "div", "detail");
-  detail.hidden = true;
-  const detailText = el(doc, "pre");
-  detail.append(detailText);
-
   const logPanel = el(doc, "div", "panel active");
-  logPanel.append(tools, logList.el, detail);
+  logPanel.append(tools, logList.el);
   const topicPanel = el(doc, "div", "panel");
   topicPanel.append(topicList.el);
 
@@ -355,34 +349,28 @@ export function mountShell(root: HTMLElement, adapter: ShellAdapter): ShellView 
   }
 
   /** 一行日志：时间 + 级别 + 正文。定高单行，长内容省略号。 */
-  /** 点行：把这条记录的完整内容铺在列表下方；栈只在有 stack 时才多一块。 */
-  function showDetail(record: LogRecord | undefined): void {
-    if (record === undefined) {
-      detail.hidden = true;
-      detailText.textContent = "";
-      return;
-    }
-    detailText.textContent = detailOf(record);
-    detail.hidden = false;
-  }
-
-  function detailOf(record: LogRecord): string {
-    const head = `${formatTime(record.time)} ${LEVEL_HINTS[record.level] ?? "[?]"} ${record.msg ?? ""}`;
-    const lines = [head];
-    if (typeof record.stack === "string" && record.stack !== "") lines.push(record.stack);
-    const rest: Record<string, unknown> = { ...record };
-    for (const key of ["time", "level", "msg", "stack"]) delete rest[key];
-    if (Object.keys(rest).length > 0) lines.push(safeStringify(rest));
-    return lines.join("\n");
+  /** 估算行高：一行消息 + 栈的每一行。真实高度等渲染后由测量覆盖。 */
+  function estimateLogHeight(record: LogRecord): number {
+    if (typeof record.stack !== "string" || record.stack === "") return ROW_HEIGHT;
+    return ROW_HEIGHT * (1 + record.stack.split("\n").length);
   }
 
   function renderLogLine(record: LogRecord): HTMLElement {
     const line = el(doc, "div", "row");
+    const head = el(doc, "div", "head");
     const time = el(doc, "span", "t");
     time.textContent = formatTime(record.time);
     const text = el(doc, "span", `lv lv-${record.level}`);
     text.textContent = `${LEVEL_HINTS[record.level] ?? "[?]"} ${record.msg ?? ""}`;
-    line.append(time, text);
+    head.append(time, text);
+    line.append(head);
+
+    // 栈直接铺在行里，不用点开：排查时少一步，读的时候也不用离开上下文。
+    if (typeof record.stack === "string" && record.stack !== "") {
+      const stack = el(doc, "pre", "stack");
+      stack.textContent = record.stack;
+      line.append(stack);
+    }
     return line;
   }
 
@@ -475,10 +463,6 @@ export function mountShell(root: HTMLElement, adapter: ShellAdapter): ShellView 
   };
 
   doc.addEventListener("keydown", focusOnEnter);
-  // Esc 收起详情：不管焦点在哪都响应，键盘用户不用回去点那一行。
-  doc.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") logList.clearSelection();
-  });
 
   /** 正在等密码的账号。非空时下一次回车的内容当密码处理。 */
   let pendingUser: string | null = null;
