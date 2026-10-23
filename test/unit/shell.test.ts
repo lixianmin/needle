@@ -79,7 +79,7 @@ describe("createShell", () => {
     expect(res.status).toBe(200);
     // 序列化走平台内置的 Response.json；Bun 会额外带 charset，只断言主类型。
     expect(res.headers.get("content-type")).toContain("application/json");
-    expect(((await res.json()) as { output?: unknown }).output).toBeDefined();
+    expect(((await res.json()) as { data?: unknown }).data).toBeDefined();
   });
 
   test("exec 受限命令需要 token", async () => {
@@ -115,9 +115,9 @@ describe("createShell", () => {
     const token = (await api.source.auth.login("admin", "secret")) as string;
     const res = await api.handler(post("/shell/exec", { line: "log.list" }, token));
     const body = (await res.json()) as {
-      output: { rows: Array<Array<{ text: string; href: string } | number | string>> };
+      data: { rows: Array<Array<{ text: string; href: string } | number | string>> };
     };
-    const cell = body.output.rows[0]?.[0] as { text: string; href: string };
+    const cell = body.data.rows[0]?.[0] as { text: string; href: string };
     expect(cell.text).toBe("info.log");
 
     // 带 Authorization 头能取全文

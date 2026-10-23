@@ -36,7 +36,7 @@ export function createExecHandler(options) {
             return ResponseX.badRequest("空命令");
         const result = await options.source.exec(line, bearerToken(req.headers.get("authorization")));
         if (result.ok)
-            return Response.json({ output: result.output });
+            return Response.json({ data: result.output });
         // 内部失败原因比线上 code 细：一个状态码只配一个 code，细分靠 message。
         switch (result.code) {
             case "disposed":

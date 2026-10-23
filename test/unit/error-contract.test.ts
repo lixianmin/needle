@@ -108,15 +108,15 @@ describe("错误响应契约", () => {
 
     const exec = await api.handler(post("/exec", { line: "help" }));
     expect(exec.status).toBe(200);
-    const output = (await exec.json()) as Record<string, unknown>;
-    expect(output.ok).toBeUndefined();
-    expect(output.output).toBeDefined();
+    const body = (await exec.json()) as Record<string, unknown>;
+    expect(body.ok).toBeUndefined();
+    expect(body.data).toBeDefined();
 
     const auth = await api.handler(post("/auth", { user: "admin", password: "secret" }));
     expect(auth.status).toBe(200);
-    const body = (await auth.json()) as Record<string, unknown>;
-    expect(body.ok).toBeUndefined();
-    expect(typeof body.token).toBe("string");
+    const authBody = (await auth.json()) as Record<string, unknown>;
+    expect(authBody.ok).toBeUndefined();
+    expect(typeof authBody.token).toBe("string");
 
     api.dispose();
   });

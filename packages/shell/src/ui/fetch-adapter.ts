@@ -176,9 +176,9 @@ export function createFetchAdapter(options: FetchAdapterOptions): ShellAdapter {
 
       if (!response.ok) return { ok: false, error: await errorMessage(response) };
 
-      // 成功响应不加壳：命令输出直接在 body.output 里。
-      const body = (await response.json()) as { output: CommandOutput };
-      return { ok: true, output: body.output };
+      // 成功响应不加壳：命令输出直接在 body.data 里。
+      const body = (await response.json()) as { data: CommandOutput };
+      return { ok: true, output: body.data };
     },
 
     async fetchFile(href: string): Promise<FileResult> {
