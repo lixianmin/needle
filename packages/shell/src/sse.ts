@@ -150,7 +150,10 @@ export function createSseResponse(init: SseInit): Response {
           controller.enqueue(encoder.encode(chunk));
           lastWrite = Date.now();
         } catch {
-          closed = true;
+          // 唯一还绕开 teardown 的出口：不清定时器的话连接关了还在每秒读主题。
+          teardown();
+          detach?.();
+          detach = undefined;
         }
       };
 

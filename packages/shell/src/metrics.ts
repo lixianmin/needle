@@ -30,8 +30,12 @@ export function createMetrics(options: MetricsOptions = {}): Metrics {
   const now = options.now ?? Date.now;
   const startedAt = now();
 
-  /** 同一秒内复用一次探测，跨秒重新读——之前一缓存就是永久，top 永远返回历史值。 */
-  const CACHE_TTL_MS = 1000;
+  /**
+   * 同一秒内复用一次探测，跨秒重新读——之前一缓存就是永久，top 永远返回历史值。
+   * 用 900ms 而不是 1000ms：top 主题的 interval 就是 1000ms，留点余量免得太
+   * 抖一下就把上一秒的快照又推一遍。
+   */
+  const CACHE_TTL_MS = 900;
   let cached: Promise<Record<string, unknown>> | undefined;
   let cachedAt = 0;
 
@@ -68,7 +72,8 @@ export function createMetrics(options: MetricsOptions = {}): Metrics {
   return {
     read() {
       const at = now();
-      if (cached === undefined || at - cachedAt >= CACHE_TTL_MS) {
+      // at < cachedAt 是时钟回拨：立刻重新探测，别在追平之前一直返回旧快照。
+      if (cached === undefined || at < cachedAt || at - cachedAt >= CACHE_TTL_MS) {
         cached = Promise.resolve(detect());
         cachedAt = at;
       }

@@ -3,6 +3,14 @@ const CIRCULAR = "[Circular]";
 /** 超过这个深度就不再下钻。日志不是数据库，深到 8 层的数据多半是误传。 */
 const MAX_DEPTH = 8;
 /**
+ * 一次序列化最多展开多少个对象。
+ *
+ * 去环按"当前路径"判断后，同一个对象在兄弟字段里会被各展开一次——这是正确
+ * 语义，但 8 层、每层 4 个共享引用的数据就是 4^8 个节点。一万个节点足够描述
+ * 任何真实日志对象，再多的多半是误传，标 [Truncated] 比卡住事件循环好。
+ */
+const MAX_NODES = 10_000;
+/**
  * 把任意值变成 JSON 安全的副本。
  *
  * 存在的理由：`buildRecord` 收到的对象会原样挂在记录上，而记录最终要被
@@ -11,7 +19,7 @@ const MAX_DEPTH = 8;
  *
  * 代价是每次写日志多一次遍历。日志对象通常很小，这个代价远小于丢日志的风险。
  */
-export function sanitize(value, depth = 0, ancestors = new WeakSet()) {
+export function sanitize(value, depth = 0, ancestors = new WeakSet(), budget = { nodes: MAX_NODES }) {
     // 函数不是对象，但旧实现把判断放在早退之后，于是函数值原样进了记录。
     if (typeof value === "function")
         return "[Function]";
@@ -21,6 +29,9 @@ export function sanitize(value, depth = 0, ancestors = new WeakSet()) {
     }
     if (depth >= MAX_DEPTH)
         return "[Depth]";
+    if (budget.nodes <= 0)
+        return "[Truncated]";
+    budget.nodes -= 1;
     // 只沿当前路径去环：`{ start: d, end: d }` 是共享引用，不是环。旧实现用
     // 一个贯穿整次遍历的 WeakSet，第二个 d 就被误判成 "[Circular]"。
     if (ancestors.has(value))
@@ -34,7 +45,7 @@ export function sanitize(value, depth = 0, ancestors = new WeakSet()) {
             return value.toISOString();
         }
         if (Array.isArray(value)) {
-            return value.map((item) => sanitize(item, depth + 1, ancestors));
+            return value.map((item) => sanitize(item, depth + 1, ancestors, budget));
         }
         const copy = {};
         let keys;
@@ -47,7 +58,7 @@ export function sanitize(value, depth = 0, ancestors = new WeakSet()) {
         }
         for (const key of keys) {
             try {
-                copy[key] = sanitize(value[key], depth + 1, ancestors);
+                copy[key] = sanitize(value[key], depth + 1, ancestors, budget);
             }
             catch {
                 // getter 抛异常。一条坏字段不该毁掉整条日志。

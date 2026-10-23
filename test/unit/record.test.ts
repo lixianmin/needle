@@ -117,3 +117,16 @@ describe("共享引用与函数", () => {
     expect(record.list).toEqual(["[Function]"]);
   });
 });
+
+describe("展开预算", () => {
+  test("深层共享引用不会指数级展开", () => {
+    let node: Record<string, unknown> = { leaf: 1 };
+    for (let level = 0; level < 8; level += 1) {
+      node = { a: node, b: node, c: node, d: node };
+    }
+
+    const json = safeStringify(buildRecord("info", [node], {}));
+    expect(json).toContain("[Truncated]");
+    expect(json.length).toBeLessThan(2_000_000);
+  });
+});

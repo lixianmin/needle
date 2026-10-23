@@ -53,6 +53,8 @@ async function writeResponse(response: Response, res: ServerResponse): Promise<v
     for (;;) {
       const { done, value } = await reader.read();
       if (done) break;
+      // 断开后的 write 会触发未监听的 'error'，先判一次再写。
+      if (res.destroyed || res.writableEnded) break;
       // write 返回 false 表示内核缓冲满了：等 drain 再继续，否则大响应会把内存吃光。
       if (!res.write(value)) {
         await new Promise<void>((resolve) => {
@@ -68,7 +70,6 @@ async function writeResponse(response: Response, res: ServerResponse): Promise<v
           res.once("error", finish);
         });
       }
-      if (res.destroyed || res.writableEnded) break;
     }
   } finally {
     res.off("close", onClose);

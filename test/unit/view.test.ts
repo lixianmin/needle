@@ -626,3 +626,81 @@ describe("交互细节", () => {
     expect(document.activeElement).toBe(pause);
   });
 });
+
+describe("输出渲染兜底", () => {
+  const handshake = (): ShellEvent => ({
+    type: "handshake",
+    info: { title: "node", version: "1.0.0", user: "admin", commands: [], topics: [] },
+  });
+
+  const submit = (document: Document, line: string): void => {
+    const input = document.querySelector("input") as unknown as HTMLInputElement;
+    input.value = line;
+    (document.querySelector("form") as unknown as HTMLFormElement).dispatchEvent(
+      new (window as unknown as { Event: typeof Event }).Event("submit", { bubbles: true, cancelable: true }),
+    );
+  };
+
+  test("json 输出带循环引用时也能渲染", async () => {
+    const { document, replies, emit } = mount();
+    emit(handshake());
+    const value: Record<string, unknown> = { name: "loop" };
+    value.self = value;
+    replies.push({ ok: true, output: { kind: "json", value } });
+
+    submit(document, "order 1");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(document.querySelector(".output")?.textContent).toContain("loop");
+  });
+
+  test("打开文件失败时给出提示", async () => {
+    const document = window.document as unknown as Document;
+    const root = document.createElement("div");
+    document.body.append(root);
+    const adapter: ShellAdapter = {
+      exec: () =>
+        Promise.resolve({
+          ok: true as const,
+          output: {
+            kind: "table" as const,
+            columns: ["file"],
+            rows: [[{ text: "info.log", href: "/shell/log/info.log" }]],
+          },
+        }),
+      authenticate: () => Promise.resolve({ ok: true as const, user: "admin" }),
+      setTopics: () => {},
+      fetchFile: () => Promise.reject(new Error("gateway down")),
+      subscribe: () => () => {},
+    };
+    mountShell(root as unknown as HTMLElement, adapter);
+
+    submit(document, "files");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    (document.querySelector("tbody a") as unknown as HTMLElement).click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(document.querySelector(".output")?.textContent).toContain("gateway down");
+  });
+});
+
+describe("焦点丢失时", () => {
+  test("activeElement 为 null 时回车仍然聚焦输入框", () => {
+    const { document, root } = mount();
+    const original = Object.getOwnPropertyDescriptor(document, "activeElement");
+    Object.defineProperty(document, "activeElement", { get: () => null, configurable: true });
+    const event = new (window as unknown as { KeyboardEvent: typeof KeyboardEvent }).KeyboardEvent("keydown", {
+      key: "Enter",
+      bubbles: true,
+      cancelable: true,
+    });
+    root.dispatchEvent(event);
+
+    // 先恢复真实实现，再看 focus() 有没有生效（桩会一直返回 null）。
+    if (original !== undefined) Object.defineProperty(document, "activeElement", original);
+    else delete (document as unknown as Record<string, unknown>).activeElement;
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(document.querySelector("input"));
+  });
+});

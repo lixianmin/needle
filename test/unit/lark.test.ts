@@ -132,3 +132,18 @@ describe("错误详情与退出", () => {
     expect(text.endsWith("…(截断)")).toBe(true);
   });
 });
+
+describe("close 之后", () => {
+  test("新记录不再进队列，也不再起定时器", async () => {
+    const { sink, calls } = setup();
+    sink([record("error", "before")]);
+    sink.close();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const sent = calls.length;
+
+    sink([record("error", "after")]);
+    await new Promise((resolve) => setTimeout(resolve, 1100));
+
+    expect(calls.length).toBe(sent);
+  });
+});

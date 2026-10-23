@@ -39,3 +39,15 @@ describe("createMetrics", () => {
     expect(third).not.toBe(first);
   });
 });
+
+describe("时钟回拨", () => {
+  test("时间倒退时立刻重新探测，不冻在旧快照", async () => {
+    let clock = 1_000_000;
+    const metrics = createMetrics({ now: () => clock });
+    const first = await metrics.read();
+
+    clock -= 500;
+    const second = await metrics.read();
+    expect(second).not.toBe(first);
+  });
+});

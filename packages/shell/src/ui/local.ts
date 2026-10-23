@@ -1,5 +1,6 @@
 import type { LogRecord } from "@needle/logo";
 import type { ShellSource } from "../source.js";
+import { parseTopicSpecs } from "../sse.js";
 import type { AuthResult, ShellAdapter, ShellEvent, ExecResult, FileResult } from "./adapter.js";
 
 /**
@@ -63,17 +64,9 @@ export function createLocalAdapter(source: ShellSource): ShellAdapter {
       timers = [];
       if (spec === "") return;
 
-      // 本地模式没有 SSE，订阅就自己起定时器——行为跟服务端一致。
-      for (const part of spec.split(",")) {
-        const [name, rawInterval] = part.split(":");
-        const topic = source.topics.find((candidate) => candidate.name === name?.trim());
-        if (topic === undefined) continue;
-
-        const requested = rawInterval === undefined ? topic.intervalMs : Number(rawInterval);
-        const intervalMs = Number.isFinite(requested)
-          ? Math.min(60_000, Math.max(1_000, requested))
-          : topic.intervalMs;
-
+      // 本地模式没有 SSE，订阅就自己起定时器——解析复用 sse 的那份，去重与
+      // 上限才跟服务端一致，不会两处逻辑慢慢漂移。
+      for (const { topic, intervalMs } of parseTopicSpecs(spec, source.topics)) {
         timers.push(
           setInterval(() => {
             void Promise.resolve(topic.read())

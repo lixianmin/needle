@@ -24,6 +24,9 @@ function captureStack() {
         .join("\n");
 }
 export function newLogger(options = {}) {
+    return buildLogger(options, { disposed: false });
+}
+function buildLogger(options, state) {
     const now = options.now ?? Date.now;
     const flushIntervalMs = options.flushIntervalMs ?? DEFAULT_FLUSH_INTERVAL_MS;
     const maxBuffer = options.maxBuffer ?? DEFAULT_MAX_BUFFER;
@@ -33,7 +36,6 @@ export function newLogger(options = {}) {
     let buffer = [];
     let timer;
     let sinkReported = false;
-    let disposed = false;
     const sinks = [...(options.sinks ?? [])];
     const fixedFields = { ...options.fields };
     function reportSinkError(error) {
@@ -78,7 +80,7 @@ export function newLogger(options = {}) {
     }
     function emit(recordLevel, args) {
         // dispose 之后静默丢弃：之前 stdout 还在写、文件 sink 已经丢了，行为不一致。
-        if (disposed)
+        if (state.disposed)
             return;
         if (LEVELS[recordLevel] < LEVELS[level])
             return;
@@ -118,7 +120,7 @@ export function newLogger(options = {}) {
         error: (...args) => emit("error", args),
         child(fields) {
             const { name, ...rest } = fields;
-            return newLogger({
+            return buildLogger({
                 level,
                 name: name ?? options.name,
                 // 快照父级 sink：之后父级增删 sink 不影响已存在的子 logger。
@@ -129,7 +131,7 @@ export function newLogger(options = {}) {
                 stackLevel,
                 batch,
                 fields: { ...fixedFields, ...rest },
-            });
+            }, state);
         },
         addSink(sink) {
             sinks.push(sink);
@@ -144,7 +146,7 @@ export function newLogger(options = {}) {
         },
         flush,
         dispose() {
-            disposed = true;
+            state.disposed = true;
             clearTimer();
             flush();
             for (const sink of sinks) {

@@ -1,4 +1,4 @@
-import { LEVELS, LEVEL_HINTS, displayNumber, formatDuration, formatTime, toHuman, } from "@needle/logo";
+import { LEVELS, LEVEL_HINTS, displayNumber, formatDuration, formatTime, safeStringify, toHuman, } from "@needle/logo";
 import { ROW_HEIGHT, createLogList } from "./loglist.js";
 import { STYLE, STYLE_ID } from "./style.js";
 /** 输出区保留的最大行数。再多浏览器会开始卡，而且人也不会往回翻那么远。 */
@@ -163,7 +163,15 @@ export function mountShell(root, adapter) {
     }
     /** 点日志文件名：取回全文，用 blob 在新窗口打开（链接里不带凭证）。 */
     async function openFile(href) {
-        const result = await adapter.fetchFile(href);
+        let result;
+        try {
+            result = await adapter.fetchFile(href);
+        }
+        catch (error) {
+            // 网络断开 / 网关返回 HTML：不接 reject 就是一条静默的 unhandled rejection。
+            pushText(`打开文件失败：${String(error)}`, "status");
+            return;
+        }
         if (!result.ok) {
             pushText(result.error, "status");
             return;
@@ -308,9 +316,17 @@ export function mountShell(root, adapter) {
             push(table(value.columns, value.rows, value.formats));
             return;
         }
-        pushText(JSON.stringify(value.value, null, 2), "raw");
+        // 命令返回的 JSON 可能有循环引用或 BigInt：JSON.stringify 会抛，页面就停在
+        // 上一条输出。先试格式化，失败再退回 safeStringify（它会标 [Circular]）。
+        let text;
+        try {
+            text = JSON.stringify(value.value, null, 2) ?? String(value.value);
+        }
+        catch {
+            text = safeStringify(value.value);
+        }
+        pushText(text, "raw");
     }
-    /** 一行日志：时间 + 级别 + 正文。定高单行，长内容省略号。 */
     /** 估算行高：一行消息 + 栈的每一行。真实高度等渲染后由测量覆盖。 */
     function estimateLogHeight(record) {
         if (typeof record.stack !== "string" || record.stack === "")
@@ -411,7 +427,7 @@ export function mountShell(root, adapter) {
         if (isEditable(doc.activeElement))
             return;
         // Enter 是按钮/链接的默认激活方式，抢走它键盘就没法操作控制台自己的控件。
-        if (doc.activeElement?.closest?.("button, a, [role='button']") !== null)
+        if (doc.activeElement?.closest?.("button, a, [role='button']") != null)
             return;
         event.preventDefault();
         input.focus();

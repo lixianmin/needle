@@ -108,8 +108,7 @@ export function createFetchAdapter(options: FetchAdapterOptions): ShellAdapter {
         return;
       }
       if (response.body === null) {
-        // 没有正文也可能是网关的异常返回：走同一条退避重连，不能就此停摆。
-        status(`无法读取事件流（HTTP ${response.status}），稍后重试`, "error");
+        // 没有正文也可能是网关的异常返回：交给下面的 catch 统一报错并退避重连。
         throw new Error(`empty event stream (HTTP ${response.status})`);
       }
 
