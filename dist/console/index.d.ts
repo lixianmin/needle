@@ -34,6 +34,7 @@ export declare function createBrowserConsole(options: ConsoleSourceOptions & {
 export { createConsoleSource } from "./source.js";
 export { mountConsole } from "./ui/view.js";
 export { createLocalAdapter } from "./ui/local.js";
+export { createFetchAdapter } from "./ui/fetch-adapter.js";
 export type { ConsoleSource, ConsoleSourceOptions, ExecResult } from "./source.js";
 export type { ConsoleAdapter, ConsoleEvent, HandshakeInfo, AuthResult } from "./ui/adapter.js";
 export type { AuthOptions, Command, CommandContext, CommandOutput, Topic } from "./types.js";
