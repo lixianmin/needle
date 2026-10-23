@@ -29,7 +29,7 @@ const shell = createShell({
   title: "order-service",
   version: process.env.APP_VERSION,
   auth: {
-    // 用户名 → 口令。想开几个账号就写几项，比如 { admin: "...", ops: "..." }
+    // 用户名 → 口令。想开几个账号就写几项，比如 { alice: "...", bob: "..." }
     users: { admin: process.env.CONSOLE_PASSWORD! },
     // 签 token 的密钥，不是口令；不传就每次启动随机生成
     secret: process.env.CONSOLE_SECRET!,
