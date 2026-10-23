@@ -12,7 +12,6 @@ import { createShell } from "@needle/shell";
 import { logo } from "@needle/logo";
 
 const shell = createShell({
-  logger: logo,
   auth: {
     users: { admin: process.env.CONSOLE_PASSWORD! },
     secret: process.env.CONSOLE_SECRET!,   // 必须固定，见下
@@ -39,8 +38,6 @@ wrangler 只需要常规配置：
 
 `CONSOLE_SECRET` 用 `wrangler secret put` 注入。
 
-登录走 `POST /auth`（body `{ user, password }`），页面上的 `auth <user>` 会先提示输入密码，回车后调这个接口。密码不会出现在命令行文本、浏览器历史或服务端日志里。
-
 ## 必须固定 secret
 
 token 是 HMAC 签名的，secret 变了旧 token 就作废。Workers 的 isolate 随时会被回收重建，如果让库随机生成 secret，每次回收都会把已登录的浏览器踢掉——表现为"刚登录完又要登录"。
@@ -58,13 +55,14 @@ auth: { users: {...}, secret: env.CONSOLE_SECRET }   // 不要省略
 | 文件 sink | 有 | 无（没有文件系统） |
 | 飞书 sink | 有 | 有（走 fetch） |
 | 控制台页面 / SSE | 有 | 有 |
+| 右栏实时日志 | 有 | 有（只覆盖当前 isolate，别的实例看不到） |
 | 命令执行 | 完整 | 完整 |
 | CPU / 内存指标 | 真实读数 | 自维护计数器 |
 | 登录态 | 随进程重启失效 | 随 isolate 回收失效（配了固定 secret 后由 token 有效期兜底） |
 
 ## 日志怎么拿出去
 
-控制台不接收日志（这一点 Node 上一样），Workers 又没有文件系统，所以日志只能靠 sink 出去：
+控制台右栏只在 shell 打开时收实时日志，没有历史；Workers 又没有文件系统，所以事后查只能靠 sink 出去：
 
 - `createLarkSink` 把 `error` 推到飞书，最省事。
 - 平台侧的 Logpush / Tail Workers 收 stdout。
