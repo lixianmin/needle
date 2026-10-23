@@ -110,21 +110,26 @@ export function createIndexedDbStore(options = {}) {
             store.createIndex(TIME_INDEX, "time");
         };
         request.onsuccess = () => {
-            // 判过失败（如被旧连接挡住），或者已经 close 且没排队工作：
-            // 都不能把连接留在手里——它会一直挡住其它上下文的版本升级。
-            // 还有排队工作的 close 例外：写入要用它，关连接排在队尾那一步。
-            if (failed || (closed && pending === 0)) {
-                request.result.close();
+            const connection = request.result;
+            // 已经 close 且没排队工作：不能把连接留在手里——它会一直挡住
+            // 其它上下文的版本升级。还有排队工作的 close 例外：写入要用它，
+            // 关连接排在队尾那一步。
+            if (closed && pending === 0) {
+                connection.close();
                 resolve();
                 return;
             }
-            db = request.result;
-            // 别的上下文要升级版本（或在 DevTools 里清站数据）：必须主动让路。
-            // 不挂这个处理器，IDB 会无限期地把对方的升级卡在 blocked 上。
+            // blocked 只是「现在升不上去」：对方让路后这次打开会成功，
+            // 之前判的 failed 要撤销，否则永远降级、再也写不进日志。
+            failed = false;
+            db = connection;
+            // 别的上下文要升级版本（或在 DevTools 里清站数据）：必须让路。
+            // 不挂这个处理器，IDB 会无限期地把对方卡在 blocked 上；但也不能
+            // 一声不响地把已排队的批次丢掉——先报一次，再按 close 的语义
+            // 停止接受新写入、把关连接排到队尾。
             db.onversionchange = () => {
-                db?.close();
-                db = null;
-                closed = true;
+                reportOnce(new Error("IndexedDB 版本被其它上下文升级，日志存储已停止"));
+                sink.close();
             };
             resolve();
         };
@@ -135,9 +140,10 @@ export function createIndexedDbStore(options = {}) {
             resolve();
         };
         request.onblocked = () => {
-            // 旧版本连接被别的上下文占着：按失败处理，别把整条 promise 链卡死。
-            failed = true;
-            reportOnce(new Error(`IndexedDB ${name} 升级被其它连接阻塞`));
+            // 旧版本连接被别的上下文占着：先把 ready 放行，别把 promise 链卡死。
+            // 不在这里判 failed——对方让路后 onsuccess 会到来，那时连接照用；
+            // 真用不上就等那次 onsuccess 按 closed 规则关掉。
+            reportOnce(new Error(`IndexedDB ${name} 升级被其它连接阻塞，等待对方让路`));
             resolve();
         };
     });

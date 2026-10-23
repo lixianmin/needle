@@ -112,7 +112,7 @@ logger 的 `dispose()` 会调用 sink 的 `close()`（既有机制），store �
 - 记录存**原始 `LogRecord` 对象**（已是 JSON-safe，见 `src/logo/types.ts` 的记录契约），序列化成文本只在 `read` / sample 时做。
 - **写**：低于 `minLevel`（默认 "info"）的记录写入时丢弃——与 file sink 一致：低于级别的记录不落任何文件。其余收进单个 `readwrite` 事务连续 `put`、一次 commit。绝不逐条开事务。
 - **级联虚拟文件**：`info.log` / `warn.log` / `error.log`，语义与 file sink 一致——`warn.log` 含 warn+error，`error.log` 只含 error。写时不分桶（IDB 是一份流），读时按级别过滤。
-- **`list()`**：固定返回三个 entry（级别达到默认 `minLevel: "info"` 才出现，与 file sink「按需建文件」对齐：一条 error 都没有时不冒出空的 error.log——某级别 0 条记录时不列它）。`modified` = 该级别最新记录的 `time`；`size` = 该级别记录数 × 平均行字节估计（实现方式留给 builder，原则：不追求精确，展示用）。
+- **`list()`**：固定返回三个 entry（级别达到默认 `minLevel: "info"` 才出现，与 file sink「按需建文件」对齐：一条 error 都没有时不冒出空的 error.log——某级别 0 条记录时不列它）。`modified` = 该级别最新记录的 `time`；`size` = 该级别所有行文本长度之和 + 每行换行（字符数，展示用，不做字节精确换算）。
 - **`read(name)`**：名字必须是 `info.log` / `warn.log` / `error.log` 之一（同样的白名单思路），按级别过滤 + `formatLine`（`时间 [I] JSON`，与文件 sink 落盘格式一致）拼接。
 - **保留策略**：写批次的同一事务里顺手清——`count > maxRecords` 按入库 id 删最旧；`time < now - keepDays` 删过期。多上下文并发写时清理可能略微多删/少删，可接受，不做跨上下文协调。
 
@@ -120,7 +120,7 @@ logger 的 `dispose()` 会调用 sink 的 `close()`（既有机制），store �
 
 - `LogFileEntry`（`src/logo/types.ts`）加字段 `sample?: string`：该文件**末尾 5 行**，每行截 200 字符，`\n` 分隔，纯文本。可选字段，不强迫简单实现。
 - Node 侧 `createLogFiles`（`src/logo/log-files.ts`）：`list()` 时对每个文件读尾部——open 后从 `size - 4KB` 读到末尾，按 `\n` 拆，丢弃窗口开头可能截断的半行，取最后 5 条完整行。读失败静默，sample 缺省。
-- 浏览器侧：store 的 `list()` 从 `by_time` 索引倒序取该级别最后 5 条，`formatLine` 后截断。
+- 浏览器侧：`list()` 一次 `getAll()` 在 JS 里分桶后取该级别最后 5 条（`by_time` 索引只给 `prune` 用，读路径不做索引扫描），`formatLine` 后按 200 字符截断。
 - UI：`LinkedCell`（`src/shell/types.ts`）加 `tip?: string`；表格单元格渲染（`src/shell/ui/table.ts`）把带 tip 的链接包进 hover 容器，纯 CSS 显示（`visibility` 切换 + `white-space: pre-wrap`），样本用 `textContent` 渲染——**不得用 innerHTML**（GONSOLE 修过的 XSS：日志内容里的 `<script>` 会被执行）。CSS 进 `src/shell/ui/style.ts`，Solarized 变量取色。
 - `log.list` 组表格时把 `entry.sample` 填进 `tip`。服务端与浏览器自动同享。
 
@@ -132,7 +132,7 @@ logger 的 `dispose()` 会调用 sink 的 `close()`（既有机制），store �
 
 - SW 里 IDB 可用（官方文档），与扩展页面共享同一份数据。SW 的 logger 同样 `addSink(store)` 即可，无需共享模块实例。
 - SW 平均 30 秒被回收：攒批中未提交的记录可能丢最后几十毫秒。warn/error 立即 flush（既有行为），可接受；best-practices 文档写明。
-- `indexedDB` 全局在 SW 缺失或打开失败时：写路径静默丢弃（依赖 `logo.ts` 既有的 `reportSinkError`，只报一次），`list()` 返回 `[]`、`read()` 返回 `null`。
+- `indexedDB` 全局在 SW 缺失或打开失败时：写路径丢弃、`list()` 返回 `[]`、`read()` 返回 `null`，不抛错；store 自带 `reportOnce` 在 open 失败 / 升级被挡 / 读失败时打一条 `console.error`（`logo.ts` 的 `reportSinkError` 只兜 sink 抛错，这里 store 从不抛，所以不靠它）。
 
 ### 5.6 已知限制（写进 best-practices）
 

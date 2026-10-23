@@ -198,25 +198,54 @@ describe("review 修复回归", () => {
   });
 });
 
-describe("复审修复", () => {
-  /** 直接读原始库：绕过 store 自己的 close 守卫。 */
-  function rawAll(dbName: string): Promise<Array<Record<string, unknown>>> {
-    return new Promise((resolve, reject) => {
-      const request = indexedDB.open(dbName);
-      request.onsuccess = () => {
-        const database = request.result;
-        const tx = database.transaction("records", "readonly");
-        const getAll = tx.objectStore("records").getAll();
-        getAll.onsuccess = () => {
-          database.close();
-          resolve(getAll.result as Array<Record<string, unknown>>);
-        };
-        getAll.onerror = () => reject(getAll.error);
+/** 直接读原始库：绕过 store 自己的 close 守卫。 */
+function rawAll(dbName: string): Promise<Array<Record<string, unknown>>> {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(dbName);
+    request.onsuccess = () => {
+      const database = request.result;
+      const tx = database.transaction("records", "readonly");
+      const getAll = tx.objectStore("records").getAll();
+      getAll.onsuccess = () => {
+        database.close();
+        resolve(getAll.result as Array<Record<string, unknown>>);
       };
-      request.onerror = () => reject(request.error);
-    });
-  }
+      getAll.onerror = () => reject(getAll.error);
+    };
+    request.onerror = () => reject(request.error);
+  });
+}
 
+/** 试着以指定版本打开：被挡或失败都返回 false，不抛。 */
+function tryOpenVersion(dbName: string, version: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const request = indexedDB.open(dbName, version);
+    request.onupgradeneeded = () => {};
+    request.onsuccess = () => {
+      request.result.close();
+      resolve(true);
+    };
+    request.onblocked = () => resolve(false);
+    request.onerror = () => resolve(false);
+  });
+}
+
+/** 轮询到条件成立为止。固定 sleep 在慢机器上会假失败。 */
+async function waitFor<T>(probe: () => Promise<T | null>, timeoutMs = 3000): Promise<T> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const value = await probe();
+    if (value !== null) {
+      return value;
+    }
+    if (Date.now() > deadline) {
+      throw new Error("等待条件超时");
+    }
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+}
+
+describe("复审修复", () => {
   test("业务字段 id 不与存储主键撞车，也不被吞掉", async () => {
     const store = makeStore();
     // 订单号是最常见的 id：同一条日志里出现两次不能互相覆盖
@@ -260,6 +289,17 @@ describe("复审修复", () => {
     expect(lines.map(msgOf)).toEqual(["a", "b"]);
   });
 
+  test("记录里的 id 为 null 也不中断整批写入", async () => {
+    const store = makeStore();
+    store([
+      { time: BASE_TIME, level: "info", msg: "guest", id: null },
+      { time: BASE_TIME, level: "info", msg: "after-null" },
+    ]);
+
+    const lines = (await store.read("info.log"))?.split("\n") ?? [];
+    expect(lines.map(msgOf)).toEqual(["guest", "after-null"]);
+  });
+
   test("close 之前排队的批次仍然落库（logger.dispose 的顺序）", async () => {
     const name = uniqueName();
     const store = createIndexedDbStore({ name, now: () => BASE_TIME + DAY });
@@ -267,8 +307,10 @@ describe("复审修复", () => {
     store([rec("info", "final")]);
     store.close();
 
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    const rows = await rawAll(name);
+    const rows = await waitFor(async () => {
+      const all = await rawAll(name);
+      return all.length > 0 ? all : null;
+    });
     expect(rows.map((row) => row.msg)).toEqual(["final"]);
   });
 
@@ -277,26 +319,28 @@ describe("复审修复", () => {
     const store = createIndexedDbStore({ name });
     store.close(); // 此刻 open 还没完成
 
-    await new Promise((resolve) => setTimeout(resolve, 20));
-    const upgraded = await new Promise<boolean>((resolve) => {
-      const request = indexedDB.open(name, 3);
-      request.onupgradeneeded = () => {};
-      request.onsuccess = () => {
-        request.result.close();
-        resolve(true);
-      };
-      request.onblocked = () => resolve(false);
-      request.onerror = () => resolve(false);
-    });
+    const upgraded = await waitFor(async () => ((await tryOpenVersion(name, 3)) ? true : null));
     expect(upgraded).toBe(true);
   });
 });
 
 describe("升级被挡", () => {
-  test("blocked 判失败后，连接不留在外面挡后续升级", async () => {
-    const name = uniqueName();
-    // 1) 造一个 v1 库，并保持连接打开（模拟旧标签页）
-    const legacy = await new Promise<IDBDatabase>((resolve, reject) => {
+  /** 临时接管 console.error：blocked 是异步上报的，等到它真的发生再继续。 */
+  async function withConsoleErrors<T>(fn: (errors: string[]) => Promise<T>): Promise<T> {
+    const errors: string[] = [];
+    const original = console.error;
+    console.error = (...args: unknown[]) => {
+      errors.push(args.map((arg) => String(arg)).join(" "));
+    };
+    try {
+      return await fn(errors);
+    } finally {
+      console.error = original;
+    }
+  }
+
+  function openLegacyV1(name: string): Promise<IDBDatabase> {
+    return new Promise((resolve, reject) => {
       const request = indexedDB.open(name, 1);
       request.onupgradeneeded = () => {
         request.result.createObjectStore("records", { keyPath: "id", autoIncrement: true });
@@ -304,28 +348,34 @@ describe("升级被挡", () => {
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);
     });
+  }
 
-    // 2) 新代码开 v2：被旧连接挡住
-    const store = createIndexedDbStore({ name, now: () => BASE_TIME + DAY });
-    store([rec("info", "x")]);
-    await new Promise((resolve) => setTimeout(resolve, 20));
+  test("blocked 解除后连接不残留，store 也不会永久降级", async () => {
+    const name = uniqueName();
+    const legacy = await openLegacyV1(name); // 旧标签页占着 v1 连接
 
-    // 3) 旧连接关掉，被挡的升级随后完成
-    legacy.close();
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await withConsoleErrors(async (errors) => {
+      const store = createIndexedDbStore({ name, now: () => BASE_TIME + DAY });
+      store([rec("info", "during-block")]); // 被挡期间的这批注定丢，不断言
 
-    // 4) 不能有残留连接挡 v3
-    const upgraded = await new Promise<boolean>((resolve) => {
-      const request = indexedDB.open(name, 3);
-      request.onupgradeneeded = () => {};
-      request.onsuccess = () => {
-        request.result.close();
-        resolve(true);
-      };
-      request.onblocked = () => resolve(false);
-      request.onerror = () => resolve(false);
+      // 必须先等到 blocked 真的上报，否则「关掉旧连接」与「发起 open」同轮，
+      // 升级根本不会被挡，这个测试就什么都没验证。
+      await waitFor(async () => (errors.some((line) => line.includes("阻塞")) ? true : null));
+
+      legacy.close(); // 旧标签页让路，升级随后完成
+
+      // 1) 阻塞解除后必须还能继续写（不永久降级）
+      const lines = await waitFor(async () => {
+        store([rec("info", "after-unblock")]);
+        const parsed = (await store.read("info.log"))?.split("\n") ?? [];
+        return parsed.some((line) => line.includes("after-unblock")) ? parsed : null;
+      });
+      expect(lines).toHaveLength(1);
+
+      // 2) 自己的连接也不能残留挡住别人的升级（v3 会触发 versionchange，放在最后）
+      const upgraded = await waitFor(async () => ((await tryOpenVersion(name, 3)) ? true : null));
+      expect(upgraded).toBe(true);
     });
-    expect(upgraded).toBe(true);
   });
 });
 
@@ -347,17 +397,6 @@ describe("版本升级让路", () => {
       request.onerror = () => resolve(false);
     });
     expect(upgraded).toBe(true);
-  });
-
-  test("记录里的 id 为 null 也不中断整批写入", async () => {
-    const store = makeStore();
-    store([
-      { time: BASE_TIME, level: "info", msg: "guest", id: null },
-      { time: BASE_TIME, level: "info", msg: "after-null" },
-    ]);
-
-    const lines = (await store.read("info.log"))?.split("\n") ?? [];
-    expect(lines.map(msgOf)).toEqual(["guest", "after-null"]);
   });
 });
 
@@ -386,10 +425,13 @@ describe("文档里的接线", () => {
     log.info("second");
     log.dispose(); // 文档：addEventListener("pagehide", () => log.dispose())
 
-    // 稍等队列落盘，用新连接读原始库
-    await new Promise((resolve) => setTimeout(resolve, 60));
-    const reopened = createIndexedDbStore({ name, now: () => BASE_TIME + DAY });
-    const lines = (await reopened.read("info.log"))?.split("\n") ?? [];
+    // 轮询到落盘，再用新连接读回
+    const lines = await waitFor(async () => {
+      const reopened = createIndexedDbStore({ name, now: () => BASE_TIME + DAY });
+      const parsed = (await reopened.read("info.log"))?.split("\n") ?? [];
+      reopened.close();
+      return parsed.length >= 2 ? parsed : null;
+    });
     expect(lines.map(msgOf)).toEqual(["first", "second"]);
   });
 });
