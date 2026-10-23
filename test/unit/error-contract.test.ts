@@ -24,7 +24,6 @@ function setup(): Shell {
       {
         name: "boom",
         note: "总是抛错",
-        public: true,
         run() {
           throw new Error("炸了");
         },
@@ -32,7 +31,6 @@ function setup(): Shell {
       {
         name: "slow",
         note: "永远不返回",
-        public: true,
         run: () => new Promise(() => {}),
       },
     ],
@@ -71,9 +69,10 @@ describe("错误响应契约", () => {
       { name: "空命令", req: post("/exec", { line: "   " }), status: 400, code: "bad_request" },
       { name: "body 不是 JSON", req: post("/exec", "not json"), status: 400, code: "bad_request" },
       { name: "line 不是字符串", req: post("/exec", { line: 42 }), status: 400, code: "bad_request" },
-      { name: "命令抛错", req: post("/exec", { line: "boom" }), status: 500, code: "internal_error" },
-      { name: "命令超时", req: post("/exec", { line: "slow" }), status: 504, code: "gateway_timeout" },
+      { name: "命令抛错", req: post("/exec", { line: "boom" }, token), status: 500, code: "internal_error" },
+      { name: "命令超时", req: post("/exec", { line: "slow" }, token), status: 504, code: "gateway_timeout" },
       { name: "受限命令无 token", req: post("/exec", { line: "top" }), status: 401, code: "unauthorized" },
+      { name: "自定义命令无 token", req: post("/exec", { line: "boom" }), status: 401, code: "unauthorized" },
       { name: "口令错", req: post("/auth", { user: "admin", password: "x" }), status: 401, code: "bad_credentials" },
       { name: "auth body 超长", req: post("/auth", "x".repeat(600)), status: 413, code: "payload_too_large" },
       { name: "exec body 超长", req: post("/exec", "x".repeat(5000)), status: 413, code: "payload_too_large" },

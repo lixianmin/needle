@@ -12,7 +12,7 @@ import { TEST_VERSION } from "../fixtures.js";
 const record = (msg: string): LogRecord => ({ time: 1, level: "info", msg });
 
 const commands: Command[] = [
-  { name: "help", note: "列出命令", public: true, run: () => ({ kind: "text", text: "" }) },
+  { name: "help", note: "列出命令", run: () => ({ kind: "text", text: "" }) },
 ];
 
 const topics: Topic[] = [
@@ -210,5 +210,25 @@ describe("订阅参数", () => {
   test("一条 URL 最多订 16 个主题", () => {
     const specs = parseTopicSpecs(many.map((topic) => topic.name).join(","), many);
     expect(specs).toHaveLength(16);
+  });
+});
+
+describe("多连接共用编码", () => {
+  test("同一帧只序列化一次（sendText），没有 sendText 的连接走回退", () => {
+    const broadcast = createBroadcast();
+    const texts: string[] = [];
+    const fallback: unknown[] = [];
+
+    broadcast.attach({ send: () => {}, sendText: (text) => texts.push(text), close: () => {} });
+    broadcast.attach({ send: () => {}, sendText: (text) => texts.push(text), close: () => {} });
+    broadcast.attach({ send: (_event, data) => fallback.push(data), close: () => {} });
+
+    broadcast.sink([record("a"), record("b")]);
+
+    expect(texts).toHaveLength(2);
+    expect(texts[0]).toBe(texts[1]);
+    expect(texts[0]).toContain("event: log");
+    expect(fallback).toHaveLength(1);
+    expect(fallback[0]).toEqual([record("a"), record("b")]);
   });
 });

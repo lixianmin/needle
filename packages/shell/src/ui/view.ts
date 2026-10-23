@@ -414,9 +414,8 @@ export function mountShell(root: HTMLElement, adapter: ShellAdapter): ShellView 
   const subscriptions = new Map<string, number | undefined>();
   let availableTopics: Array<{ name: string; intervalMs: number }> = [];
   let availableCommands: Array<{ name: string; note: string; args: string | null }> = [];
-
-  /** 控制台自己的命令，不在服务端命令表里也照样能补全。 */
-  const LOCAL_COMMANDS = ["auth", "sub", "unsub"] as const;
+  /** 未登录时只有 auth / help 可用：服务端的订阅与其它命令都要 401。 */
+  let loggedIn = false;
 
   function topicSpec(): string {
     return [...subscriptions.entries()]
@@ -437,6 +436,9 @@ export function mountShell(root: HTMLElement, adapter: ShellAdapter): ShellView 
         user.textContent = event.info.user ?? "未登录";
         availableTopics = event.info.topics;
         availableCommands = event.info.commands;
+        loggedIn = event.info.user !== null;
+        // 服务端的 /events 未登录会 401，所以这里的 handshake 一定带账号；
+        // 未登录的提示由适配器的 401 分支给出。
         break;
       case "logs": {
         if (paused) {
@@ -514,8 +516,8 @@ export function mountShell(root: HTMLElement, adapter: ShellAdapter): ShellView 
   }
 
   function commandNames(prefix: string): string[] {
-    const names = new Set(availableCommands.map((command) => command.name));
-    for (const name of LOCAL_COMMANDS) names.add(name);
+    // auth / help 不依赖登录（help 未登录只列这两条），其余命令来自 handshake。
+    const names = new Set(["auth", "help", ...availableCommands.map((command) => command.name)]);
     return [...names].filter((name) => name.startsWith(prefix)).sort();
   }
 
@@ -584,6 +586,11 @@ export function mountShell(root: HTMLElement, adapter: ShellAdapter): ShellView 
       }
 
       case "sub": {
+        // 订阅属于那条 SSE 流，未登录时连流都建不起来。
+        if (!loggedIn) {
+          pushText("未登录：先执行 auth <user>", "status");
+          return true;
+        }
         const topic = args[0];
         if (topic === undefined) {
           pushText(
@@ -608,6 +615,10 @@ export function mountShell(root: HTMLElement, adapter: ShellAdapter): ShellView 
       }
 
       case "unsub": {
+        if (!loggedIn) {
+          pushText("未登录：先执行 auth <user>", "status");
+          return true;
+        }
         const topic = args[0];
         if (topic === undefined) {
           subscriptions.clear();
@@ -641,8 +652,12 @@ export function mountShell(root: HTMLElement, adapter: ShellAdapter): ShellView 
 
       void adapter.authenticate(target, password).then(
         (result) => {
-          if (result.ok) pushText(`已登录：${result.user}`, "status");
-          else pushText(result.error, "status");
+          if (result.ok) {
+            loggedIn = true;
+            pushText(`已登录：${result.user}`, "status");
+          } else {
+            pushText(result.error, "status");
+          }
         },
         // 网络断开 / 网关塞了一页 HTML：不接 reject 的话这里完全没有提示。
         (error: unknown) => pushText(`登录请求失败：${String(error)}`, "status"),

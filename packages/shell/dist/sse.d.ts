@@ -2,6 +2,11 @@ import type { Sink } from "@needle/logo";
 import type { Command, Topic } from "./types.js";
 export interface Connection {
     send(event: string, data: unknown): void;
+    /**
+     * 已经编码好的帧。多连接时同一帧只序列化一次——几十条连接各自
+     * `JSON.stringify` 一遍是这条链路最大的 CPU 开销。
+     */
+    sendText?(text: string): void;
     close(): void;
 }
 export interface Broadcast {

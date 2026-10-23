@@ -20,11 +20,14 @@ function setup(extra: { commands?: Command[]; topics?: Topic[]; timeoutMs?: numb
 }
 
 describe("createShellSource", () => {
-  test("内置命令默认就在，help 可以匿名跑", async () => {
+  test("内置命令默认就在，help 匿名也能跑（只列 auth/help）", async () => {
     const { source } = setup();
     const result = await source.exec("help", null);
     expect(result.ok).toBe(true);
-    expect((result as { output: { text: string } }).output.text).toContain("log.list");
+
+    const text = (result as { output: { text: string } }).output.text;
+    expect(text).toContain("auth");
+    expect(text).not.toContain("log.list");
   });
 
   test("受限命令需要 token", async () => {
@@ -39,9 +42,10 @@ describe("createShellSource", () => {
 
   test("help 列出自定义命令", async () => {
     const { source } = setup({
-      commands: [{ name: "room", note: "房间状态", public: true, run: () => ({ kind: "text", text: "" }) }],
+      commands: [{ name: "room", note: "房间状态", run: () => ({ kind: "text", text: "" }) }],
     });
-    const result = await source.exec("help", null);
+    const token = (await source.auth.login("admin", "secret")) as string;
+    const result = await source.exec("help", token);
     const text = (result as { output: { text: string } }).output.text;
 
     // 分两段：自定义在前，内置在后，一眼能分清谁给的。
@@ -58,7 +62,7 @@ describe("createShellSource", () => {
 
   test("调用方命令优先于同名内置命令", async () => {
     const { source } = setup({
-      commands: [{ name: "help", note: "自定义", public: true, run: () => ({ kind: "text", text: "mine" }) }],
+      commands: [{ name: "help", note: "自定义", run: () => ({ kind: "text", text: "mine" }) }],
     });
     const result = await source.exec("help", null);
     expect((result as { output: { text: string } }).output.text).toBe("mine");
@@ -92,9 +96,10 @@ describe("createShellSource", () => {
 
   test("超时返回 timeout", async () => {
     const { source } = setup({
-      commands: [{ name: "hang", note: "", public: true, run: () => new Promise<never>(() => {}) }],
+      commands: [{ name: "hang", note: "", run: () => new Promise<never>(() => {}) }],
     });
-    expect(await source.exec("hang", null)).toEqual({ ok: false, code: "timeout", error: "timeout" });
+    const token = (await source.auth.login("admin", "secret")) as string;
+    expect(await source.exec("hang", token)).toEqual({ ok: false, code: "timeout", error: "timeout" });
   });
 
   test("命令抛错只回 message", async () => {
@@ -103,14 +108,14 @@ describe("createShellSource", () => {
         {
           name: "boom",
           note: "",
-          public: true,
           run: () => {
             throw new Error("detail");
           },
         },
       ],
     });
-    expect(await source.exec("boom", null)).toEqual({
+    const token = (await source.auth.login("admin", "secret")) as string;
+    expect(await source.exec("boom", token)).toEqual({
       ok: false,
       code: "command_failed",
       error: "Error: detail",
@@ -147,5 +152,28 @@ describe("日志来源", () => {
 
     expect(received.flat().some((record) => record.msg === "global-line")).toBe(true);
     source.dispose();
+  });
+});
+
+describe("未登录", () => {
+  test("help 只列 auth 与 help", async () => {
+    const { source } = setup();
+    const result = await source.exec("help", null);
+    const text = (result as { output: { text: string } }).output.text;
+
+    expect(text).toContain("auth");
+    expect(text).toContain("help");
+    expect(text).not.toContain("log.list");
+    expect(text).not.toContain("top");
+    expect(text).not.toContain("sub");
+  });
+
+  test("自定义命令与受限命令都返回 unauthorized", async () => {
+    const { source } = setup({
+      commands: [{ name: "room", note: "房间状态", run: () => ({ kind: "text", text: "" }) }],
+    });
+
+    expect(await source.exec("room", null)).toEqual({ ok: false, code: "unauthorized", error: "unauthorized" });
+    expect(await source.exec("top", null)).toEqual({ ok: false, code: "unauthorized", error: "unauthorized" });
   });
 });

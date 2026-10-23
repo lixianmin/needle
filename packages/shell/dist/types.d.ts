@@ -52,8 +52,6 @@ export interface Command {
     builtin?: boolean;
     /** 帮助里显示的参数说明，如 "[n]"。 */
     args?: string;
-    /** 匿名可执行。默认 false。 */
-    public?: boolean;
     run(ctx: CommandContext): Promise<CommandOutput> | CommandOutput;
 }
 /** 服务端周期性推送的数据源。 */

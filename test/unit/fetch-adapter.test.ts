@@ -58,3 +58,23 @@ describe("重连", () => {
     unsubscribe();
   });
 });
+
+describe("未登录提示", () => {
+  test("401 时提示 auth 与 help", async () => {
+    globalThis.fetch = (async () => new Response("unauthorized", { status: 401 })) as unknown as typeof fetch;
+
+    const adapter = createFetchAdapter({ basePath: "" });
+    const events: ShellEvent[] = [];
+    const unsubscribe = adapter.subscribe((event) => events.push(event));
+
+    await new Promise((resolve) => setTimeout(resolve, 30));
+
+    const status = events.find((event) => event.type === "status");
+    expect(status?.type).toBe("status");
+    if (status?.type === "status") {
+      expect(status.message).toContain("auth");
+      expect(status.message).toContain("help");
+    }
+    unsubscribe();
+  });
+});

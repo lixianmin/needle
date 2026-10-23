@@ -704,3 +704,41 @@ describe("焦点丢失时", () => {
     expect(document.activeElement).toBe(document.querySelector("input"));
   });
 });
+
+describe("未登录命令门禁", () => {
+  test("未登录时 sub 不生效，并提示先 auth", () => {
+    const { document, topicSpecs } = mount();
+
+    const input = document.querySelector("input") as unknown as HTMLInputElement;
+    input.value = "sub top";
+    (document.querySelector("form") as unknown as HTMLFormElement).dispatchEvent(
+      new (window as unknown as { Event: typeof Event }).Event("submit", { bubbles: true, cancelable: true }),
+    );
+
+    expect(document.querySelector(".output")?.textContent).toContain("未登录");
+    expect(topicSpecs).not.toContain("top");
+  });
+
+  test("登录后 sub 正常生效", () => {
+    const { document, emit, topicSpecs } = mount();
+    emit({
+      type: "handshake",
+      info: {
+        title: "node",
+        version: "1.0.0",
+        user: "admin",
+        commands: [],
+        topics: [{ name: "top", note: "", intervalMs: 1000 }],
+      },
+    });
+
+    const input = document.querySelector("input") as unknown as HTMLInputElement;
+    input.value = "sub top";
+    (document.querySelector("form") as unknown as HTMLFormElement).dispatchEvent(
+      new (window as unknown as { Event: typeof Event }).Event("submit", { bubbles: true, cancelable: true }),
+    );
+
+    expect(document.querySelector(".output")?.textContent).toContain("已订阅");
+    expect(topicSpecs).toContain("top");
+  });
+});

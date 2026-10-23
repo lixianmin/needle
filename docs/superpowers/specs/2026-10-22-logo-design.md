@@ -320,7 +320,6 @@ interface Command {
   name: string
   note: string
   args?: string                       // 帮助里显示的参数说明
-  public?: boolean                    // 匿名可执行，默认 false
   run(ctx: CommandContext): Promise<CommandOutput> | CommandOutput
 }
 
@@ -333,7 +332,7 @@ interface CommandContext {
 
 失败用抛错表示（`throw new CommandError("unknown command: foo")`），router 统一捕获并转成 `{ok:false, code, error}`（`code` 决定 HTTP 状态码）。这样 `run` 正常路径只返回输出，不用每层判断 `ok`。
 
-内置：`help`、`log.list`、`top`、`auth <user>`、`sub`、`unsub`。`help`/`auth`/`sub`/`unsub` 是 public，其余默认需要登录。不提供 `logout`：登录态是可过期的 token，过期即回到未登录，不需要主动退出。
+内置：`help`、`log.list`、`top`、`auth <user>`、`sub`、`unsub`。**未登录时只放行 `auth` 与 `help`**（后者也只列这两条），其余一律 401——包括宿主注册的命令，没有「匿名可跑」的开关。不提供 `logout`：登录态是可过期的 token，过期即回到未登录，不需要主动退出。
 
 名字重复时，调用方传入的命令优先于内置命令——内置只是默认值，不是特权层。
 
@@ -486,7 +485,7 @@ token   = payload + "." + base64url(HMAC-SHA256(secret, payload))
 - 没传 secret 就随机生成，重启后所有 token 失效，启动时打一行警告。Workers 上必须传固定 secret，否则每次 isolate 回收都会让已登录的浏览器掉线。
 - 密码直接以字符串保存在内存里，比较时逐字节等时比较（内存里存摘要不增加任何安全性）。
 - 前端把 token 存 localStorage（`logo.shell.token`），请求时放 `Authorization: Bearer <token>`。token 带 `exp`，默认 12 小时（`auth.ttlMs` 可调）；过期后前端回到未登录态，重新 `auth` 即可。
-- 未登录：`public` 命令可跑，其余返回 401，前端提示"先 auth"。
+- 未登录：只有 `auth` / `help` 可跑，其余返回 401，前端提示"先 auth"。
 - 不做 Basic auth：浏览器原生弹窗是一刀切的，而且凭据会被自动带给同源的其他接口。
 
 ## 13. 包与构建
