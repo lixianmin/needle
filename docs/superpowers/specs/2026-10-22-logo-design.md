@@ -222,7 +222,7 @@ Bun.serve({ port: 7701, fetch: shell.handler })
 
 不提供框架适配入口：没有 `./hono`、`./koa` 这类 subpath。框架集成就是上面那两行调用方代码，needle 的依赖表里不出现任何框架（`hono` 连 devDependency 都不进，否则"装了 Hono 的人"和"没装的人"拿到的就不是同一个包）。
 
-shell 把日志推到页面的**日志分栏**（§11），不进命令输出区：`options.logger.addSink(broadcast.sink)`，`dispose()` 时摘掉。**服务端不按级别二次过滤**——级别由 `logger` 自己决定（`setLevel`/`newLogger({ level })`），logger 交出来的记录原样转发；单帧最多 200 条，避免一次突发变成几 MB 的帧。这里没有任何历史存储：不打开 shell 时一条也不留；`log.list` 仍然读磁盘文件（有文件系统时），分栏只负责「此刻在发生什么」。
+shell 把日志推到页面的**日志分栏**（§11），不进命令输出区：`logger.addSink(broadcast.sink)`，`dispose()` 时摘掉。`logger` 不传就用 `@needle/logo` 的全局实例——全项目写同一个 logger 时，右栏自然接管所有日志。**服务端不按级别二次过滤**——级别由 `logger` 自己决定（`setLevel`/`newLogger({ level })`），logger 交出来的记录原样转发；单帧最多 200 条，避免一次突发变成几 MB 的帧。这里没有任何历史存储：不打开 shell 时一条也不留；`log.list` 仍然读磁盘文件（有文件系统时），分栏只负责「此刻在发生什么」。
 
 上一版曾把日志直接追加到命令输出区，量一大就把输入区冲走；现在改成右侧分栏 + 虚拟滚动，见 §11。
 

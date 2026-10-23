@@ -1,3 +1,4 @@
+import { logo } from "@needle/logo";
 import { createAuth } from "./auth.js";
 import { createBuiltinCommands, createHelpCommand } from "./builtins.js";
 import { CommandError, findCommand, splitArgs } from "./commands.js";
@@ -34,7 +35,8 @@ export function createShellSource(options) {
     const metrics = createMetrics({ connections: () => broadcast.count() });
     const auth = createAuth(options.auth);
     // 日志推给页面的日志栏；查历史仍然走 log.list。
-    options.logger.addSink(broadcast.sink);
+    const logger = options.logger ?? logo;
+    logger.addSink(broadcast.sink);
     const basePath = options.basePath ?? "";
     const builtins = createBuiltinCommands({
         metrics,
@@ -97,7 +99,7 @@ export function createShellSource(options) {
         });
         try {
             const output = await Promise.race([
-                Promise.resolve(command.run({ args, user, log: options.logger })),
+                Promise.resolve(command.run({ args, user, log: logger })),
                 deadline,
             ]);
             return { ok: true, output };
@@ -135,7 +137,7 @@ export function createShellSource(options) {
                 return;
             disposed = true;
             broadcast.closeAll();
-            options.logger.removeSink(broadcast.sink);
+            logger.removeSink(broadcast.sink);
         },
     };
 }
