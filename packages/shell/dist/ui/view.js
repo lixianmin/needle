@@ -250,7 +250,14 @@ export function mountShell(root, adapter) {
                     sortIndex = index;
                     direction = 1;
                 }
-                const sorted = [...rows].sort((left, right) => compare(left[index], right[index]) * direction);
+                const sorted = [...rows].sort((left, right) => {
+                    const a = left[index] ?? null;
+                    const b = right[index] ?? null;
+                    // 空值永远排最后：乘以 direction 会让降序时它们跑到最前面。
+                    if (a === null || b === null)
+                        return a === null ? (b === null ? 0 : 1) : -1;
+                    return compare(a, b) * direction;
+                });
                 renderBody(sorted);
                 headers.forEach((header, i) => {
                     const mark = header.querySelector(".mark");
@@ -403,6 +410,9 @@ export function mountShell(root, adapter) {
             return;
         if (isEditable(doc.activeElement))
             return;
+        // Enter 是按钮/链接的默认激活方式，抢走它键盘就没法操作控制台自己的控件。
+        if (doc.activeElement?.closest?.("button, a, [role='button']") !== null)
+            return;
         event.preventDefault();
         input.focus();
     };
@@ -548,7 +558,9 @@ export function mountShell(root, adapter) {
                     pushText(`已登录：${result.user}`, "status");
                 else
                     pushText(result.error, "status");
-            });
+            }, 
+            // 网络断开 / 网关塞了一页 HTML：不接 reject 的话这里完全没有提示。
+            (error) => pushText(`登录请求失败：${String(error)}`, "status"));
             return;
         }
         const line = input.value.trim();
@@ -562,7 +574,9 @@ export function mountShell(root, adapter) {
         remember(line);
         if (runLocal(name, args))
             return;
-        void adapter.exec(line).then(renderOutput);
+        void adapter.exec(line).then(renderOutput, (error) => {
+            pushText(`请求失败：${String(error)}`, "status");
+        });
     });
     input.addEventListener("keydown", (event) => {
         if (event.key === "Escape" && pendingUser !== null) {
@@ -579,6 +593,9 @@ export function mountShell(root, adapter) {
             return;
         }
         if (event.key !== "ArrowUp" && event.key !== "ArrowDown")
+            return;
+        // 密码框里翻历史会把上一条命令当密码提交，用户还看不出发生了什么。
+        if (pendingUser !== null)
             return;
         if (history.length === 0)
             return;

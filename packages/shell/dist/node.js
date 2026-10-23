@@ -21,16 +21,42 @@ async function writeResponse(response, res) {
         return;
     }
     const reader = response.body.getReader();
-    for (;;) {
-        const { done, value } = await reader.read();
-        if (done)
-            break;
-        // write 返回 false 表示内核缓冲满了：等 drain 再继续，否则大响应会把内存吃光。
-        if (!res.write(value)) {
-            await new Promise((resolve) => res.once("drain", resolve));
+    // 客户端断开时只有 res 会 close，body 那边收不到通知：不 cancel 的话
+    // sse.ts 的 cancel() 永远不执行，订阅者与定时器就都留在进程里。
+    const onClose = () => {
+        void reader.cancel().catch(() => { });
+    };
+    res.once("close", onClose);
+    try {
+        for (;;) {
+            const { done, value } = await reader.read();
+            if (done)
+                break;
+            // write 返回 false 表示内核缓冲满了：等 drain 再继续，否则大响应会把内存吃光。
+            if (!res.write(value)) {
+                await new Promise((resolve) => {
+                    const finish = () => {
+                        res.off("drain", finish);
+                        res.off("close", finish);
+                        res.off("error", finish);
+                        resolve();
+                    };
+                    // 断开的连接不会再有 drain，只等它就会把这条请求永久挂住。
+                    res.once("drain", finish);
+                    res.once("close", finish);
+                    res.once("error", finish);
+                });
+            }
+            if (res.destroyed || res.writableEnded)
+                break;
         }
     }
-    res.end();
+    finally {
+        res.off("close", onClose);
+        void reader.cancel().catch(() => { });
+    }
+    if (!res.writableEnded && !res.destroyed)
+        res.end();
 }
 async function handle(handler, req, res) {
     const method = req.method ?? "GET";

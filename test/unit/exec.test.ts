@@ -104,3 +104,23 @@ describe("/exec 适配器", () => {
     expect(await res.json()).toEqual({ code: "gateway_timeout", message: "timeout" });
   });
 });
+
+describe("请求体上限", () => {
+  test("chunked 请求不带 content-length 也挡得住", async () => {
+    const encoder = new TextEncoder();
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(encoder.encode("x".repeat(5000)));
+        controller.close();
+      },
+    });
+    const req = new Request("http://x/exec", {
+      method: "POST",
+      body,
+      duplex: "half",
+    } as RequestInit);
+
+    const res = await setup()(req);
+    expect(res.status).toBe(413);
+  });
+});

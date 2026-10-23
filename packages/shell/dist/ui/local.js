@@ -7,6 +7,7 @@
 export function createLocalAdapter(source) {
     const listeners = new Set();
     let attached = false;
+    let detach;
     let timers = [];
     const emit = (event) => {
         for (const listener of listeners)
@@ -16,7 +17,7 @@ export function createLocalAdapter(source) {
         if (attached)
             return;
         attached = true;
-        source.broadcast.attach({
+        detach = source.broadcast.attach({
             send(event, data) {
                 if (event === "log")
                     emit({ type: "logs", records: data });
@@ -96,6 +97,16 @@ export function createLocalAdapter(source) {
             });
             return () => {
                 listeners.delete(listener);
+                if (listeners.size > 0)
+                    return;
+                // 面板卸载：定时器和广播连接一起收回。留着的话每次重新挂载都会
+                // 多一份每秒读主题的 interval，broadcast.count() 也永远降不下来。
+                for (const timer of timers)
+                    clearInterval(timer);
+                timers = [];
+                detach?.();
+                detach = undefined;
+                attached = false;
             };
         },
     };

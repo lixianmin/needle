@@ -11,6 +11,7 @@ import type { AuthResult, ShellAdapter, ShellEvent, ExecResult, FileResult } fro
 export function createLocalAdapter(source: ShellSource): ShellAdapter {
   const listeners = new Set<(event: ShellEvent) => void>();
   let attached = false;
+  let detach: (() => void) | undefined;
   let timers: Array<ReturnType<typeof setInterval>> = [];
 
   const emit = (event: ShellEvent): void => {
@@ -21,7 +22,7 @@ export function createLocalAdapter(source: ShellSource): ShellAdapter {
     if (attached) return;
     attached = true;
 
-    source.broadcast.attach({
+    detach = source.broadcast.attach({
       send(event, data) {
         if (event === "log") emit({ type: "logs", records: data as LogRecord[] });
         if (event === "topic") {
@@ -110,6 +111,15 @@ export function createLocalAdapter(source: ShellSource): ShellAdapter {
 
       return () => {
         listeners.delete(listener);
+        if (listeners.size > 0) return;
+
+        // 面板卸载：定时器和广播连接一起收回。留着的话每次重新挂载都会
+        // 多一份每秒读主题的 interval，broadcast.count() 也永远降不下来。
+        for (const timer of timers) clearInterval(timer);
+        timers = [];
+        detach?.();
+        detach = undefined;
+        attached = false;
       };
     },
   };

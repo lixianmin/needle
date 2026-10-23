@@ -1,4 +1,4 @@
-import { readdir, readFile, stat } from "node:fs/promises";
+import { lstat, readdir, readFile } from "node:fs/promises";
 import { join, resolve, sep } from "node:path";
 
 import type { LogFileEntry, LogFiles } from "../logo/types.js";
@@ -6,7 +6,11 @@ import type { LogFileEntry, LogFiles } from "../logo/types.js";
 export interface LogFilesOptions {
   /** 日志目录，相对路径按进程 cwd 解析。 */
   dir: string;
+  /** 单个文件读入内存的上限，超过按"读不到"处理。默认 8MB。 */
+  maxFileBytes?: number;
 }
+
+const DEFAULT_MAX_FILE_BYTES = 8 * 1024 * 1024;
 
 /**
  * 把日志目录暴露给控制台。
@@ -17,6 +21,12 @@ export interface LogFilesOptions {
  */
 export function createLogFiles(options: LogFilesOptions): LogFiles {
   const dir = resolve(options.dir);
+  const maxFileBytes = options.maxFileBytes ?? DEFAULT_MAX_FILE_BYTES;
+
+  /** 只暴露日志文件：目录里误放的 .env、备份、符号链接都不该被控制台读到。 */
+  function isLogFile(name: string): boolean {
+    return name.endsWith(".log") && !name.includes("/") && !name.includes("\\") && !name.includes("\0");
+  }
 
   return {
     async list(): Promise<LogFileEntry[]> {
@@ -30,8 +40,9 @@ export function createLogFiles(options: LogFilesOptions): LogFiles {
 
       const entries: LogFileEntry[] = [];
       for (const name of names) {
-        const info = await stat(join(dir, name)).catch(() => null);
-        if (info === null || !info.isFile()) continue;
+        if (!isLogFile(name)) continue;
+        const info = await lstat(join(dir, name)).catch(() => null);
+        if (info === null || !info.isFile()) continue;   // 符号链接 isFile() 为 false
         entries.push({ name, size: info.size, modified: info.mtimeMs });
       }
 
@@ -40,14 +51,14 @@ export function createLogFiles(options: LogFilesOptions): LogFiles {
 
     async read(name: string): Promise<string | null> {
       // 分隔符、.. 一律拒绝：不给自己留拼接路径的机会。
-      if (name === "" || name.includes("/") || name.includes("\\") || name.includes("\0")) {
-        return null;
-      }
+      if (!isLogFile(name)) return null;
 
       const full = resolve(dir, name);
       if (full !== join(dir, name) || !full.startsWith(dir + sep)) return null;
 
       try {
+        const info = await lstat(full);
+        if (!info.isFile() || info.size > maxFileBytes) return null;
         return await readFile(full, "utf8");
       } catch {
         return null;

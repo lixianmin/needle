@@ -189,7 +189,7 @@ sink 是同步函数。抛错被捕获并忽略（一条坏 sink 不能拖垮业
 
 按大小滚动，单文件默认 10MB，归档名形如 `info-2026-10-22T12-00-00-000Z.log`，保留 7 天。用 `appendFileSync` 一次写一个 batch——反正已经是每 100ms 一次，阻塞时间可以接受，换来的是「warn/error 立即落盘」和「退出前 flush 就真的写下去了」。
 
-**飞书**（`@needle/logo` 的默认入口）：把 batch 推到群机器人 webhook。默认只推 `error` 级别，超出窗口的记录合并成一条消息，令牌桶限流（默认 20 条/分钟），支持可选签名密钥。用 `fetch`，Workers 可用。
+**飞书**（`@needle/logo` 的默认入口）：把 batch 推到群机器人 webhook。默认只推 `error` 级别，超出窗口的记录合并成一条消息（按 UTF-8 字节截到 24KB），令牌桶限流（默认 20 条/分钟，按时间比例补充），支持可选签名密钥。用 `fetch`，Workers 可用。
 
 ## 8. 控制台
 
@@ -240,7 +240,7 @@ shell 把日志推到页面的**日志分栏**（§11），不进命令输出区
 | GET | `/health` | `{"ok":true}` |
 | GET | `/log/<name>` | 日志文件全文，需 `Authorization: Bearer` |
 
-路由写成一张表：`{ method, pattern, handler }`，`pattern` 里的 `:name` 占一个路径段（`/log/<name>` 即 `/log/:name`），解出的参数进 handler 的上下文。表在 `router.ts`，剥 `basePath`、按 method + 路径匹配也在那里；handler 只收拿到的 `Request`、`URL` 和参数，不碰分派。参数只吃单段——日志文件名不含 `/`（`log-files.read` 自己也会拒），多段的 `/log/a/b` 直接 404。
+路由写成一张表：`{ method, pattern, handler }`，`pattern` 里的 `:name` 占一个路径段（`/log/<name>` 即 `/log/:name`），解出的参数进 handler 的上下文。表在 `router.ts`，剥 `basePath`、按 method + 路径匹配也在那里；handler 只收拿到的 `Request`、`URL` 和参数，不碰分派。参数只吃单段——日志文件名不含 `/`，多段的 `/log/a/b` 直接 404。`log-files.read` 只认 `.log`、拒绝符号链接、超过 8MB 按读不到处理。
 
 命令结果走 POST 的响应体，不走 SSE。理由：请求/响应本身是天然的一问一答，同步返回比"发出去再等推送"少一套 id 对账和超时清理。SSE 只负责服务端主动推的东西。
 
@@ -390,7 +390,7 @@ interface Topic {
 
 ## 9. 指标
 
-`top`（命令）与 `top`/`mem`（主题）读同一个内部指标对象，Node 与 Workers 各给一份实现。检测在首次 `read()` 时做一次并缓存。
+`top`（命令）与 `top`/`mem`（主题）读同一个内部指标对象，Node 与 Workers 各给一份实现。同一秒内复用一次探测，跨秒重新读——永久缓存会让 `top` 永远返回第一次的快照。
 
 探测只看能力，**不做任何 import**：`import(变量)` 在 workerd 里是非法的（要求静态模块说明符，运行到就抛 `ERR_MODULE_DYNAMIC_SPEC`）。这条是 miniflare 集成测试跑出来的，不是推测。判定条件就是 `typeof process?.memoryUsage === "function"`：边缘运行时要么没有 `process`，要么只有残缺替身。
 

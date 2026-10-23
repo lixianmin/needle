@@ -8,7 +8,7 @@ const DEFAULT_MAX_BUFFER = 10_000;
 /** 栈帧里属于本库内部的行，采集时要剪掉，否则看到的全是自己的帧。 */
 // 拆包后本库内部帧的路径是 `…/logo/src/logo/logo.ts` 或 `…/logo/dist/logo/logo.js`。
 // 只匹配 `…/logo/(src|dist)/logo/…`，避免误伤用户自己的 src/logo/logo.ts。
-const INTERNAL_FRAME = /\/logo\/(?:src|dist)\/logo\/(?:logo|record)\.[jt]s:/;
+const INTERNAL_FRAME = /[\\/]logo[\\/](?:src|dist)[\\/]logo[\\/](?:logo|record)\.[jt]s:/;
 /**
  * 捕获调用点。
  *
@@ -33,6 +33,7 @@ export function newLogger(options = {}) {
     let buffer = [];
     let timer;
     let sinkReported = false;
+    let disposed = false;
     const sinks = [...(options.sinks ?? [])];
     const fixedFields = { ...options.fields };
     function reportSinkError(error) {
@@ -76,6 +77,9 @@ export function newLogger(options = {}) {
         handle.unref?.();
     }
     function emit(recordLevel, args) {
+        // dispose 之后静默丢弃：之前 stdout 还在写、文件 sink 已经丢了，行为不一致。
+        if (disposed)
+            return;
         if (LEVELS[recordLevel] < LEVELS[level])
             return;
         const withStack = stackLevel !== "off" && LEVELS[recordLevel] >= LEVELS[stackLevel];
@@ -140,6 +144,7 @@ export function newLogger(options = {}) {
         },
         flush,
         dispose() {
+            disposed = true;
             clearTimer();
             flush();
             for (const sink of sinks) {

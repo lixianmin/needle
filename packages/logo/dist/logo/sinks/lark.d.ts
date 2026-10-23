@@ -14,6 +14,7 @@ export interface LarkSinkOptions {
 }
 export type LarkSink = Sink & {
     flush(): Promise<void>;
+    close(): void;
 };
 /**
  * 飞书群机器人 sink。

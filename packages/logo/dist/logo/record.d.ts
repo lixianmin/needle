@@ -8,7 +8,7 @@ import type { Level, LogRecord } from "./types.js";
  *
  * 代价是每次写日志多一次遍历。日志对象通常很小，这个代价远小于丢日志的风险。
  */
-export declare function sanitize(value: unknown, depth?: number, seen?: WeakSet<object>): unknown;
+export declare function sanitize(value: unknown, depth?: number, ancestors?: WeakSet<object>): unknown;
 /** 序列化成字符串，失败时退回 `String(value)`。序列化本身永不抛。 */
 export declare function safeStringify(value: unknown): string;
 export interface BuildOptions {

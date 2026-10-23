@@ -2,6 +2,8 @@ import type { LogFiles } from "../logo/types.js";
 export interface LogFilesOptions {
     /** 日志目录，相对路径按进程 cwd 解析。 */
     dir: string;
+    /** 单个文件读入内存的上限，超过按"读不到"处理。默认 8MB。 */
+    maxFileBytes?: number;
 }
 /**
  * 把日志目录暴露给控制台。

@@ -15,48 +15,56 @@ const MAX_DEPTH = 8;
  *
  * 代价是每次写日志多一次遍历。日志对象通常很小，这个代价远小于丢日志的风险。
  */
-export function sanitize(value: unknown, depth = 0, seen = new WeakSet<object>()): unknown {
+export function sanitize(value: unknown, depth = 0, ancestors = new WeakSet<object>()): unknown {
+  // 函数不是对象，但旧实现把判断放在早退之后，于是函数值原样进了记录。
+  if (typeof value === "function") return "[Function]";
+
   if (value === null || typeof value !== "object") {
     // BigInt 不能进 JSON，转成字符串保住精度。
     return typeof value === "bigint" ? value.toString() : value;
   }
 
-  if (typeof value === "function") return "[Function]";
-  if (seen.has(value)) return CIRCULAR;
   if (depth >= MAX_DEPTH) return "[Depth]";
 
-  seen.add(value);
+  // 只沿当前路径去环：`{ start: d, end: d }` 是共享引用，不是环。旧实现用
+  // 一个贯穿整次遍历的 WeakSet，第二个 d 就被误判成 "[Circular]"。
+  if (ancestors.has(value)) return CIRCULAR;
 
-  if (value instanceof Error) {
-    return { message: value.message, stack: value.stack };
-  }
-
-  if (value instanceof Date) {
-    return value.toISOString();
-  }
-
-  if (Array.isArray(value)) {
-    return value.map((item) => sanitize(item, depth + 1, seen));
-  }
-
-  const copy: Record<string, unknown> = {};
-  let keys: string[];
+  ancestors.add(value);
   try {
-    // Object.keys 不会触发 getter，先把键取完再逐个取值，单字段出错不影响其余字段。
-    keys = Object.keys(value);
-  } catch {
-    return "[Throws]";
-  }
-
-  for (const key of keys) {
-    try {
-      copy[key] = sanitize((value as Record<string, unknown>)[key], depth + 1, seen);
-    } catch {
-      // getter 抛异常。一条坏字段不该毁掉整条日志。
-      copy[key] = "[Throws]";
+    if (value instanceof Error) {
+      return { message: value.message, stack: value.stack };
     }
+
+    if (value instanceof Date) {
+      return value.toISOString();
+    }
+
+    if (Array.isArray(value)) {
+      return value.map((item) => sanitize(item, depth + 1, ancestors));
+    }
+
+    const copy: Record<string, unknown> = {};
+    let keys: string[];
+    try {
+      // Object.keys 不会触发 getter，先把键取完再逐个取值，单字段出错不影响其余字段。
+      keys = Object.keys(value);
+    } catch {
+      return "[Throws]";
+    }
+
+    for (const key of keys) {
+      try {
+        copy[key] = sanitize((value as Record<string, unknown>)[key], depth + 1, ancestors);
+      } catch {
+        // getter 抛异常。一条坏字段不该毁掉整条日志。
+        copy[key] = "[Throws]";
+      }
+    }
+    return copy;
+  } finally {
+    ancestors.delete(value);
   }
-  return copy;
 }
 
 /** 序列化成字符串，失败时退回 `String(value)`。序列化本身永不抛。 */

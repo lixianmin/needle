@@ -11,7 +11,10 @@
 export function createMetrics(options = {}) {
     const now = options.now ?? Date.now;
     const startedAt = now();
+    /** 同一秒内复用一次探测，跨秒重新读——之前一缓存就是永久，top 永远返回历史值。 */
+    const CACHE_TTL_MS = 1000;
     let cached;
+    let cachedAt = 0;
     function detect() {
         const base = {
             uptimeMs: now() - startedAt,
@@ -39,7 +42,11 @@ export function createMetrics(options = {}) {
     }
     return {
         read() {
-            cached ??= Promise.resolve(detect());
+            const at = now();
+            if (cached === undefined || at - cachedAt >= CACHE_TTL_MS) {
+                cached = Promise.resolve(detect());
+                cachedAt = at;
+            }
             return cached;
         },
     };

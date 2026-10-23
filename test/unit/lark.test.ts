@@ -96,7 +96,39 @@ describe("createLarkSink", () => {
     await sink.flush();
 
     const text = JSON.parse(calls[0]?.body as string).content.text as string;
-    expect(text.length).toBeLessThan(19_000);
+    expect(new TextEncoder().encode(text).length).toBeLessThan(25_000);
+    expect(text.endsWith("…(截断)")).toBe(true);
+  });
+});
+
+describe("错误详情与退出", () => {
+  test("logo.error(err) 里带 message 与 stack", async () => {
+    const { sink, calls } = setup();
+    sink([{ time: 1, level: "error", message: "card declined", stack: "Error: card declined\n    at pay (x.ts:1:1)" }]);
+    await sink.flush();
+
+    const text = JSON.parse(calls[0]?.body as string).content.text;
+    expect(text).toContain("card declined");
+    expect(text).toContain("at pay");
+  });
+
+  test("close() 把队列里最后一条发出去", async () => {
+    const { sink, calls } = setup();
+    sink([record("error", "last one")]);
+    sink.close();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(calls).toHaveLength(1);
+    expect(JSON.parse(calls[0]?.body as string).content.text).toContain("last one");
+  });
+
+  test("按 UTF-8 字节截断，中文不会超限", async () => {
+    const { sink, calls } = setup();
+    sink([record("error", "汉".repeat(20_000))]);
+    await sink.flush();
+
+    const text = JSON.parse(calls[0]?.body as string).content.text as string;
+    expect(new TextEncoder().encode(text).length).toBeLessThan(25_000);
     expect(text.endsWith("…(截断)")).toBe(true);
   });
 });

@@ -193,3 +193,22 @@ describe("广播日志帧", () => {
     expect((received[2]?.data as unknown[]).length).toBe(50);
   });
 });
+
+describe("订阅参数", () => {
+  const many: Topic[] = Array.from({ length: 20 }, (_, index) => ({
+    name: `t${index}`,
+    note: "",
+    intervalMs: 1000,
+    read: async () => ({}),
+  }));
+
+  test("同名主题只保留一个", () => {
+    const specs = parseTopicSpecs("t1:1000,t1:2000,t2", many);
+    expect(specs.map((spec) => spec.topic.name)).toEqual(["t1", "t2"]);
+  });
+
+  test("一条 URL 最多订 16 个主题", () => {
+    const specs = parseTopicSpecs(many.map((topic) => topic.name).join(","), many);
+    expect(specs).toHaveLength(16);
+  });
+});

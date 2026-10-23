@@ -94,3 +94,26 @@ describe("safeStringify", () => {
     expect(safeStringify(hostile)).toBe('{"boom":"[Throws]"}');
   });
 });
+
+describe("共享引用与函数", () => {
+  test("同一个对象出现在两个字段里不算循环引用", () => {
+    const shared = { x: 1 };
+    const date = new Date(0);
+    const record = buildRecord("info", [{ a: shared, b: { c: shared }, d: date, e: date }], {});
+
+    expect(record.b).toEqual({ c: { x: 1 } });
+    expect(record.e).toBe("1970-01-01T00:00:00.000Z");
+  });
+
+  test("真正的环仍然被挡下", () => {
+    const node: Record<string, unknown> = { name: "root" };
+    node.self = node;
+    expect(buildRecord("info", [node], {}).self).toBe("[Circular]");
+  });
+
+  test("函数值转成 [Function]，不再原样进记录", () => {
+    const record = buildRecord("info", [{ cb: () => 1, list: [() => 1] }], {});
+    expect(record.cb).toBe("[Function]");
+    expect(record.list).toEqual(["[Function]"]);
+  });
+});

@@ -1,5 +1,6 @@
-import { readdir, readFile, stat } from "node:fs/promises";
+import { lstat, readdir, readFile } from "node:fs/promises";
 import { join, resolve, sep } from "node:path";
+const DEFAULT_MAX_FILE_BYTES = 8 * 1024 * 1024;
 /**
  * 把日志目录暴露给控制台。
  *
@@ -9,6 +10,11 @@ import { join, resolve, sep } from "node:path";
  */
 export function createLogFiles(options) {
     const dir = resolve(options.dir);
+    const maxFileBytes = options.maxFileBytes ?? DEFAULT_MAX_FILE_BYTES;
+    /** 只暴露日志文件：目录里误放的 .env、备份、符号链接都不该被控制台读到。 */
+    function isLogFile(name) {
+        return name.endsWith(".log") && !name.includes("/") && !name.includes("\\") && !name.includes("\0");
+    }
     return {
         async list() {
             let names;
@@ -21,22 +27,26 @@ export function createLogFiles(options) {
             }
             const entries = [];
             for (const name of names) {
-                const info = await stat(join(dir, name)).catch(() => null);
-                if (info === null || !info.isFile())
+                if (!isLogFile(name))
                     continue;
+                const info = await lstat(join(dir, name)).catch(() => null);
+                if (info === null || !info.isFile())
+                    continue; // 符号链接 isFile() 为 false
                 entries.push({ name, size: info.size, modified: info.mtimeMs });
             }
             return entries.sort((left, right) => left.name.localeCompare(right.name));
         },
         async read(name) {
             // 分隔符、.. 一律拒绝：不给自己留拼接路径的机会。
-            if (name === "" || name.includes("/") || name.includes("\\") || name.includes("\0")) {
+            if (!isLogFile(name))
                 return null;
-            }
             const full = resolve(dir, name);
             if (full !== join(dir, name) || !full.startsWith(dir + sep))
                 return null;
             try {
+                const info = await lstat(full);
+                if (!info.isFile() || info.size > maxFileBytes)
+                    return null;
                 return await readFile(full, "utf8");
             }
             catch {

@@ -9,6 +9,9 @@ const MAX_INTERVAL_MS = 60_000;
 /** 注释心跳。反向代理会切断长时间无数据的连接，注释行不影响事件流。 */
 const DEFAULT_HEARTBEAT_MS = 15_000;
 
+/** 单条连接最多订阅多少个主题：`?topics=` 每条约 6 字节，16KB 的头能塞进几千个。 */
+const MAX_TOPIC_SPECS = 16;
+
 /** 单帧最多带多少条日志。一次 flush 可能上千条，切成小帧客户端才跟得上。 */
 const MAX_LOG_FRAME = 200;
 
@@ -84,10 +87,15 @@ export function parseTopicSpecs(spec: string | null, topics: readonly Topic[]): 
   if (spec === null || spec.trim() === "") return [];
 
   const specs: TopicSpec[] = [];
+  const seen = new Set<string>();
   for (const part of spec.split(",")) {
+    if (specs.length >= MAX_TOPIC_SPECS) break;
     const [name, rawInterval] = part.split(":");
-    const topic = topics.find((candidate) => candidate.name === name?.trim());
-    if (topic === undefined) continue;
+    const trimmed = name?.trim() ?? "";
+    const topic = topics.find((candidate) => candidate.name === trimmed);
+    // 去重：同一个名字重复出现会重复建 interval，一条 URL 就能压满事件循环。
+    if (topic === undefined || seen.has(topic.name)) continue;
+    seen.add(topic.name);
 
     const requested = rawInterval === undefined ? topic.intervalMs : Number(rawInterval);
     const intervalMs = Number.isFinite(requested)
@@ -125,6 +133,13 @@ export function createSseResponse(init: SseInit): Response {
   let detach: (() => void) | undefined;
   const timers: ReturnType<typeof setInterval>[] = [];
 
+  /** 唯一的清理出口：定时器不清，连接关了也还在每秒读主题。 */
+  function teardown(): void {
+    closed = true;
+    for (const timer of timers) clearInterval(timer);
+    timers.length = 0;
+  }
+
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
       let lastWrite = Date.now();
@@ -145,7 +160,7 @@ export function createSseResponse(init: SseInit): Response {
         },
         close() {
           if (closed) return;
-          closed = true;
+          teardown();
           try {
             controller.close();
           } catch {
@@ -176,6 +191,7 @@ export function createSseResponse(init: SseInit): Response {
         let busy = false;
         timers.push(
           setInterval(() => {
+            if (closed) return;
             // 慢主题不叠加：上一轮没读完就跳过这一轮，否则连接会被越堆越多的
             // 读取任务拖死。
             if (busy) return;
@@ -199,6 +215,7 @@ export function createSseResponse(init: SseInit): Response {
       // 这一行是给它们看的，控制台里不会显示。
       timers.push(
         setInterval(() => {
+          if (closed) return;
           if (Date.now() - lastWrite < heartbeatMs) return;
           write(": ping\n\n");
         }, heartbeatMs),
@@ -207,9 +224,7 @@ export function createSseResponse(init: SseInit): Response {
     },
 
     cancel() {
-      closed = true;
-      for (const timer of timers) clearInterval(timer);
-      timers.length = 0;
+      teardown();
       detach?.();
       detach = undefined;
     },
