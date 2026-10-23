@@ -1,6 +1,6 @@
 import { button, el } from "./dom.js";
 
-/** 控制台用到的全部 DOM 节点。 */
+/**Shell 用到的全部 DOM 节点。 */
 export interface ShellLayout {
   wrap: HTMLElement;
   header: HTMLElement;
@@ -104,8 +104,8 @@ function buildSidebar(doc: Document): SidebarParts {
   return { aside, logTab, topicTab, tools, pause, clear, level, droppedLabel, logPanel, topicPanel };
 }
 
-/** 拼出控制台的整棵 DOM（不含日志列表，那两块由 view 挂上去）。 */
-export function buildLayout(doc: Document): ShellLayout {
+/** 拼出 Shell 的整棵 DOM（不含日志列表，那两块由 view 挂上去）。 */
+export function buildLayout(doc: Document):ShellLayout {
   const head = buildHeader(doc);
   const out = buildOutput(doc);
   const side = buildSidebar(doc);

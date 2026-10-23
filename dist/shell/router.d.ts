@@ -1,7 +1,7 @@
 /**
  * 路由表：method + 路径模式 → handler。
  *
- * 控制台的端点就这几条（spec §8.2 那张表），写成数据比一串 `if` 更容易核对。
+ *Shell 的端点就这几条（spec §8.2 那张表），写成数据比一串 `if` 更容易核对。
  * 模式里的 `:name` 占一个路径段：`/log/<name>` 写作 `/log/:name`。
  */
 export interface RouteContext {

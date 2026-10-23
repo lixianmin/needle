@@ -11,7 +11,7 @@ import { TEST_VERSION } from "../fixtures.js";
  * 单测里 shell.handler 是直接调用的，绕过了序列化、分块、连接生命周期。
  * 这个用例证明"装进一个真服务里能用"。
  */
-describe("控制台端到端", () => {
+describe("Shell 端到端", () => {
   test("登录后能通过 SSE 收到握手与日志帧", async () => {
     const logger = newLogger({ flushIntervalMs: 0, batch: false });
     const shell = createServerShell({

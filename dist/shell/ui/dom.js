@@ -14,7 +14,7 @@ export function button(doc, text, className) {
     node.textContent = text;
     return node;
 }
-/** 样式只插一次：同一个页面挂多个控制台也不会重复注入。 */
+/** 样式只插一次：同一个页面挂多个 Shell 也不会重复注入。 */
 export function injectStyle(doc) {
     if (doc.getElementById(STYLE_ID) !== null) {
         return;

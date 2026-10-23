@@ -30,7 +30,7 @@ describe("needle 自己不依赖 Hono", () => {
 
   test("入口表里没有框架适配入口", () => {
     const pkg = JSON.parse(source("package.json")) as { exports: Record<string, unknown> };
-    // 只有这三个：「.」日志、"./shell" 控制台、"./node" 所有 Node 专属能力。
+    // 只有这三个：「.」日志、"./shell" 的 Shell 面板、"./node" 所有 Node 专属能力。
     expect(Object.keys(pkg.exports)).toEqual([".", "./shell", "./node"]);
   });
 

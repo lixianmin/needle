@@ -189,7 +189,7 @@ export function createSseResponse(init) {
             }
             // 只在真正空闲时才发注释心跳：有日志或主题在推的时候不需要它。
             // 中间层（nginx 默认 60s、多数负载均衡 30s）按"无数据"计算超时，
-            // 这一行是给它们看的，控制台里不会显示。
+            // 这一行是给它们看的，Shell 里不会显示。
             timers.push(setInterval(() => {
                 if (closed) {
                     return;

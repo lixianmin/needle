@@ -1,6 +1,6 @@
 import type { ShellAdapter } from "./adapter.js";
 interface FetchAdapterOptions {
-    /** 控制台挂载前缀，如 "/shell"。空字符串表示挂在根路径。 */
+    /**Shell 挂载前缀，如 "/shell"。空字符串表示挂在根路径。 */
     basePath: string;
     /** SSE 的 topics 参数，如 "top:5000,mem"。 */
     topics?: string;

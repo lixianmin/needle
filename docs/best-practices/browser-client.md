@@ -79,5 +79,5 @@ addEventListener("pagehide", () => {
 
 - **版本号只有一处来源。** 用构建期注入（Vite 的 `define` / `import.meta.env`）从 `package.json` 读；头栏显示的版本必须等于当前跑的代码。
 - **`localStorage` 可能直接抛错。** 命令历史（`logo.shell.history`，50 条）在隐私模式、部分嵌入式 WebView 里写不进去，失败会被静默忽略。
-- **`dispose()` 不是可选的。** 面板的定时器与订阅跟着页面走；SPA 切换路由后重建控制台，不 dispose 就多一份订阅，日志重复渲染。
+- **`dispose()` 不是可选的。** 面板的定时器与订阅跟着页面走；SPA 切换路由后重建 Shell，不 dispose 就多一份订阅，日志重复渲染。
 - **别把日志拼进 `innerHTML`。** 面板内部只用 `createElement` + `textContent`；业务代码也别把 `msg` 拼进 HTML，那里面可能是用户输入。

@@ -22,7 +22,7 @@ export interface ShellView {
 }
 
 /**
- * 把控制台挂到一个 DOM 节点上。
+ * 把 Shell 挂到一个 DOM 节点上。
  *
  * 用 DOM API 而不是 innerHTML：日志内容是外部数据，拼字符串就得自己防注入；
  * 更重要的是 Chrome 扩展的 CSP 不允许内联脚本，DOM 构建这条路在哪都能走。
@@ -30,7 +30,7 @@ export interface ShellView {
  * 这个函数只负责「拼 DOM + 接线」：各块行为都在同目录的小模块里
  * （layout / lines / table / output / commands / input），改一处不用读全文。
  */
-export function mountShell(root: HTMLElement, adapter: ShellAdapter): ShellView {
+export function mountShell(root: HTMLElement, adapter:ShellAdapter):ShellView {
   const doc = root.ownerDocument;
   injectStyle(doc);
 
@@ -76,11 +76,11 @@ export function mountShell(root: HTMLElement, adapter: ShellAdapter): ShellView 
 /** 输入区（表单、键盘、回车抢焦点）的接线。 */
 function wireInputArea(ctx: {
   doc: Document;
-  ui: ShellLayout;
-  adapter: ShellAdapter;
+  ui:ShellLayout;
+  adapter:ShellAdapter;
   sink: OutputSink;
   table: TableRenderer;
-  state: ShellUiState;
+  state:ShellUiState;
 }): () => void {
   const { doc, ui, adapter, sink, table, state } = ctx;
   const input: InputContext = {
@@ -100,7 +100,7 @@ function wireInputArea(ctx: {
 }
 /** 切换左右两个 tab：日志 / 主题。 */
 function wireTabs(
-  ui: ShellLayout,
+  ui:ShellLayout,
   logList: LogList<LogRecord>,
   topicList: LogList<{ name: string; data: unknown }>,
 ): void {
@@ -125,8 +125,8 @@ function wireTabs(
 
 /** 工具条：暂停、清空、级别过滤。 */
 function wireToolbar(
-  ui: ShellLayout,
-  state: ShellUiState,
+  ui:ShellLayout,
+  state:ShellUiState,
   logList: LogList<LogRecord>,
   updateDropped: () => void,
 ): void {
@@ -148,8 +148,8 @@ function wireToolbar(
 }
 
 interface EventContext {
-  ui: ShellLayout;
-  state: ShellUiState;
+  ui:ShellLayout;
+  state:ShellUiState;
   logList: LogList<LogRecord>;
   topicList: LogList<{ name: string; data: unknown }>;
   sink: OutputSink;
@@ -157,11 +157,11 @@ interface EventContext {
 }
 
 /** 处理服务端推来的事件。 */
-function handleEvent(event: ShellEvent, ctx: EventContext): void {
+function handleEvent(event:ShellEvent, ctx: EventContext): void {
   const { ui, state, logList, topicList, sink } = ctx;
   switch (event.type) {
     case "handshake":
-      // 头栏显示"谁的控制台"：项目名 + 版本 + 当前账号，全部靠左。
+      // 头栏显示"谁的 Shell"：项目名 + 版本 + 当前账号，全部靠左。
       ui.title.textContent = event.info.title;
       ui.version.textContent = `v${event.info.version}`;
       ui.user.textContent = event.info.user ?? "未登录";
@@ -196,7 +196,7 @@ function handleEvent(event: ShellEvent, ctx: EventContext): void {
 }
 
 /** 点日志文件名：取回全文，用 blob 在新窗口打开（链接里不带凭证）。 */
-async function openFile(doc: Document, adapter: ShellAdapter, sink: OutputSink, href: string): Promise<void> {
+async function openFile(doc: Document, adapter:ShellAdapter, sink: OutputSink, href: string): Promise<void> {
   let result: Awaited<ReturnType<typeof adapter.fetchFile>>;
   try {
     result = await adapter.fetchFile(href);

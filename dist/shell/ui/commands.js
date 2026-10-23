@@ -95,7 +95,7 @@ export function topicNames(prefix, topics) {
 /**
  * Tab 补全。
  *
- * 只看行尾补全（控制台里 Tab 基本都在行尾按），这样不用跟 selectionStart
+ * 只看行尾补全（Shell 里 Tab 基本都在行尾按），这样不用跟 selectionStart
  * 的浏览器差异打交道。命令名来自服务端的 handshake，所以用户在服务器上
  * 自定义的命令一样能被补全；`sub`/`unsub` 的第二个词补主题名。
  */

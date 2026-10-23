@@ -51,7 +51,7 @@ export interface ShellSourceOptions {
   title?: string;
   version?: string;
   /**
-   * 本地身份。设了它就跳过 token 鉴权——浏览器页面和扩展里，能看到控制台
+   * 本地身份。设了它就跳过 token 鉴权——浏览器页面和扩展里，能看到 Shell
    * 的人本来就能碰到这个进程，再要一次 token 只是仪式。
    */
   user?: string;
@@ -63,7 +63,7 @@ export interface ShellSourceOptions {
 }
 
 /**
- * 控制台的全部逻辑，不含任何传输层。
+ *Shell 的全部逻辑，不含任何传输层。
  *
  * 它是 Node 服务、Workers、浏览器页面、Chrome 扩展共用的那一层：
  * 同一个 source 上面可以挂 HTTP/SSE 适配器，也可以直接挂 DOM。
@@ -108,7 +108,7 @@ function createDefaultTopics(metrics: ReturnType<typeof createMetrics>): Topic[]
   ];
 }
 
-export function createShellSource(options: ShellSourceOptions): ShellSource {
+export function createShellSource(options:ShellSourceOptions):ShellSource {
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const version = options.version ?? "unknown";
   const title = options.title ?? "shell";

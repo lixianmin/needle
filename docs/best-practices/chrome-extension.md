@@ -1,6 +1,6 @@
 # Chrome 扩展
 
-能用。扩展自己的页面里可以挂一块 DOM 面板：命令在你自己的扩展代码里执行，日志进该页面的 DevTools。也可以让面板连另一台机器上的控制台，那边的命令在远端跑。
+能用。扩展自己的页面里可以挂一块 DOM 面板：命令在你自己的扩展代码里执行，日志进该页面的 DevTools。也可以让面板连另一台机器上的 Shell，那边的命令在远端跑。
 
 ## 术语
 
@@ -17,7 +17,7 @@ Chrome 扩展的代码跑在几个互不相同的上下文里，先把名字对�
 | 用法 | 入口 | 命令在哪跑 | 日志去哪 |
 |---|---|---|---|
 | 扩展页面挂本地面板 | `createBrowserShell({ element })` | 你的扩展代码里，进程内直调 | 该页面的 DevTools |
-| 扩展页面连远程控制台 | `mountShell(el, createFetchAdapter({ basePath }))` | 远端那台服务器 | 远端的 sink（文件、飞书） |
+| 扩展页面连远程 Shell | `mountShell(el, createFetchAdapter({ basePath }))` | 远端那台服务器 | 远端的 sink（文件、飞书） |
 
 扩展里没有文件系统，所以两种用法都没有 `log.list`（它读的是磁盘目录）。
 
@@ -59,9 +59,9 @@ const panel = createBrowserShell({
 
 ```ts
 // popup.html 里的按钮
-document.getElementById("open-console")!.addEventListener("click", () => {
+document.getElementById("open-shell")!.addEventListener("click", () => {
   chrome.windows.create({
-    url: chrome.runtime.getURL("console.html"),
+    url: chrome.runtime.getURL("shell.html"),
     type: "popup",
     width: 1280,
     height: 860,
@@ -69,10 +69,10 @@ document.getElementById("open-console")!.addEventListener("click", () => {
 });
 ```
 
-`console.html` 是扩展自己的一个页面，URL 就是 `chrome-extension://<id>/console.html`，跟普通网页长得一模一样：
+`shell.html` 是扩展自己的一个页面，URL 就是 `chrome-extension://<id>/shell.html`，跟普通网页长得一模一样：
 
 ```html
-<!-- console.html -->
+<!-- shell.html -->
 <div id="shell"></div>
 <style>
   html, body, #shell { height: 100%; margin: 0; }
@@ -80,7 +80,7 @@ document.getElementById("open-console")!.addEventListener("click", () => {
 ```
 
 ```ts
-// console.ts
+// shell.ts
 import { createBrowserShell } from "@needle/needle/shell";
 
 const panel = createBrowserShell({
@@ -92,7 +92,7 @@ const panel = createBrowserShell({
 });
 ```
 
-面板高度是 `100%`，容器不给高度会塌成内容高度——上面那行 `height: 100%` 别省。想开成新标签页（能和业务页并排）就把 `chrome.windows.create` 换成 `chrome.tabs.create({ url: chrome.runtime.getURL("console.html") })`。
+面板高度是 `100%`，容器不给高度会塌成内容高度——上面那行 `height: 100%` 别省。想开成新标签页（能和业务页并排）就把 `chrome.windows.create` 换成 `chrome.tabs.create({ url: chrome.runtime.getURL("shell.html") })`。
 
 ### 扩展页面的 CSP 挡不住它
 
@@ -111,7 +111,7 @@ content script 拿得到宿主页的 `document`，但两件事会咬人：
 
 ## 二、连远程服务端
 
-面板也可以连另一台机器上的控制台，这时换 fetch 适配器，鉴权重新有意义：
+面板也可以连另一台机器上的 Shell，这时换 fetch 适配器，鉴权重新有意义：
 
 ```ts
 import { createFetchAdapter, mountShell } from "@needle/needle/shell";

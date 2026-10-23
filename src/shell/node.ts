@@ -8,7 +8,7 @@ export interface ServeOptions {
 }
 
 export interface AttachOptions {
-  /** 控制台挂载前缀，如 "/shell"；省略表示接管全部请求。 */
+  /**Shell 挂载前缀，如 "/shell"；省略表示接管全部请求。 */
   basePath?: string;
 }
 
@@ -196,16 +196,16 @@ function matchesBasePath(pathname: string, base: string): boolean {
 }
 
 /**
- * 把控制台挂到一个已经在跑的 node:http 服务上（裸 Node、Express、Fastify 底层都是它）。
+ * 把 Shell 挂到一个已经在跑的 node:http 服务上（裸 Node、Express、Fastify 底层都是它）。
  *
- * 做法是接管 `request` 事件：控制台前缀内的请求交给 Fetch handler，前缀外按注册
+ * 做法是接管 `request` 事件：Shell 前缀内的请求交给 Fetch handler，前缀外按注册
  * 顺序原样交回给原来的 listener——所以已经挂好的 app 一行都不用改。
  *
- * 注意语义：控制台在原来的路由/中间件**之前**处理自己的路径，不经过它们（也不受
- * 它们的 body 解析、鉴权中间件影响）。这正是控制台要的：它自己的 /exec 和 /events
+ * 注意语义：Shell 在原来的路由/中间件**之前**处理自己的路径，不经过它们（也不受
+ * 它们的 body 解析、鉴权中间件影响）。这正是 Shell 要的：它自己的 /exec 和 /events
  * 有独立的鉴权。
  */
-export function attach(server: Server, target: ShellLike, options: AttachOptions = {}): void {
+export function attach(server: Server, target:ShellLike, options: AttachOptions = {}): void {
   const base = normalizeBasePath(options.basePath);
   const previous = server.listeners("request") as Array<
     (this: Server, req: IncomingMessage, res: ServerResponse) => void

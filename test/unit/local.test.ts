@@ -20,7 +20,7 @@ function setup() {
 describe("createLocalAdapter", () => {
   test("订阅立刻收到 hello，带本地身份与命令表", () => {
     const { adapter } = setup();
-    const events: ShellEvent[] = [];
+    const events:ShellEvent[] = [];
     adapter.subscribe((event) => events.push(event));
 
     expect(events[0]?.type).toBe("handshake");
@@ -37,7 +37,7 @@ describe("createLocalAdapter", () => {
 
   test("日志成批流到日志栏（不进命令输出区）", () => {
     const { logger, adapter } = setup();
-    const events: ShellEvent[] = [];
+    const events:ShellEvent[] = [];
     adapter.subscribe((event) => events.push(event));
 
     logger.info("hi");
@@ -50,7 +50,7 @@ describe("createLocalAdapter", () => {
 
   test("退订后不再收到事件", () => {
     const { logger, adapter } = setup();
-    const events: ShellEvent[] = [];
+    const events:ShellEvent[] = [];
     const unsubscribe = adapter.subscribe((event) => events.push(event));
     unsubscribe();
     events.length = 0;

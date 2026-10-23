@@ -10,10 +10,10 @@ import type { TableRenderer } from "./table.js";
 export interface InputContext {
   input: HTMLInputElement;
   form: HTMLFormElement;
-  adapter: ShellAdapter;
+  adapter:ShellAdapter;
   sink: OutputSink;
   table: TableRenderer;
-  state: ShellUiState;
+  state:ShellUiState;
   applySubscriptions(): void;
 }
 
@@ -153,7 +153,7 @@ export function wireKeys(ctx: InputContext): void {
 /**
  * 回车抢焦点。
  *
- * 控制台的用法是"随时开始敲命令"，而不是"先精确点中那个输入框"。焦点在
+ *Shell 的用法是"随时开始敲命令"，而不是"先精确点中那个输入框"。焦点在
  * 页面空白处或输出区时按回车，直接把光标送进输入框——省掉一次鼠标移动。
  * 焦点已经在别的输入控件里（页面里可能嵌着业务表单）就不抢。
  */
@@ -176,7 +176,7 @@ export function wireEnterFocus(doc: Document, input: HTMLInputElement): () => vo
     if (isEditable(doc.activeElement)) {
       return;
     }
-    // Enter 是按钮/链接的默认激活方式，抢走它键盘就没法操作控制台自己的控件。
+    // Enter 是按钮/链接的默认激活方式，抢走它键盘就没法操作 Shell 自己的控件。
     if (doc.activeElement?.closest?.("button, a, [role='button']") != null) {
       return;
     }

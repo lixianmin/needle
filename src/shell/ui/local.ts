@@ -6,16 +6,16 @@ import type { AuthResult, ShellAdapter, ShellEvent, ExecResult, FileResult } fro
 /**
  * 进程内适配器：浏览器页面、Chrome 扩展里用这个。
  *
- * 没有 HTTP，没有 token —— 代码本来就跑在你的应用里，能看到控制台就等于
+ * 没有 HTTP，没有 token —— 代码本来就跑在你的应用里，能看到 Shell 就等于
  * 能看到这个进程。鉴权在这一层没有意义，所以 source 用本地用户模式创建。
  */
-export function createLocalAdapter(source: ShellSource): ShellAdapter {
-  const listeners = new Set<(event: ShellEvent) => void>();
+export function createLocalAdapter(source:ShellSource):ShellAdapter {
+  const listeners = new Set<(event:ShellEvent) => void>();
   let attached = false;
   let detach: (() => void) | undefined;
   let timers: Array<ReturnType<typeof setInterval>> = [];
 
-  const emit = (event: ShellEvent): void => {
+  const emit = (event:ShellEvent): void => {
     for (const listener of listeners) {
       listener(event);
     }

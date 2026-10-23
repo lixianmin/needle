@@ -43,5 +43,5 @@ export interface ShellAdapter {
   authenticate(user: string, password: string): Promise<AuthResult>;
   /** 订阅的主题变了：重建流，用新的 topics 参数。传空串表示全部退订。 */
   setTopics(spec: string): void;
-  subscribe(listener: (event: ShellEvent) => void): () => void;
+  subscribe(listener: (event:ShellEvent) => void): () => void;
 }

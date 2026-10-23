@@ -3,7 +3,7 @@ import { createServer, type Server } from "node:http";
 
 import { attach } from "../../src/node.js";
 
-/** 假控制台：只要一个 (Request) => Response，够 attach 用。 */
+/** 假 Shell：只要一个 (Request) => Response，够 attach 用。 */
 function fakeShell() {
   return {
     handler: async (req: Request) => new Response(`shell:${new URL(req.url).pathname}`),
@@ -26,7 +26,7 @@ function close(server: Server): Promise<void> {
 }
 
 describe("attach", () => {
-  test("已有 server：/shell 交给控制台，其余交回原 handler", async () => {
+  test("已有 server：/shell 交给 Shell，其余交回原 handler", async () => {
     const server = createServer((_req, res) => res.end("app"));
     attach(server, fakeShell(), { basePath: "/shell" });
     const port = await listen(server);
@@ -41,7 +41,7 @@ describe("attach", () => {
     }
   });
 
-  test("前缀按段匹配：/shellfoo 不算控制台", async () => {
+  test("前缀按段匹配：/shellfoo 不算 Shell", async () => {
     const server = createServer((_req, res) => res.end("app"));
     attach(server, fakeShell(), { basePath: "/shell" });
     const port = await listen(server);
@@ -78,7 +78,7 @@ describe("attach", () => {
     }
   });
 
-  test("POST 的 body 能完整到达控制台 handler", async () => {
+  test("POST 的 body 能完整到达 Shell handler", async () => {
     const server = createServer((_req, res) => res.end("app"));
     attach(
       server,

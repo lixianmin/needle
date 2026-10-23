@@ -6,7 +6,7 @@ import * as shellEntry from "../../src/shell/index.js";
 
 /**
  * 单包三个入口的边界。包名只有一个（`@needle/needle`），但入口按环境分：
- * `.` 只有日志、`./shell` 只有控制台、`./node` 收下所有 Node 专属能力。
+ * `.` 只有日志、`./shell` 只有 Shell 、`./node` 收下所有 Node 专属能力。
  *
  * 这三条断言是「浏览器里只用日志不会沾到 node:」的第一道闸；第二道是
  * `browser-safety.test.ts` 对真实打包产物的内容检查。
@@ -25,7 +25,7 @@ describe("三个入口的边界", () => {
     expect("attach" in rootEntry).toBe(false);
   });
 
-  test("./shell 出控制台 API，但不转手导出 logo，也不出 Node 专属能力", () => {
+  test("./shell 出 Shell API，但不转手导出 logo，也不出 Node 专属能力", () => {
     expect(typeof shellEntry.createServerShell).toBe("function");
     expect(typeof shellEntry.createBrowserShell).toBe("function");
     expect(typeof shellEntry.mountShell).toBe("function");

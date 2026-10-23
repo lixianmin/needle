@@ -1,6 +1,6 @@
 # Needle
 
-Web Shell 控制台，支持命令查看当前系统状态，如进程状态、业务数据等。
+Web Shell，支持命令查看当前系统状态，如进程状态、业务数据等。
 
 零运行时依赖：只导入日志 1.8 KB，连 shell 23.7 KB（min+gzip，`bun run size` 可复现）。
 
@@ -9,12 +9,12 @@ Web Shell 控制台，支持命令查看当前系统状态，如进程状态、�
 | 你要什么 | 从哪 import | 能跑在哪 |
 |---|---|---|
 | 日志：`logo` / `newLogger` / `createLarkSink` / `formatTime` / `toHuman` | `@needle/needle` | 任何地方（含浏览器、Workers） |
-| 控制台：`createServerShell` / `createBrowserShell` / `mountShell` / `createFetchAdapter` | `@needle/needle/shell` | 任何地方（含浏览器、Chrome 扩展） |
+| Shell：`createServerShell` / `createBrowserShell` / `mountShell` / `createFetchAdapter` | `@needle/needle/shell` | 任何地方（含浏览器、Chrome 扩展） |
 | Node 专属：`createFileSink` / `createLogFiles` / `serve` / `attach` | `@needle/needle/node` | 仅 Node / Bun（`node:fs`、`node:http`） |
 
 根入口与 `./shell` 都不 import 任何 `node:` 模块，所以浏览器和 Workers 打包时不会把 Node 代码带进来。
 
-## 一、控制台（shell）
+## 一、Shell
 
 ### 1. 登录（auth）
 
@@ -41,7 +41,7 @@ $ auth username
 | `top` | 打一份进程指标快照 |
 | `sub` / `unsub` | 订阅 / 取消订阅主题，如 `sub top 2000` |
 
-`log.list` 读的是磁盘文件（Node 侧要传 `logFiles`），看的是历史；右栏是实时日志，只在 shell 打开时存在，刷新即空。
+`log.list` 读的是磁盘文件（Node 侧要传 `logFiles`），看的是历史；右栏是实时日志，只在面板打开时存在，刷新即空。
 
 ### 3. 自定义命令
 
@@ -116,9 +116,9 @@ export const shell = createServerShell({
   basePath: "/shell",
   auth: {
     // 用户名 → 口令。想开几个账号就写几项，比如 { alice: "...", bob: "..." }
-    users: { admin: process.env.CONSOLE_PASSWORD! },
+    users: { admin: process.env.SHELL_PASSWORD! },
     // 签 token 的密钥，不是口令；不传就每次启动随机生成
-    secret: process.env.CONSOLE_SECRET!,
+    secret: process.env.SHELL_SECRET!,
   },
   timeoutMs: 10_000,         // 命令超时，超了返回 timeout；默认 10 秒
   logFiles: createLogFiles({ dir: "logs" }),   // 不传的话 log.list 会报"没有配置日志目录"
@@ -127,7 +127,7 @@ export const shell = createServerShell({
 });
 
 const server = await serve(shell.handler, { port: 3000 });
-// 控制台: http://127.0.0.1:3000/shell
+//Shell: http://127.0.0.1:3000/shell
 ```
 
 ## 二、日志（logo）
@@ -172,7 +172,7 @@ process.on("SIGTERM", () => logo.dispose());                                    
 
 同一个库，能拿到什么取决于跑在哪：
 
-| 平台 | 控制台形态 | 文件 sink | 细节 |
+| 平台 | Shell 形态 | 文件 sink | 细节 |
 |---|---|---|---|
 | 服务端 Node / Bun | HTTP + SSE | 有 | [node-server.md](docs/best-practices/node-server.md) |
 | Cloudflare Workers | HTTP + SSE | 无 | [node-server.md 四、Cloudflare Workers](docs/best-practices/node-server.md#四cloudflare-workers) |
@@ -199,7 +199,7 @@ mkdir -p ~/my-service && cd ~/my-service
 bun init -y
 bun link @needle/needle
 
-# ── 3. 写入口：控制台挂在 /shell，业务日志自动进右栏 ──
+# ── 3. 写入口：Shell 挂在 /shell，业务日志自动进右栏 ──
 cat > server.ts <<'TS'
 import { createServerShell } from "@needle/needle/shell";
 import { serve } from "@needle/needle/node";
@@ -207,7 +207,7 @@ import { logo } from "@needle/needle";
 
 // 不传 logger 时用根入口的全局实例：业务里 logo.info(...) 都会出现在右栏
 const shell = createServerShell({
-  basePath: "/shell",                                         // 控制台路径；不写就挂在站点根目录
+  basePath: "/shell",                                         //Shell 路径；不写就挂在站点根目录
   auth: { users: { admin: "admin" }, secret: "change-me" },    // 用户名→口令；secret 是签 token 的密钥
   commands: [
     {
@@ -222,7 +222,7 @@ const shell = createServerShell({
 });
 
 const server = await serve(shell.handler, { port: 3000 });
-console.log(`控制台: http://127.0.0.1:${server.port}/shell`);
+console.log(`Shell: http://127.0.0.1:${server.port}/shell`);
 TS
 
 # ── 4. 跑起来（前台运行，Ctrl+C 退出）──

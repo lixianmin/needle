@@ -5,7 +5,7 @@ export type CommandInfo = HandshakeInfo["commands"][number];
 export type TopicInfo = HandshakeInfo["topics"][number];
 
 /**
- * 控制台 UI 的可变状态。
+ *Shell UI 的可变状态。
  *
  * 以前这些都藏在 mountShell 的闭包里，函数越写越长。抽成显式的 state，
  * 各小模块按需拿参数，mountShell 只剩下「拼 DOM + 接线」。
@@ -26,7 +26,7 @@ export interface ShellUiState {
   cursor: number;
 }
 
-export function createState(history: string[]): ShellUiState {
+export function createState(history: string[]):ShellUiState {
   return {
     loggedIn: false,
     commands: [],
