@@ -144,23 +144,34 @@ export function createIndexedDbStore(options: IndexedDbStoreOptions = {}): LogSt
       store.createIndex(TIME_INDEX, "time");
     };
     request.onsuccess = () => {
-      // 已经 close 且没排队工作：立刻关掉，别把连接留在手里——它会挡住
-      // 其它上下文的版本升级。还有排队工作就先留着，关连接排在队尾。
-      if (closed && pending === 0) {
+      // 判过失败（如被旧连接挡住），或者已经 close 且没排队工作：
+      // 都不能把连接留在手里——它会一直挡住其它上下文的版本升级。
+      // 还有排队工作的 close 例外：写入要用它，关连接排在队尾那一步。
+      if (failed || (closed && pending === 0)) {
         request.result.close();
         resolve();
         return;
       }
       db = request.result;
+      // 别的上下文要升级版本（或在 DevTools 里清站数据）：必须主动让路。
+      // 不挂这个处理器，IDB 会无限期地把对方的升级卡在 blocked 上。
+      db.onversionchange = () => {
+        db?.close();
+        db = null;
+        closed = true;
+      };
       resolve();
     };
     request.onerror = () => {
       failed = true;
+      // 降级不抛错，但也不能完全无声：一条错误日志是排查这个 store 的唯一线索。
+      reportOnce(request.error);
       resolve();
     };
     request.onblocked = () => {
       // 旧版本连接被别的上下文占着：按失败处理，别把整条 promise 链卡死。
       failed = true;
+      reportOnce(new Error(`IndexedDB ${name} 升级被其它连接阻塞`));
       resolve();
     };
   });
@@ -199,7 +210,11 @@ export function createIndexedDbStore(options: IndexedDbStoreOptions = {}): LogSt
         }
         return op(db as IDBDatabase);
       })
-      .catch(() => fallback);
+      .catch((error: unknown) => {
+        // 读失败不能默默当成「没有日志」：报障时两者必须能区分开。
+        reportOnce(error);
+        return fallback;
+      });
   }
 
   async function readAll(database: IDBDatabase): Promise<LogRecord[]> {
@@ -226,14 +241,17 @@ export function createIndexedDbStore(options: IndexedDbStoreOptions = {}): LogSt
     }
     let remaining = overflow;
     // 游标翻页的正解是复用同一个 request：continue() 之后它的 success 会再响一次。
+    // 必须挂 onerror：事务中途 abort 时 success 不会再来，promise 永不落地
+    // 会把整条 tail 链永久卡死。
     const cursorRequest = store.openCursor();
     let cursor = await awaitRequest(cursorRequest);
     while (cursor !== null && remaining > 0) {
       cursor.delete();
       remaining -= 1;
       cursor.continue();
-      cursor = await new Promise<IDBCursorWithValue | null>((resolve) => {
+      cursor = await new Promise<IDBCursorWithValue | null>((resolve, reject) => {
         cursorRequest.onsuccess = () => resolve(cursorRequest.result);
+        cursorRequest.onerror = () => reject(cursorRequest.error ?? new Error("cursor failed"));
       });
     }
   }

@@ -290,3 +290,72 @@ describe("复审修复", () => {
     expect(upgraded).toBe(true);
   });
 });
+
+describe("升级被挡", () => {
+  test("blocked 判失败后，连接不留在外面挡后续升级", async () => {
+    const name = uniqueName();
+    // 1) 造一个 v1 库，并保持连接打开（模拟旧标签页）
+    const legacy = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open(name, 1);
+      request.onupgradeneeded = () => {
+        request.result.createObjectStore("records", { keyPath: "id", autoIncrement: true });
+      };
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+
+    // 2) 新代码开 v2：被旧连接挡住
+    const store = createIndexedDbStore({ name, now: () => BASE_TIME + DAY });
+    store([rec("info", "x")]);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    // 3) 旧连接关掉，被挡的升级随后完成
+    legacy.close();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    // 4) 不能有残留连接挡 v3
+    const upgraded = await new Promise<boolean>((resolve) => {
+      const request = indexedDB.open(name, 3);
+      request.onupgradeneeded = () => {};
+      request.onsuccess = () => {
+        request.result.close();
+        resolve(true);
+      };
+      request.onblocked = () => resolve(false);
+      request.onerror = () => resolve(false);
+    });
+    expect(upgraded).toBe(true);
+  });
+});
+
+describe("版本升级让路", () => {
+  test("别的上下文要升级版本时让路，不把对方卡死", async () => {
+    const name = uniqueName();
+    const store = createIndexedDbStore({ name, now: () => BASE_TIME + DAY });
+    store([rec("info", "a")]);
+    await store.list(); // 确保连接已建立
+
+    const upgraded = await new Promise<boolean>((resolve) => {
+      const request = indexedDB.open(name, 3);
+      request.onupgradeneeded = () => {};
+      request.onsuccess = () => {
+        request.result.close();
+        resolve(true);
+      };
+      request.onblocked = () => resolve(false);
+      request.onerror = () => resolve(false);
+    });
+    expect(upgraded).toBe(true);
+  });
+
+  test("记录里的 id 为 null 也不中断整批写入", async () => {
+    const store = makeStore();
+    store([
+      { time: BASE_TIME, level: "info", msg: "guest", id: null },
+      { time: BASE_TIME, level: "info", msg: "after-null" },
+    ]);
+
+    const lines = (await store.read("info.log"))?.split("\n") ?? [];
+    expect(lines.map(msgOf)).toEqual(["guest", "after-null"]);
+  });
+});
