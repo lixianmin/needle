@@ -102,9 +102,9 @@ function createAuthCommand() {
             if (user === undefined) {
                 throw new CommandError("用法: auth <user>，密码会在下一步提示输入");
             }
-            // 走到这里说明有人绕过控制台直接调 /exec（例如 curl）。密码不能拼在
+            // 走到这里说明有人绕过 Shell 直接调 /exec（例如 curl）。密码不能拼在
             // 命令行里——那会被历史记录、输出区和访问日志原样留下。
-            throw new CommandError("密码不能走命令行：控制台里输入 `auth <user>` 后会切换成密码输入框");
+            throw new CommandError("密码不能走命令行：Shell 里输入 `auth <user>` 后会切换成密码输入框");
         },
     };
 }
@@ -112,7 +112,7 @@ function createAuthCommand() {
  * `sub` / `unsub` 只是在这里登记，好让 `help` 能列出来。
  *
  * 订阅是**某一条 SSE 连接**的属性，而 /exec 是另一条请求，拿不到那条流。
- * 真正的实现在控制台 UI 里：改订阅集合、重建流。
+ * 真正的实现在 Shell UI 里：改订阅集合、重建流。
  */
 function createSubCommand(name) {
     return {
@@ -122,7 +122,7 @@ function createSubCommand(name) {
             : "取消订阅（如 unsub top，留空取消全部）",
         args: name === "sub" ? "<topic> [interval-ms]" : "[topic]",
         run() {
-            throw new CommandError(`${name} 在控制台里用：订阅属于浏览器那条流，/exec 拿不到它`);
+            throw new CommandError(`${name} 在 Shell 里用：订阅属于浏览器那条流，/exec 拿不到它`);
         },
     };
 }

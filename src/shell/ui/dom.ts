@@ -21,7 +21,7 @@ export function button(doc: Document, text: string, className: string): HTMLButt
   return node;
 }
 
-/** 样式只插一次：同一个页面挂多个控制台也不会重复注入。 */
+/** 样式只插一次：同一个页面挂多个 Shell 也不会重复注入。 */
 export function injectStyle(doc: Document): void {
   if (doc.getElementById(STYLE_ID) !== null) {
     return;

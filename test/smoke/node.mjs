@@ -26,7 +26,7 @@ assert.deepEqual(
 );
 assert.ok(typeof batches[0][2].stack === "string", "error 应带调用栈");
 
-// 2. 控制台能在 node 上跑起来
+// 2. Shell 能在 node 上跑起来
 const shell = createServerShell({
   logger,
   auth: { users: { admin: "secret" }, secret: "smoke-secret" },

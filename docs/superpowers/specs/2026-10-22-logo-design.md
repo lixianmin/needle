@@ -7,13 +7,13 @@
 
 线上出问题时的现状是：`docker exec -it <容器> sh`，然后在终端里 `tail -f`、`grep`、`ps`。用户体验差，只能在有 shell 权限的机器上做，查完就丢。
 
-对标项目 [gonsole](https://github.com/lixianmin/gonsole) 用 Go 解决了这件事：进程内嵌一个远程控制台，浏览器里敲命令、看日志、看指标。本项目把那部分搬到 TypeScript，只搬"浏览器调试自己"这一块，不搬游戏长连接框架。
+对标项目 [gonsole](https://github.com/lixianmin/gonsole) 用 Go 解决了这件事：进程内嵌一个远程 Shell，浏览器里敲命令、看日志、看指标。本项目把那部分搬到 TypeScript，只搬"浏览器调试自己"这一块，不搬游戏长连接框架。
 
 日志部分对标 [lixianmin/logo](https://github.com/lixianmin/logo) 的 API 形态（`Info/Warn/Error/Debug` + JSON 结构化），但按 JavaScript 的习惯调整。
 
 ## 2. 目标
 
-1. 一个包 `@needle/needle`，三个入口（`.` 日志、`./shell` 控制台、`./node` Node 专属能力），shell 挂在任意 Node 服务的 HTTP 上，浏览器打开就有终端样式的界面。
+1. 一个包 `@needle/needle`，三个入口（`.` 日志、`./shell` 的 Shell 面板、`./node` Node 专属能力），shell 挂在任意 Node 服务的 HTTP 上，浏览器打开就有终端样式的界面。
 2. 浏览器里能做两件事：敲命令看结果、订阅周期性指标推送（日志不推送到页面，见 §8.1）。
 3. 日志默认 JSON，可同时写 stdout、文件、飞书群。
 4. 同一份代码能在 Cloudflare Workers 上 import 并运行——不需要改代码、不需要为 Workers 维护一份分支实现（部署参数如 `secret` 另行传入）。
@@ -47,7 +47,7 @@
 ```
 @needle/needle
   .          → 日志门面、sink（stdout / 飞书）、SortedTable
-  ./shell    → 控制台：kernel + HTTP/SSE 适配器 + 可挂载的 DOM 面板
+  ./shell    → Shell：kernel + HTTP/SSE 适配器 + 可挂载的 DOM 面板
   ./node     → 所有 Node 专属能力：文件 sink、createLogFiles、serve / attach
 ```
 
@@ -194,7 +194,7 @@ sink 是同步函数。抛错被捕获并忽略（一条坏 sink 不能拖垮业
 
 **飞书**（根入口）：把 batch 推到群机器人 webhook。默认只推 `error` 级别，超出窗口的记录合并成一条消息（按 UTF-8 字节截到 24KB），令牌桶限流（默认 20 条/分钟，按时间比例补充），支持可选签名密钥。用 `fetch`，Workers 可用。
 
-## 8. 控制台
+## 8. Shell
 
 ### 8.1 挂载
 
@@ -283,8 +283,8 @@ POST /exec   { "line": "log.list" }
 
 - `/exec` 请求体上限 4KB，超过直接 413。命令是手敲的，不应该有 MB 级请求。
 - 单条命令默认超时 10 秒，超时返回 504 + `{code:"gateway_timeout", message:"timeout"}`，防止一个卡住的命令占死连接。
-- SSE 空闲时才发注释心跳（`: ping`，默认 15 秒一次，期间有数据就不发）。反向代理按"无数据"计超时（nginx 默认 60 秒），这一行是给中间层看的，控制台里不显示。
-- 页面和接口必须同源（都在 `basePath` 下）。不做 CORS，因为控制台本来就不应该跨域暴露。
+- SSE 空闲时才发注释心跳（`: ping`，默认 15 秒一次，期间有数据就不发）。反向代理按"无数据"计超时（nginx 默认 60 秒），这一行是给中间层看的，Shell 里不显示。
+- 页面和接口必须同源（都在 `basePath` 下）。不做 CORS，因为 Shell 本来就不应该跨域暴露。
 - 日志文件链接不带凭证：点击时用 `Authorization` 头取回全文，再用 blob URL 在新窗口打开。把 token 放进 URL 会进地址栏、历史记录和访问日志，而且一旦签发就有时效——用户过一会儿再点就是 401。
 
 ### 8.3 SSE 协议
@@ -412,7 +412,7 @@ interface Topic {
 | stdout sink | 完整 | 退化为 `console.log` |
 | 文件 sink | 有 | 无（`node:fs` 不存在） |
 | 飞书 sink | 有 | 有（`fetch`） |
-| 控制台页面 / SSE | 有 | 有 |
+| Shell 页面 / SSE | 有 | 有 |
 | 命令执行 | 完整 | 完整（读到的是本 isolate 的内存状态） |
 | CPU / 内存指标 | 真实读数 | 自维护计数器 |
 | 登录态 | 重启失效 | 每次 isolate 回收失效（必须配固定 secret，见 §12） |

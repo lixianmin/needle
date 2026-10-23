@@ -9,7 +9,7 @@ import { createOutputSink } from "./output.js";
 import { createState, topicSpec } from "./state.js";
 import { createTableRenderer } from "./table.js";
 /**
- * 把控制台挂到一个 DOM 节点上。
+ * 把 Shell 挂到一个 DOM 节点上。
  *
  * 用 DOM API 而不是 innerHTML：日志内容是外部数据，拼字符串就得自己防注入；
  * 更重要的是 Chrome 扩展的 CSP 不允许内联脚本，DOM 构建这条路在哪都能走。
@@ -113,7 +113,7 @@ function handleEvent(event, ctx) {
     const { ui, state, logList, topicList, sink } = ctx;
     switch (event.type) {
         case "handshake":
-            // 头栏显示"谁的控制台"：项目名 + 版本 + 当前账号，全部靠左。
+            // 头栏显示"谁的 Shell"：项目名 + 版本 + 当前账号，全部靠左。
             ui.title.textContent = event.info.title;
             ui.version.textContent = `v${event.info.version}`;
             ui.user.textContent = event.info.user ?? "未登录";

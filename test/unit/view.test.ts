@@ -6,7 +6,7 @@ import { mountShell } from "../../src/shell/ui/view.js";
 
 /** 假适配器：测试里手动推事件、手动返回命令结果。 */
 function fakeAdapter() {
-  let listener: ((event: ShellEvent) => void) | undefined;
+  let listener: ((event:ShellEvent) => void) | undefined;
   const executed: string[] = [];
   const replies: Array<Awaited<ReturnType<ShellAdapter["exec"]>>> = [];
 
@@ -14,7 +14,7 @@ function fakeAdapter() {
   const topicSpecs: string[] = [];
   const openedFiles: string[] = [];
 
-  const adapter: ShellAdapter = {
+  const adapter:ShellAdapter = {
     exec(line) {
       executed.push(line);
       return Promise.resolve(
@@ -47,7 +47,7 @@ function fakeAdapter() {
     logins,
     topicSpecs,
     openedFiles,
-    emit: (event: ShellEvent) => listener?.(event),
+    emit: (event:ShellEvent) => listener?.(event),
   };
 }
 
@@ -526,7 +526,7 @@ describe("调用栈直接铺在行里", () => {
 });
 
 describe("交互细节", () => {
-  const handshake = (): ShellEvent => ({
+  const handshake = ():ShellEvent => ({
     type: "handshake",
     info: { title: "node", version: "1.0.0", user: "admin", commands: [], topics: [] },
   });
@@ -567,7 +567,7 @@ describe("交互细节", () => {
     const document = window.document as unknown as Document;
     const root = document.createElement("div");
     document.body.append(root);
-    const adapter: ShellAdapter = {
+    const adapter:ShellAdapter = {
       exec: () => Promise.reject(new Error("network down")),
       authenticate: () => Promise.resolve({ ok: true as const, user: "admin" }),
       setTopics: () => {},
@@ -628,7 +628,7 @@ describe("交互细节", () => {
 });
 
 describe("输出渲染兜底", () => {
-  const handshake = (): ShellEvent => ({
+  const handshake = ():ShellEvent => ({
     type: "handshake",
     info: { title: "node", version: "1.0.0", user: "admin", commands: [], topics: [] },
   });
@@ -658,7 +658,7 @@ describe("输出渲染兜底", () => {
     const document = window.document as unknown as Document;
     const root = document.createElement("div");
     document.body.append(root);
-    const adapter: ShellAdapter = {
+    const adapter:ShellAdapter = {
       exec: () =>
         Promise.resolve({
           ok: true as const,

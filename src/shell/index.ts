@@ -17,7 +17,7 @@ export interface ServerShellOptions extends ShellSourceOptions {
 
 export interface ServerShell {
   handler(req: Request): Promise<Response>;
-  source: ShellSource;
+  source:ShellSource;
   dispose(): void;
 }
 
@@ -28,8 +28,8 @@ export interface BrowserShellOptions extends ShellSourceOptions {
 }
 
 export interface BrowserShell {
-  source: ShellSource;
-  view: ShellView;
+  source:ShellSource;
+  view:ShellView;
   dispose(): void;
 }
 
@@ -43,7 +43,7 @@ function bearer(header: string | null): string | null {
 }
 
 /**
- * 服务端的控制台：一个 `(Request) => Response`。
+ * 服务端的 Shell：一个 `(Request) => Response`。
  *
  * 只做三件事：剥掉 basePath、按路径分派、把 token 换成用户身份。命令怎么执行、
  * 日志怎么推，全在 source 里——同一段逻辑浏览器里也在用。
@@ -160,7 +160,7 @@ export function createServerShell(options: ServerShellOptions): ServerShell {
 }
 
 /**
- * 浏览器页面 / 扩展里的控制台：把面板挂到一个 DOM 节点上。
+ * 浏览器页面 / 扩展里的 Shell：把面板挂到一个 DOM 节点上。
  *
  * 与 createServerShell 用同一个 source，区别只是没有 HTTP：命令直调，
  * 日志通过 broadcast 直接流到面板。

@@ -192,7 +192,7 @@ describe("广播日志帧", () => {
     const received: Array<{ event: string; data: unknown }> = [];
     broadcast.attach({ send: (event, data) => received.push({ event, data }), close: () => {} });
 
-    // debug 也转发：日志级别由 logger 自己决定，控制台不再二次过滤。
+    // debug 也转发：日志级别由 logger 自己决定，Shell 不再二次过滤。
     broadcast.sink(Array.from({ length: 450 }, (_, index) => ({ time: 1, level: "debug" as const, msg: `d${index}` })));
     expect(received.map((item) => item.event)).toEqual(["log", "log", "log"]);
     expect((received[0]?.data as unknown[]).length).toBe(200);

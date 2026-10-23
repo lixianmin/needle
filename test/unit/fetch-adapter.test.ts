@@ -41,7 +41,7 @@ describe("重连", () => {
 
     localStorage.setItem("logo.shell.token", "token");
     const adapter = createFetchAdapter({ basePath: "" });
-    const events: ShellEvent[] = [];
+    const events:ShellEvent[] = [];
     const unsubscribe = adapter.subscribe((event) => events.push(event));
 
     await new Promise((resolve) => setTimeout(resolve, 20));
@@ -69,7 +69,7 @@ describe("未登录提示", () => {
     }) as unknown as typeof fetch;
 
     const adapter = createFetchAdapter({ basePath: "" });
-    const events: ShellEvent[] = [];
+    const events:ShellEvent[] = [];
     const unsubscribe = adapter.subscribe((event) => events.push(event));
 
     await new Promise((resolve) => setTimeout(resolve, 30));
@@ -85,7 +85,7 @@ describe("未登录提示", () => {
     globalThis.fetch = (async () => new Response("unauthorized", { status: 401 })) as unknown as typeof fetch;
 
     const adapter = createFetchAdapter({ basePath: "" });
-    const events: ShellEvent[] = [];
+    const events:ShellEvent[] = [];
     const unsubscribe = adapter.subscribe((event) => events.push(event));
 
     await new Promise((resolve) => setTimeout(resolve, 30));

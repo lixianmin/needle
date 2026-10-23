@@ -5,7 +5,7 @@ import type { ShellSource } from "./source.js";
 const DEFAULT_MAX_BODY_BYTES = 4096;
 
 export interface ExecHttpOptions {
-  source: ShellSource;
+  source:ShellSource;
   maxBodyBytes?: number;
 }
 

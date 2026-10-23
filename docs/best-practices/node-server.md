@@ -1,6 +1,4 @@
-# 服务端部署（Node / Bun 与 Cloudflare Workers）
-
-控制台和日志在服务端都是全功能，唯一的平台差异是有没有文件系统：
+# 服务端部署（Node / Bun 与 Cloudflare Workers）Shell 和日志在服务端都是全功能，唯一的平台差异是有没有文件系统：
 
 | runtime | 文件 sink | 挂载方式 |
 |---|---|---|
@@ -11,7 +9,7 @@
 
 ## 一、挂到 HTTP 框架
 
-控制台对外只有一个接口：`(req: Request) => Promise<Response>`。Hono 是两条路由：
+Shell 对外只有一个接口：`(req: Request) => Promise<Response>`。Hono 是两条路由：
 
 ```ts
 import { Hono } from "hono";
@@ -23,7 +21,7 @@ const app = new Hono();
 
 const shell = createServerShell({
   basePath: "/shell",
-  auth: { users: { admin: process.env.CONSOLE_PASSWORD! }, secret: process.env.CONSOLE_SECRET! },
+  auth: { users: { admin: process.env.SHELL_PASSWORD! }, secret: process.env.SHELL_SECRET! },
   logFiles: createLogFiles({ dir: "logs" }),
 });
 
@@ -37,7 +35,7 @@ const server = serve({ fetch: app.fetch, port: 3000 });
 
 - **两条路由缺一不可。** `/shell` 是页面，`/shell/*` 是 `/events`、`/exec`、`/log/:name`。只挂一条的话页面能打开，登录和命令全 404。
 - **`basePath` 与路由前缀必须一致。** handler 内部按它剥前缀：`/shell/log/info.log` → `/log/info.log`。
-- **控制台注册在业务中间件之前。** 它自带 token 校验，不该被 CORS、body 解析、登录态中间件影响；注册在它之前的 `app.use("*")` 会把 `/shell` 一起拦掉。
+- **Shell 注册在业务中间件之前。** 它自带 token 校验，不该被 CORS、body 解析、登录态中间件影响；注册在它之前的 `app.use("*")` 会把 `/shell` 一起拦掉。
 
 Express / Fastify / 裸 `node:http` 用 `@needle/needle/node` 的两个函数，已有 app 一行不用改：
 
@@ -48,7 +46,7 @@ await serve(shell.handler, { port: 7701 });            // 自己起端口
 attach(server, shell, { basePath: "/shell" });         // 挂到已有 http server
 ```
 
-`attach` 接管 `request` 事件：前缀内交给控制台，前缀外交回原 listener。
+`attach` 接管 `request` 事件：前缀内交给 Shell，前缀外交回原 listener。
 
 ## 二、鉴权
 
@@ -66,7 +64,7 @@ attach(server, shell, { basePath: "/shell" });         // 挂到已有 http serv
 ## 三、日志与 `log.list`
 
 - **`createLogFiles({ dir })` 的目录必须与 file sink 的 `dir` 相同**，否则 `log.list` 列的是另一个空目录。
-- 控制台只暴露 `.log`、拒绝符号链接、单文件超过 8MB 不读；但目录里的硬链接没法与真实日志区分，日志目录不要放别的东西。
+-Shell 只暴露 `.log`、拒绝符号链接、单文件超过 8MB 不读；但目录里的硬链接没法与真实日志区分，日志目录不要放别的东西。
 - `createFileSink` 默认 `maxBytes` 10MB、`keepDays` 7 天、`minLevel` `info`，于是只有 `info.log` / `warn.log` / `error.log`，级联收录（`error.log` 只收 error）。要 `debug.log` 传 `minLevel: "debug"`。
 - 退出时顺序不能反：
 
@@ -103,8 +101,8 @@ import { logo } from "@needle/needle";
 
 const shell = createServerShell({
   auth: {
-    users: { admin: process.env.CONSOLE_PASSWORD! },
-    secret: process.env.CONSOLE_SECRET!,   // 必须固定，见下
+    users: { admin: process.env.SHELL_PASSWORD! },
+    secret: process.env.SHELL_SECRET!,   // 必须固定，见下
   },
   version: "1.0.0",
 });
@@ -126,14 +124,14 @@ wrangler 只需要常规配置：
 }
 ```
 
-`CONSOLE_SECRET` 用 `wrangler secret put` 注入。
+`SHELL_SECRET` 用 `wrangler secret put` 注入。
 
 ### 必须固定 secret
 
 token 是 HMAC 签名的，secret 变了旧 token 就作废。Workers 的 isolate 随时会被回收重建，如果让库随机生成 secret，每次回收都会把已登录的浏览器踢掉——表现为“刚登录完又要登录”。
 
 ```ts
-auth: { users: {...}, secret: env.CONSOLE_SECRET }   // 不要省略
+auth: { users: {...}, secret: env.SHELL_SECRET }   // 不要省略
 ```
 
 ### Workers 上能看到什么
@@ -144,7 +142,7 @@ auth: { users: {...}, secret: env.CONSOLE_SECRET }   // 不要省略
 | stdout sink | 写 stdout | 退化为 `console.log` |
 | 文件 sink | 有 | 无（没有文件系统） |
 | 飞书 sink | 有 | 有（走 fetch） |
-| 控制台页面 / SSE | 有 | 有 |
+| Shell 页面 / SSE | 有 | 有 |
 | 右栏实时日志 | 有 | 有（只覆盖当前 isolate，别的实例看不到） |
 | 命令执行 | 完整 | 完整 |
 | CPU / 内存指标 | 真实读数 | 自维护计数器 |
@@ -152,7 +150,7 @@ auth: { users: {...}, secret: env.CONSOLE_SECRET }   // 不要省略
 
 ### 日志怎么拿出去
 
-控制台右栏只在 shell 打开时收实时日志，没有历史；Workers 又没有文件系统，所以事后查只能靠 sink 出去：
+Shell 右栏只在面板打开时收实时日志，没有历史；Workers 又没有文件系统，所以事后查只能靠 sink 出去：
 
 - `createLarkSink` 把 `error` 推到飞书，最省事。
 - 平台侧的 Logpush / Tail Workers 收 stdout。
@@ -167,7 +165,7 @@ auth: { users: {...}, secret: env.CONSOLE_SECRET }   // 不要省略
 ### 已知的环境限制
 
 - **不能用非字面量的 `import()`**：workerd 要求静态模块说明符。库内部已经没有任何动态 import（这条是 miniflare 集成测试抓出来的）。
-- **CPU 时间有限**：控制台的命令走同一套执行路径，一个跑太久的命令会被 HTTP 超时（默认 10 秒）截断。
+- **CPU 时间有限**：Shell 的命令走同一套执行路径，一个跑太久的命令会被 HTTP 超时（默认 10 秒）截断。
 - **SSE 长连接**：Workers 的 HTTP 请求没有 wall time 上限，订阅的主题可以一直推；客户端断线后需要重连，前端已经带了指数退避。
 
 ### 验证过什么

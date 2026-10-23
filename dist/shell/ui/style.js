@@ -1,7 +1,7 @@
 /**
  * Solarized Dark（Ethan Schoonover 的配色），不自己调色。
  *
- * 插到文档里一次，用 id 判重——一个页面里挂多个控制台面板时不至于
+ * 插到文档里一次，用 id 判重——一个页面里挂多个 Shell 面板时不至于
  * 把同一份样式重复注入几十遍。
  */
 export const STYLE_ID = "logo-shell-style";

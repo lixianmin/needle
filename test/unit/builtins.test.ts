@@ -70,7 +70,7 @@ describe("内置命令", () => {
     await expect(run("auth", [])).rejects.toBeInstanceOf(CommandError);
   });
 
-  test("sub/unsub 只为 help 登记，直接执行会提示去控制台", async () => {
+  test("sub/unsub 只为 help 登记，直接执行会提示去 Shell", async () => {
     const { run } = setup();
     await expect(run("sub", ["top"])).rejects.toBeInstanceOf(CommandError);
     await expect(run("unsub", [])).rejects.toBeInstanceOf(CommandError);

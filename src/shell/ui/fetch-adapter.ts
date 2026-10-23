@@ -5,7 +5,7 @@ import type { AuthResult, ShellAdapter, ShellEvent, ExecResult, FileResult, Hand
 const TOKEN_KEY = "logo.shell.token";
 
 interface FetchAdapterOptions {
-  /** 控制台挂载前缀，如 "/shell"。空字符串表示挂在根路径。 */
+  /**Shell 挂载前缀，如 "/shell"。空字符串表示挂在根路径。 */
   basePath: string;
   /** SSE 的 topics 参数，如 "top:5000,mem"。 */
   topics?: string;
@@ -78,15 +78,15 @@ function createFrameParser(onFrame: (event: string, data: string) => void) {
  * 不用原生 EventSource，因为它不能带 Authorization 头。自己读流多写十几行，
  * 换来的是 token 能放在头里而不是 URL 里（URL 会进访问日志）。
  */
-export function createFetchAdapter(options: FetchAdapterOptions): ShellAdapter {
-  const listeners = new Set<(event: ShellEvent) => void>();
+export function createFetchAdapter(options: FetchAdapterOptions):ShellAdapter {
+  const listeners = new Set<(event:ShellEvent) => void>();
   // 订阅集合属于这条流，sub/unsub 改的就是它。
   let topicSpec = options.topics ?? "";
   let controller: AbortController | undefined;
   let retry = 0;
   let disposed = false;
 
-  const emit = (event: ShellEvent): void => {
+  const emit = (event:ShellEvent): void => {
     for (const listener of listeners) {
       listener(event);
     }

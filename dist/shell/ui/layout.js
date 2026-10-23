@@ -48,7 +48,7 @@ function buildSidebar(doc) {
     aside.append(tabs, logPanel, topicPanel);
     return { aside, logTab, topicTab, tools, pause, clear, level, droppedLabel, logPanel, topicPanel };
 }
-/** 拼出控制台的整棵 DOM（不含日志列表，那两块由 view 挂上去）。 */
+/** 拼出 Shell 的整棵 DOM（不含日志列表，那两块由 view 挂上去）。 */
 export function buildLayout(doc) {
     const head = buildHeader(doc);
     const out = buildOutput(doc);
