@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { renderPage } from "../../packages/shell/src/page.js";
+import { renderPage } from "../../src/shell/page.js";
 
 describe("renderPage", () => {
   const page = renderPage({ basePath: "/shell", title: "node", version: "1.2.3", topicSpec: "top:5000" });

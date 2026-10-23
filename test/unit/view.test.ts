@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 import { Window } from "happy-dom";
 
-import type { ShellAdapter, ShellEvent } from "../../packages/shell/src/ui/adapter.js";
-import { mountShell } from "../../packages/shell/src/ui/view.js";
+import type { ShellAdapter, ShellEvent } from "../../src/shell/ui/adapter.js";
+import { mountShell } from "../../src/shell/ui/view.js";
 
 /** 假适配器：测试里手动推事件、手动返回命令结果。 */
 function fakeAdapter() {

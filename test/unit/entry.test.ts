@@ -1,35 +1,49 @@
 import { describe, expect, test } from "bun:test";
 
-import * as logoPkg from "../../packages/logo/src/index.js";
-import * as shellPkg from "../../packages/shell/src/index.js";
+import * as nodeEntry from "../../src/node/index.js";
+import * as rootEntry from "../../src/index.js";
+import * as shellEntry from "../../src/shell/index.js";
 
-describe("两个包的边界", () => {
-  test("@needle/logo 只出日志，不出 shell", () => {
-    expect(typeof logoPkg.logo.info).toBe("function");
-    expect(typeof logoPkg.newLogger).toBe("function");
-    expect(typeof logoPkg.createLarkSink).toBe("function");
-    expect("createShell" in logoPkg).toBe(false);
-    expect("mountShell" in logoPkg).toBe(false);
+/**
+ * 单包三个入口的边界。包名只有一个（`@needle/needle`），但入口按环境分：
+ * `.` 只有日志、`./shell` 只有控制台、`./node` 收下所有 Node 专属能力。
+ *
+ * 这三条断言是「浏览器里只用日志不会沾到 node:」的第一道闸；第二道是
+ * `browser-safety.test.ts` 对真实打包产物的内容检查。
+ */
+describe("三个入口的边界", () => {
+  test("根入口只出日志，不出 shell，也不出 Node 专属能力", () => {
+    expect(typeof rootEntry.logo.info).toBe("function");
+    expect(typeof rootEntry.newLogger).toBe("function");
+    expect(typeof rootEntry.createLarkSink).toBe("function");
+
+    expect("createShell" in rootEntry).toBe(false);
+    expect("mountShell" in rootEntry).toBe(false);
+    expect("createFileSink" in rootEntry).toBe(false);
+    expect("createLogFiles" in rootEntry).toBe(false);
+    expect("serve" in rootEntry).toBe(false);
+    expect("attach" in rootEntry).toBe(false);
   });
 
-  test("@needle/shell 出 shell 的 API，但不重新导出 logo", () => {
-    expect(typeof shellPkg.createShell).toBe("function");
-    expect(typeof shellPkg.createBrowserShell).toBe("function");
-    expect(typeof shellPkg.mountShell).toBe("function");
-    expect(typeof shellPkg.createFetchAdapter).toBe("function");
+  test("./shell 出控制台 API，但不转手导出 logo，也不出 Node 专属能力", () => {
+    expect(typeof shellEntry.createShell).toBe("function");
+    expect(typeof shellEntry.createBrowserShell).toBe("function");
+    expect(typeof shellEntry.mountShell).toBe("function");
+    expect(typeof shellEntry.createFetchAdapter).toBe("function");
+
     // shell 依赖 logo 打日志，但不在自己的入口里转手导出它。
-    expect("logo" in shellPkg).toBe(false);
-    expect("newLogger" in shellPkg).toBe(false);
+    expect("logo" in shellEntry).toBe(false);
+    expect("newLogger" in shellEntry).toBe(false);
+
+    expect("createFileSink" in shellEntry).toBe(false);
+    expect("serve" in shellEntry).toBe(false);
+    expect("attach" in shellEntry).toBe(false);
   });
 
-  test("node 专属的 API 不出现在任一包的默认入口", () => {
-    // createFileSink / serve / attach 依赖 node:fs / node:http：放进默认入口
-    // 会让 Workers 与浏览器打包直接失败，它们只从各自的 ./node 出。
-    for (const pkg of [logoPkg, shellPkg]) {
-      expect("createFileSink" in pkg).toBe(false);
-      expect("createLogFiles" in pkg).toBe(false);
-      expect("serve" in pkg).toBe(false);
-      expect("attach" in pkg).toBe(false);
-    }
+  test("./node 是 Node 专属能力的唯一出口", () => {
+    expect(typeof nodeEntry.createFileSink).toBe("function");
+    expect(typeof nodeEntry.createLogFiles).toBe("function");
+    expect(typeof nodeEntry.serve).toBe("function");
+    expect(typeof nodeEntry.attach).toBe("function");
   });
 });

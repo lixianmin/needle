@@ -14,8 +14,8 @@
 ```ts
 import { Hono } from "hono";
 import { serve } from "@hono/node-server";
-import { createLogFiles } from "@needle/logo/node";
-import { createShell } from "@needle/shell";
+import { createLogFiles } from "@needle/needle/node";
+import { createShell } from "@needle/needle/shell";
 
 const app = new Hono();
 
@@ -37,10 +37,10 @@ const server = serve({ fetch: app.fetch, port: 3000 });
 - **`basePath` 与路由前缀必须一致。** handler 内部按它剥前缀：`/shell/log/info.log` → `/log/info.log`。
 - **控制台注册在业务中间件之前。** 它自带 token 校验，不该被 CORS、body 解析、登录态中间件影响；注册在它之前的 `app.use("*")` 会把 `/shell` 一起拦掉。
 
-Express / Fastify / 裸 `node:http` 用 `@needle/shell/node` 的两个函数，已有 app 一行不用改：
+Express / Fastify / 裸 `node:http` 用 `@needle/needle/node` 的两个函数，已有 app 一行不用改：
 
 ```ts
-import { attach, serve } from "@needle/shell/node";
+import { attach, serve } from "@needle/needle/node";
 
 await serve(shell.handler, { port: 7701 });            // 自己起端口
 attach(server, shell, { basePath: "/shell" });         // 挂到已有 http server

@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 
 import { readFileSync } from "node:fs";
 
-import { newLogger } from "../../packages/logo/dist/index.js";
-import { createShell } from "../../packages/shell/dist/index.js";
-import { serve } from "../../packages/shell/dist/node.js";
+import { newLogger } from "../../dist/index.js";
+import { createShell } from "../../dist/shell/index.js";
+import { serve } from "../../dist/node/index.js";
 
 // 冒烟测试跑 dist，直接读 package.json 里的真版本号：这里不断言它的值，只是
 // createShell 要求传一个。单测用的固定常量见 test/fixtures.ts。

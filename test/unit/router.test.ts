@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { createRouter, normalizeBasePath, type Route } from "../../packages/shell/src/router.js";
+import { createRouter, normalizeBasePath, type Route } from "../../src/shell/router.js";
 
 /** handler 把参数回显成 JSON，方便断言解出了什么。 */
 function routes(): Route[] {

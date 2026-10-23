@@ -22,7 +22,7 @@
     "noUnusedParameters": true
   },
   "include": [
-    "packages",
+    "src",
     "test",
     "examples",
     "scripts"

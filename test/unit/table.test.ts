@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
-import { table } from "../../packages/shell/src/table.js";
-import type { LinkedCell } from "../../packages/shell/src/types.js";
+import { table } from "../../src/shell/table.js";
+import type { LinkedCell } from "../../src/shell/types.js";
 
 const io = table<{ path: string; reads: number; bytes: number; hitRate: number }>({
   path: {},

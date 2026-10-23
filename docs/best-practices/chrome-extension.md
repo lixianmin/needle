@@ -14,7 +14,7 @@
 
 ```ts
 // sidepanel.ts
-import { createBrowserShell } from "@needle/shell";
+import { createBrowserShell } from "@needle/needle/shell";
 
 const panel = createBrowserShell({
   element: document.getElementById("shell")!,
@@ -36,7 +36,7 @@ const panel = createBrowserShell({
 面板也可以连另一台机器上的控制台，这时换 fetch 适配器，鉴权重新有意义：
 
 ```ts
-import { createFetchAdapter, mountShell } from "@needle/shell";
+import { createFetchAdapter, mountShell } from "@needle/needle/shell";
 
 const view = mountShell(
   document.getElementById("shell")!,
@@ -70,7 +70,7 @@ service worker 里没有 `window` / `document`，`localStorage` 也不可用（�
 要留证据就自己挂 sink，只落 `warn` / `error`——扩展里没有批量，逐条写 storage 会把日志变成 IO 瓶颈：
 
 ```ts
-import type { LogRecord, Sink } from "@needle/logo";
+import type { LogRecord, Sink } from "@needle/needle";
 
 const kept: LogRecord[] = [];
 const persist: Sink = (batch) => {

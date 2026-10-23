@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test";
 
-import { createShellSource } from "../../packages/shell/src/source.js";
-import { createLocalAdapter } from "../../packages/shell/src/ui/local.js";
-import type { ShellEvent } from "../../packages/shell/src/ui/adapter.js";
-import { newLogger } from "../../packages/logo/src/logo/logo.js";
+import { createShellSource } from "../../src/shell/source.js";
+import { createLocalAdapter } from "../../src/shell/ui/local.js";
+import type { ShellEvent } from "../../src/shell/ui/adapter.js";
+import { newLogger } from "../../src/logo/logo.js";
 import { TEST_VERSION } from "../fixtures.js";
 
 function setup() {

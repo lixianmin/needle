@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
-import { newLogger } from "../../packages/logo/src/logo/logo.js";
-import type { LogRecord } from "../../packages/logo/src/logo/types.js";
+import { newLogger } from "../../src/logo/logo.js";
+import type { LogRecord } from "../../src/logo/types.js";
 
 /** 收集 sink 的调用，用来断言"调了几次""每次几条"。保留原始 batch 引用。 */
 function collector() {
@@ -183,7 +183,8 @@ describe("newLogger", () => {
     expect(find("i")?.stack).toBeUndefined();
     expect(find("w")?.stack).toBeUndefined();
     expect(find("e")?.stack).toContain("logger.test.ts");
-    expect(find("e")?.stack).not.toContain("logo/src/logo/logo.ts");
+    // 内部帧按「与 logger 同目录」剪掉，不依赖包的目录名（搬过三次了）。
+    expect(find("e")?.stack).not.toContain("/src/logo/");
     // 剪完内部帧，第一条就是调用点本身。
     expect(find("e")?.stack?.split("\n")[1]).toContain("logger.test.ts");
   });

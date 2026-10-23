@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { Window } from "happy-dom";
 
-import { createFetchAdapter } from "../../packages/shell/src/ui/fetch-adapter.js";
-import type { ShellEvent } from "../../packages/shell/src/ui/adapter.js";
+import { createFetchAdapter } from "../../src/shell/ui/fetch-adapter.js";
+import type { ShellEvent } from "../../src/shell/ui/adapter.js";
 
 const encoder = new TextEncoder();
 const originalFetch = globalThis.fetch;
