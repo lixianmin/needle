@@ -161,11 +161,11 @@ process.on("SIGTERM", () => logo.dispose());                                    
 
 ### 装
 
-库拆成两个包，按你要的东西装：
+两个包，二选一：
 
 ```bash
-bun add @needle/logo    # 只记日志
-bun add @needle/shell   # 浏览器里那个 shell，会自动带上 @needle/logo
+bun add @needle/shell   # 要 shell；它的依赖里有 @needle/logo，会一起装上
+bun add @needle/logo    # 只要日志，不要 shell
 ```
 
 两个包都还没发到 npm。仓库内是 bun workspace（`packages/logo`、`packages/shell`），
