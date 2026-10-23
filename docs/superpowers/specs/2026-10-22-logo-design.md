@@ -246,33 +246,33 @@ POST /exec   { "line": "log.list" }
              + Authorization: Bearer <token>
 
 200  { "output": CommandOutput }
-400  { "code": "unknown_command", "message": "unknown command: foo" }
-401  { "code": "unauthorized",    "message": "unauthorized" }
+400  { "code": "bad_request", "message": "unknown command: foo" }
+401  { "code": "unauthorized", "message": "unauthorized" }
 ```
 
 **错误响应契约（所有路由通用）**：成功响应不加壳，返回资源自己的形状（页面是 HTML、事件流是 SSE、日志全文是 `text/plain`、其余是 JSON）；失败响应一律是 JSON，形状固定 `{ "code": ..., "message": ... }`，HTTP 状态码如实反映失败类型。
 
 `code` 用字符串而不是复用数字状态码：401 至少有“没带 token”“token 无效”“口令错”三种成因，数字压不住；而且客户端只需一条规则 —— `if (!res.ok) { const { code, message } = await res.json(); }` —— 不必按状态码分支去猜 body 长什么样。
 
-| 状态 | `code` | 场景 |
-|---|---|---|
-| 400 | `bad_request` | body 不是 JSON、字段类型不对、空命令 |
-| 400 | `unknown_command` | 命令名不存在 |
-| 401 | `unauthorized` | 没带 token 或 token 无效 |
-| 401 | `bad_credentials` | `POST /auth` 用户名或口令错 |
-| 404 | `not_found` | 路径或方法没命中 |
-| 404 | `log_not_found` | 日志文件不存在 |
-| 413 | `payload_too_large` | 请求体超过上限 |
-| 500 | `command_failed` | 命令抛错 |
-| 503 | `disposed` | `dispose()` 之后 |
-| 504 | `timeout` | 命令超时 |
+| 状态 | `code` | 场景 | 出口 |
+|---|---|---|---|
+| 400 | `bad_request` | body 不是 JSON、字段类型不对、空命令、命令名不存在 | `ResponseX.badRequest` |
+| 401 | `unauthorized` | 没带 token 或 token 无效 | `ResponseX.unauthorized` |
+| 401 | `bad_credentials` | `POST /auth` 用户名或口令错 | `ResponseX.badCredentials` |
+| 404 | `not_found` | 路径或方法没命中、日志文件不存在 | `ResponseX.notFound` |
+| 413 | `payload_too_large` | 请求体超过上限 | `ResponseX.payloadTooLarge` |
+| 500 | `internal_error` | 命令抛错 | `ResponseX.internalError` |
+| 503 | `service_unavailable` | `dispose()` 之后 | `ResponseX.unavailable` |
+| 504 | `gateway_timeout` | 命令超时 | `ResponseX.gatewayTimeout` |
+
+一个状态码只配一个 `code`，同一种状态内的细分靠 `message`。命令失败的内部原因（`ExecFailureCode`：disposed / bad_request / unknown_command / unauthorized / timeout / command_failed）比线上 `code` 细，在 `exec.ts` 里一个 `switch` 映射过去——内部词表管“该选哪个响应”，线上词表管“客户端看到什么”。
 
 `/health` 是唯一例外：它的 body 是探活载荷 `{"ok":true}`，不是错误信封。线上错误体不带 `ok` 字段——非 2xx 已经表达了失败；`ok` 只活在内部 Result（浏览器适配器没有状态码可用）。
 
 四条工程约束，写在这里避免实现时各写各的：
 
 - `/exec` 请求体上限 4KB，超过直接 413。命令是手敲的，不应该有 MB 级请求。
-- 单条命令默认超时 10 秒，超时返回 504 + `{code:"timeout", message:"timeout"}`，防止一个卡住的命令占死连接。
+- 单条命令默认超时 10 秒，超时返回 504 + `{code:"gateway_timeout", message:"timeout"}`，防止一个卡住的命令占死连接。
 - SSE 空闲时才发注释心跳（`: ping`，默认 15 秒一次，期间有数据就不发）。反向代理按"无数据"计超时（nginx 默认 60 秒），这一行是给中间层看的，控制台里不显示。
 - 页面和接口必须同源（都在 `basePath` 下）。不做 CORS，因为控制台本来就不应该跨域暴露。
 - 日志文件链接不带凭证：点击时用 `Authorization` 头取回全文，再用 blob URL 在新窗口打开。把 token 放进 URL 会进地址栏、历史记录和访问日志，而且一旦签发就有时效——用户过一会儿再点就是 401。
@@ -478,6 +478,8 @@ src/
         lark.ts     # 飞书 sink（独立入口 ./lark）
     collections/    # 与业务无关的通用数据结构
       sorted-table.ts
+    web/
+      response.ts   # ResponseX：错误响应的唯一出口（不对外导出）
     logger.ts       # logo 门面
     record.ts       # 记录构造与参数归一化
     sink.ts         # Sink 类型、stdout sink

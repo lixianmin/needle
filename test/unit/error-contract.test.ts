@@ -63,15 +63,15 @@ describe("错误响应契约", () => {
     const cases: Array<{ name: string; req: Request; status: number; code: string }> = [
       { name: "事件流无 token", req: get("/events"), status: 401, code: "unauthorized" },
       { name: "日志全文无 token", req: get("/log/info.log"), status: 401, code: "unauthorized" },
-      { name: "日志文件不存在", req: get("/log/nope.log", token), status: 404, code: "log_not_found" },
+      { name: "日志文件不存在", req: get("/log/nope.log", token), status: 404, code: "not_found" },
       { name: "未知路径", req: get("/nope"), status: 404, code: "not_found" },
       { name: "方法不匹配", req: post("/health", {}), status: 404, code: "not_found" },
-      { name: "未知命令", req: post("/exec", { line: "nope" }), status: 400, code: "unknown_command" },
+      { name: "未知命令", req: post("/exec", { line: "nope" }), status: 400, code: "bad_request" },
       { name: "空命令", req: post("/exec", { line: "   " }), status: 400, code: "bad_request" },
       { name: "body 不是 JSON", req: post("/exec", "not json"), status: 400, code: "bad_request" },
       { name: "line 不是字符串", req: post("/exec", { line: 42 }), status: 400, code: "bad_request" },
-      { name: "命令抛错", req: post("/exec", { line: "boom" }), status: 500, code: "command_failed" },
-      { name: "命令超时", req: post("/exec", { line: "slow" }), status: 504, code: "timeout" },
+      { name: "命令抛错", req: post("/exec", { line: "boom" }), status: 500, code: "internal_error" },
+      { name: "命令超时", req: post("/exec", { line: "slow" }), status: 504, code: "gateway_timeout" },
       { name: "受限命令无 token", req: post("/exec", { line: "top" }), status: 401, code: "unauthorized" },
       { name: "口令错", req: post("/auth", { user: "admin", password: "x" }), status: 401, code: "bad_credentials" },
       { name: "auth body 超长", req: post("/auth", "x".repeat(600)), status: 413, code: "payload_too_large" },
@@ -94,13 +94,13 @@ describe("错误响应契约", () => {
     api.dispose();
   });
 
-  test("dispose 之后是 503 + disposed", async () => {
+  test("dispose 之后是 503 + service_unavailable", async () => {
     const api = setup();
     api.dispose();
 
     const res = await api.handler(post("/exec", { line: "help" }));
     expect(res.status).toBe(503);
-    expect(await res.json()).toEqual({ code: "disposed", message: expect.any(String) });
+    expect(await res.json()).toEqual({ code: "service_unavailable", message: expect.any(String) });
   });
 
   test("成功响应不加壳", async () => {

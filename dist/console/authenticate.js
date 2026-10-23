@@ -1,4 +1,4 @@
-import { fail } from "./fail.js";
+import { ResponseX } from "../core/web/response.js";
 const DEFAULT_MAX_BODY_BYTES = 512;
 /**
  * `POST /auth`：控制台拿到密码的唯一入口。
@@ -12,26 +12,26 @@ export function createAuthRoute(options) {
     return async (req) => {
         const declared = Number(req.headers.get("content-length") ?? "0");
         if (Number.isFinite(declared) && declared > maxBodyBytes) {
-            return fail(413, "payload_too_large", "payload too large");
+            return ResponseX.payloadTooLarge("payload too large");
         }
         const body = await req.text();
         if (new TextEncoder().encode(body).length > maxBodyBytes) {
-            return fail(413, "payload_too_large", "payload too large");
+            return ResponseX.payloadTooLarge("payload too large");
         }
         let parsed;
         try {
             parsed = JSON.parse(body);
         }
         catch {
-            return fail(400, "bad_request", "body 必须是 JSON");
+            return ResponseX.badRequest("body 必须是 JSON");
         }
         const { user, password } = (parsed ?? {});
         if (typeof user !== "string" || typeof password !== "string") {
-            return fail(400, "bad_request", "user 与 password 都必须是字符串");
+            return ResponseX.badRequest("user 与 password 都必须是字符串");
         }
         const result = await options.source.authenticate(user, password);
         if (!result.ok)
-            return fail(401, "bad_credentials", result.error);
+            return ResponseX.badCredentials(result.error);
         return Response.json({ user: result.user, token: result.token });
     };
 }

@@ -59,7 +59,7 @@ try {
   assert.equal(bad.status, 400);
   assert.equal(bad.headers.get("content-type")?.includes("application/json"), true);
   assert.deepEqual(await bad.json(), {
-    code: "unknown_command",
+    code: "bad_request",
     message: "unknown command: no-such-command",
   });
 } finally {

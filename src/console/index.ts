@@ -1,6 +1,6 @@
 import { createAuthRoute } from "./authenticate.js";
 import { createExecHandler } from "./exec.js";
-import { fail } from "./fail.js";
+import { ResponseX } from "../core/web/response.js";
 import { renderPage } from "./page.js";
 import { createRouter, normalizeBasePath, type Route, type RouteContext } from "./router.js";
 import { createConsoleSource, type ConsoleSource, type ConsoleSourceOptions } from "./source.js";
@@ -64,10 +64,10 @@ export function createConsole(options: ConsoleOptions): Console {
   }
 
   async function logRoute({ req, params }: RouteContext): Promise<Response> {
-    if ((await resolveUser(req)) === null) return fail(401, "unauthorized", "未登录或 token 无效");
+    if ((await resolveUser(req)) === null) return ResponseX.unauthorized("未登录或 token 无效");
 
     const body = await source.logFiles?.read(params.name ?? "");
-    if (body === null || body === undefined) return fail(404, "log_not_found", "日志文件不存在");
+    if (body === null || body === undefined) return ResponseX.notFound("日志文件不存在");
 
     return new Response(body, {
       headers: {
@@ -80,7 +80,7 @@ export function createConsole(options: ConsoleOptions): Console {
   async function eventsRoute({ req, url }: RouteContext): Promise<Response> {
     // 事件流必须鉴权：日志里什么都有，匿名不该看到。本地模式是唯一的例外，理由同 /log/。
     const user = await resolveUser(req);
-    if (user === null) return fail(401, "unauthorized", "未登录或 token 无效");
+    if (user === null) return ResponseX.unauthorized("未登录或 token 无效");
 
     return createSseResponse({
       user,
@@ -112,10 +112,10 @@ export function createConsole(options: ConsoleOptions): Console {
     source,
 
     async handler(req) {
-      if (disposed) return fail(503, "disposed", "console disposed");
+      if (disposed) return ResponseX.unavailable("console disposed");
 
       const found = router.match(req);
-      if (found === null) return fail(404, "not_found", "not found");
+      if (found === null) return ResponseX.notFound("not found");
 
       return found.handler({ req, url: found.url, params: found.params });
     },
