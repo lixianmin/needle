@@ -37,11 +37,11 @@ $ auth username
 |---|---|
 | `help` | 列出所有命令 |
 | `auth` | 登录（唯一入口） |
-| `log.list` | 列出磁盘上的日志文件，点文件名用 header 鉴权取回全文 |
+| `log.list` | 列出日志文件（Node 读磁盘，浏览器读 IndexedDB），点文件名取回全文；hover 文件名看末尾几行样本 |
 | `top` | 打一份进程指标快照 |
 | `sub` / `unsub` | 订阅 / 取消订阅主题，如 `sub top 2000` |
 
-`log.list` 读的是磁盘文件（Node 侧要传 `logFiles`），看的是历史；右栏是实时日志，只在面板打开时存在，刷新即空。
+`log.list` 看的是历史：Node 侧读磁盘（要传 `logFiles`），浏览器侧读 IndexedDB（要传 `createIndexedDbStore()` 建的 store，见「浏览器纯前端页」篇）；右栏是实时日志，只在面板打开时存在，刷新即空。
 
 ### 3. 自定义命令
 

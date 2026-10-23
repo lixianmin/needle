@@ -50,7 +50,46 @@ const log = newLogger({
 });
 ```
 
-没有 `node:fs`：`@needle/needle/node` 里全是 Node 专属 API，浏览器打包会把它换成空实现，别在浏览器代码里 import 它。要事后查就自己挂 sink 往收集端发；页面正在关闭时 `sendBeacon` 是唯一可靠的出口：
+没有 `node:fs`：`@needle/needle/node` 里全是 Node 专属 API，浏览器打包会把它换成空实现，别在浏览器代码里 import 它。要事后查有两条路：落本机 IndexedDB（下一节），或发到远端收集端（再下一节），两者可并存。
+
+### 落本机：`createIndexedDbStore()`
+
+一个对象两个身份：写是 `Sink`（手动 `addSink`），读是 `LogFiles`（传给 `createBrowserShell` 的 `logFiles`）。接完之后 `log.list` 列出本机日志，点文件名新窗口打开全文，手动保存就能发给排查的人——与服务端同一套交互，文件名 hover 还能看到末尾几行样本：
+
+```ts
+import { createIndexedDbStore, newLogger } from "@needle/needle";
+import { createBrowserShell } from "@needle/needle/shell";
+
+const log = newLogger({
+  name: "web",
+  batch: true,            // 浏览器默认逐条写，用 IDB 必须显式攒批
+  flushIntervalMs: 16,    // 攒一帧再落一次
+});
+const store = createIndexedDbStore();
+log.addSink(store);
+
+createBrowserShell({
+  element: document.getElementById("shell")!,
+  auth: { users: {} },
+  user: "local",
+  logFiles: store,        // 读：log.list 由此可用
+});
+
+addEventListener("pagehide", () => log.dispose());   // 先 flush 再关 sink
+```
+
+默认保留 7 天 + 5000 条，写入时顺手清；按级别级联出 `info.log` / `warn.log` / `error.log` 三个虚拟文件，与 Node 文件 sink 同构。要改默认值：`createIndexedDbStore({ name, keepDays, maxRecords, minLevel })`。
+
+已知限制：
+
+- **崩溃瞬间最后 ~100ms（一个攒批窗口）的日志可能没提交**。这是本机留存的边界，不是发远端的替代。
+- **保留期锚在设备时钟上**：时钟大幅前跳（NTP 大幅校正、VM 快照恢复）会让过期清理成批删掉近几天的日志；5000 条上限那根轴按入库顺序删，不受时钟影响。
+- **无痕模式 / 部分 WebView 里 IndexedDB 直接缺失**：写静默丢弃、`log.list` 返回空，不打扰业务。
+- **日志含业务数据，长期留在用户机器上**：库不做脱敏，要不要落、落多久是产品决策。
+
+### 发远端：sendBeacon
+
+页面正在关闭时 `sendBeacon` 是唯一可靠的出口：
 
 ```ts
 import type { Sink } from "@needle/needle";

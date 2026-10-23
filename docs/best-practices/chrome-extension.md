@@ -1,6 +1,6 @@
 # Chrome 扩展
 
-能用。扩展自己的页面里可以挂一块 DOM 面板：命令在你自己的扩展代码里执行，日志进该页面的 DevTools。也可以让面板连另一台机器上的 Shell，那边的命令在远端跑。
+能用。扩展自己的页面里可以挂一块 DOM 面板：命令在你自己的扩展代码里执行，日志进该页面的 DevTools，接了 `createIndexedDbStore()` 还能落本机、用 `log.list` 导出。也可以让面板连另一台机器上的 Shell，那边的命令在远端跑。
 
 ## 术语
 
@@ -16,10 +16,10 @@ Chrome 扩展的代码跑在几个互不相同的上下文里，先把名字对�
 
 | 用法 | 入口 | 命令在哪跑 | 日志去哪 |
 |---|---|---|---|
-| 扩展页面挂本地面板 | `createBrowserShell({ element })` | 你的扩展代码里，进程内直调 | 该页面的 DevTools |
+| 扩展页面挂本地面板 | `createBrowserShell({ element })` | 你的扩展代码里，进程内直调 | 该页面的 DevTools；接了 IndexedDB store 则落本机可导出 |
 | 扩展页面连远程 Shell | `mountShell(el, createFetchAdapter({ basePath }))` | 远端那台服务器 | 远端的 sink（文件、飞书） |
 
-扩展里没有文件系统，所以两种用法都没有 `log.list`（它读的是磁盘目录）。
+扩展里没有文件系统，`log.list` 平时不可用；接了 `createIndexedDbStore()`（第三节）后，它列出的是本机 IndexedDB 里的日志，不再读磁盘目录。
 
 ## 一、挂本地面板
 
@@ -128,25 +128,29 @@ const view = mountShell(
 
 ## 三、日志
 
-扩展里没有文件系统：`createFileSink` 不可用，`log.list` 没有目录可读。日志去该页面的 DevTools。
+扩展里没有文件系统：`createFileSink` 不可用。日志的去向按上下文分：
 
-service worker 里没有 `window` / `document`，`localStorage` 也不可用（要 `chrome.storage`），空闲约 30 秒会被终止。所以 SW 里只写日志，不挂常驻 UI：默认 stdout sink 退化成 `console.log`，在 `chrome://extensions` → 你的扩展 → Service Worker → 检查视图里看。
-
-要留证据就自己挂 sink，只落 `warn` / `error`——扩展里没有批量，逐条写 storage 会把日志变成 IO 瓶颈：
+- **扩展页面 / service worker**：用 `createIndexedDbStore()` 落本机。扩展的 IndexedDB 按 origin 共享——SW、side panel、options、独立页写的是同一份，任何一方都能在 `log.list` 里看到全部并导出。每个上下文各自 `addSink`，不需要共享模块实例。
+- **没接 store 的上下文**：stdout sink 退化成 `console.log`，在 `chrome://extensions` → 你的扩展 → 对应视图的「检查」里看。
+- **content script**：它的 IndexedDB 是宿主页的那份，不是扩展的。宿主页的日志要归到扩展的库，得走 `chrome.runtime.sendMessage` 让 SW 代写——那是另一套设计，本库不提供。
 
 ```ts
-import type { LogRecord, Sink } from "@needle/needle";
+// sidepanel.ts 与 sw.ts 各来一份（name 保持一致）
+import { createIndexedDbStore, logo } from "@needle/needle";
 
-const kept: LogRecord[] = [];
-const persist: Sink = (batch) => {
-  const worth = batch.filter((record) => record.level === "warn" || record.level === "error");
-  if (worth.length === 0) return;
-  kept.push(...worth);
-  if (kept.length > 200) kept.splice(0, kept.length - 200);   // 200 条够定位一次故障
-  void chrome.storage.local.set({ recentIssues: kept });
-};
-logo.addSink(persist);
+const store = createIndexedDbStore({ name: "my-extension-logs" });
+logo.addSink(store);
+
+// 扩展页面里把 store 传给面板，log.list 就能列出 SW 写的日志：
+// createBrowserShell({ element, logFiles: store, auth: { users: {} }, user: "local" })
 ```
+
+两个坑：
+
+- **SW 平均 30 秒被回收**：攒批窗口里未提交的最后几十毫秒会丢（warn/error 立即落，不受影响）。这是本机留存的边界，报障排查要的是「发生过什么」，这点丢失可接受。
+- **用户「清除浏览数据」不会清扩展的 IndexedDB**（官方文档明确）：日志会长期留在用户机器上，库不做脱敏，这是产品决策。
+
+`localStorage` 在 SW 里不可用（要 `chrome.storage`），但不影响日志——IndexedDB 在 SW 里是可用的。
 
 ## 四、坑
 
