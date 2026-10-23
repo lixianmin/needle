@@ -1,6 +1,7 @@
 import "fake-indexeddb/auto";
 import { describe, expect, test } from "bun:test";
 
+import { newLogger } from "../../src/logo/logo.js";
 import { createIndexedDbStore, type IndexedDbStoreOptions } from "../../src/logo/sinks/idb.js";
 import type { Level, LogRecord } from "../../src/logo/types.js";
 
@@ -372,5 +373,23 @@ describe("脏记录隔离", () => {
 
     const lines = (await store.read("info.log"))?.split("\n") ?? [];
     expect(lines.map(msgOf)).toEqual(["before", "after"]);
+  });
+});
+
+describe("文档里的接线", () => {
+  test("newLogger + store + dispose（pagehide 用法）最后一批仍落库", async () => {
+    const name = uniqueName();
+    const store = createIndexedDbStore({ name, now: () => BASE_TIME + DAY });
+    const log = newLogger({ batch: true, flushIntervalMs: 16, sinks: [store] });
+
+    log.info("first");
+    log.info("second");
+    log.dispose(); // 文档：addEventListener("pagehide", () => log.dispose())
+
+    // 稍等队列落盘，用新连接读原始库
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    const reopened = createIndexedDbStore({ name, now: () => BASE_TIME + DAY });
+    const lines = (await reopened.read("info.log"))?.split("\n") ?? [];
+    expect(lines.map(msgOf)).toEqual(["first", "second"]);
   });
 });
