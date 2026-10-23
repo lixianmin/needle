@@ -9,7 +9,7 @@ Chrome 扩展的代码跑在几个互不相同的上下文里，先把名字对�
 | 术语 | 是什么 |
 |---|---|
 | manifest v3（MV3） | 扩展清单的格式版本，Chrome 商店现在只收 v3 |
-| 扩展页面 | 扩展自己的 HTML 页面：side panel（浏览器侧边栏）、devtools（开发者工具里的面板）、options（扩展设置页） |
+| 扩展页面 | 扩展自己的 HTML 页面：side panel（浏览器侧边栏）、devtools（开发者工具里的面板）、options（扩展设置页），以及开在标签页 / 窗口里的独立页面 |
 | service worker | 扩展的后台脚本，没有界面，空闲约 30 秒会被回收 |
 | content script | 注入到普通网页里跑的脚本，和宿主页共用一个 DOM |
 | popup | 点扩展图标弹出的小窗，一失焦就销毁 |
@@ -48,11 +48,51 @@ const panel = createBrowserShell({
 
 | 位置 | 能挂面板吗 | 原因 |
 |---|---|---|
-| 扩展页面（side panel / devtools / options） | 能 | 有 `document` |
+| 扩展页面：side panel / devtools / options / 独立标签页 | 能 | 有 `document` |
 | service worker | 不能 | 没有 `document`——它只写日志，见第三节 |
 | content script（注入宿主页） | 不推荐 | 宿主页 CSP 会砍样式，日志进宿主页 DOM |
+| popup | 不能 | 一失焦就被 Chrome 关掉，面板和历史一起没了 |
 
-popup 别用——popup 一失焦就销毁，面板和历史一起没了。
+### popup 只当入口，开一个完整页面
+
+扩展是「点右上角图标弹一个 popup」这种形态的话，别把面板塞进 popup——它一失焦就被关掉，当不了调试台。popup 只留一个按钮，点开一个完整的扩展页：
+
+```ts
+// popup.html 里的按钮
+document.getElementById("open-console")!.addEventListener("click", () => {
+  chrome.windows.create({
+    url: chrome.runtime.getURL("console.html"),
+    type: "popup",
+    width: 1280,
+    height: 860,
+  });
+});
+```
+
+`console.html` 是扩展自己的一个页面，URL 就是 `chrome-extension://<id>/console.html`，跟普通网页长得一模一样：
+
+```html
+<!-- console.html -->
+<div id="shell"></div>
+<style>
+  html, body, #shell { height: 100%; margin: 0; }
+</style>
+```
+
+```ts
+// console.ts
+import { createBrowserShell } from "@needle/needle/shell";
+
+const panel = createBrowserShell({
+  element: document.getElementById("shell")!,
+  title: "my-extension",
+  version: chrome.runtime.getManifest().version,
+  auth: { users: {} },   // 扩展里没有鉴权意义
+  user: "local",         // 能打开面板的人本来就能看到这些数据
+});
+```
+
+面板高度是 `100%`，容器不给高度会塌成内容高度——上面那行 `height: 100%` 别省。想开成新标签页（能和业务页并排）就把 `chrome.windows.create` 换成 `chrome.tabs.create({ url: chrome.runtime.getURL("console.html") })`。
 
 ### 扩展页面的 CSP 挡不住它
 
