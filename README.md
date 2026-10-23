@@ -15,11 +15,17 @@ logo.error("paid failed", err, { userId: 7 });
 // Error 展开成 message + stack
 ```
 
-它能干三件事，都在同一个控制台页面里：
+它有两半，共用同一个 logger。
 
-- **看**：日志实时滚动，磁盘上的历史也能翻。
-- **问**：一条命令读进程内状态——订单、连接池、队列深度。
-- **盯**：订阅指标，每 N 毫秒落一行。
+**日志**：级别、字段、`Error` 展开、100ms 攒批、sink 可插拔（stdout / 文件 / 飞书），用法在下面「写日志」。
+
+**控制台**：浏览器里打开 `/console`。登录后进程的实时日志由 SSE 推进来，自己往下滚，不用轮询。常用的三件事：
+
+| 输入 | 看到什么 |
+|---|---|
+| `log.list` | 磁盘上的日志文件（`info.log` / `warn.log` / `error.log`），点文件名看全文（需要配 `logFiles`） |
+| `order 42` | 你在 `commands` 里注册的命令，返回什么渲染什么——读的是进程里的 Map、连接池、队列，不用先打日志 |
+| `sub top 2000` | 之后每 2 秒落一行 `[top] runtime=node  uptimeMs=57.7s  connections=1  rss=34.61M  heapUsed=12.3M …`，`unsub top` 停 |
 
 ## 安装
 
@@ -77,16 +83,14 @@ app.all("/console/*", (c) => debug.handler(c.req.raw));
 
 ### 登录
 
-打开 `http://localhost:3000/console`：
+`auth` 是唯一登录入口。没登录时只有 `help`、`auth`、`sub`、`unsub` 可跑，其余命令和日志流都要 token：
 
 ```
-$ help        列出所有命令（Tab 补全）
-$ auth ops    登录，下一步输密码：不回显、不进历史
-$ log.list    列日志文件，点文件名看全文
-$ top         看一眼进程指标
+$ auth ops
+密码:            # 不回显、不进历史
 ```
 
-`auth` 是唯一登录入口，口令走独立的 `POST /auth`，所以密码永远不会出现在命令行里。`users` 非空即服务端模式，非 public 命令与 `/events` 都要 token；`user: "local"` 是「能看到页面的人本来就能碰这个进程」时才用的本机开关。`secret` 不传就随机生成，重启后已签发的 token 全失效。
+口令走独立的 `POST /auth`，所以密码永远不会出现在命令行里。`users` 非空即服务端模式，非 public 命令与 `/events` 都要 token；`user: "local"` 是「能看到页面的人本来就能碰这个进程」时才用的本机开关。`secret` 不传就随机生成，重启后已签发的 token 全失效。
 
 ### 命令
 
@@ -132,7 +136,7 @@ $ top         看一眼进程指标
 bun examples/demo.ts    # http://127.0.0.1:1234/console，账号 xmli / 123456
 ```
 
-`log.list` 看日志文件、`top` 看指标、`room` 读业务状态、`io` 看表格排序、`burst 200` 看批量推送、`boom` 验证 error 带栈、`slow` 验证 10 秒超时。
+`room` 读业务状态、`io` 看表格排序、`burst 200` 看批量推送、`boom` 验证 error 带栈、`slow` 验证 10 秒超时。
 
 ## 设计
 
