@@ -94,7 +94,10 @@ const order: Command = {
 export const shell = createShell({
   logger: logo,              // 命令里的 log 就是这个实例
   basePath: "/shell",
-  auth: { users: { ops: process.env.CONSOLE_PASSWORD! }, secret: process.env.CONSOLE_SECRET! },
+  auth: {
+    users: { admin: process.env.CONSOLE_PASSWORD! },   // 用户名 → 口令；可配多个账号，登录时用这个 key
+    secret: process.env.CONSOLE_SECRET!,               // 签 token 的密钥，不是口令；不传就每次启动随机生成
+  },
   timeoutMs: 10_000,         // 命令超时，超了返回 timeout；默认 10 秒
   commands: [ping, io, order],
 });
@@ -202,7 +205,10 @@ const shell = createShell({
   logger: logo,
   basePath: "/shell",     // 必须与下面路由前缀一致：handler 内部按它剥前缀
   title: "order-service",
-  auth: { users: { ops: process.env.CONSOLE_PASSWORD! }, secret: process.env.CONSOLE_SECRET! },
+  auth: {
+    users: { admin: process.env.CONSOLE_PASSWORD! },   // 用户名 → 口令；可配多个账号，登录时用这个 key
+    secret: process.env.CONSOLE_SECRET!,               // 签 token 的密钥，不是口令；不传就每次启动随机生成
+  },
   logFiles: createLogFiles({ dir: "logs" }),   // 不给的话 log.list 用不了
 });
 
