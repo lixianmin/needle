@@ -1,6 +1,6 @@
 # Needle
 
-Web 控制台（console/shell），可输入命令查看当前系统状态，如实时日志、进程状态等。
+Web 控制台（console/shell），可输入命令查看当前系统状态，如进程状态、业务数据等。
 
 零运行时依赖：日志库 2.7 KB，含控制台 13.7 KB（min+gzip，`bun run size` 可复现）。
 
@@ -29,65 +29,68 @@ $ auth username
 | `top` | 打一份进程指标快照 |
 | `sub` / `unsub` | 订阅 / 取消订阅主题，如 `sub top 2000` |
 
-查日志用 `log.list`：它列出磁盘上的日志文件，点文件名看全文。页面里滚动的只有最近 500 行，量一大就淹了，也不留档。
+查日志用 `log.list`：它列出磁盘上的日志文件，点文件名看全文。
 
-### 你自己的命令
+### 3. 自定义命令
 
-命令写在 `createConsole({ commands: [...] })` 里，`run` 拿到的上下文是 `{ args, user, log }`，返回三种形态之一。
-
-**纯文本**：返回一段字符串。
+命令写在 `createConsole({ commands: [...] })` 里，`run` 拿到的上下文是 `{ args, user, log }`，返回 `text` / `table` / `json` 三种形态之一。下面是装好三个命令的完整文件：
 
 ```ts
-{
+import { createConsole, type Command } from "@needle/logo/console";
+import { logo } from "@needle/logo";
+
+// 你的业务数据
+const orders = new Map<string, Record<string, unknown>>();
+
+// 1. 纯文本：一段字符串
+const ping: Command = {
   name: "ping",
   note: "确认控制台还活着",
   run: () => ({ kind: "text", text: `pong ${new Date().toISOString()}` }),
-}
-```
+};
 
-**表格**：列名 + 行数组。每行是 `Cell[]`，即 `string | number | null | { text, href }`；带 `href` 的单元格渲染成链接，`log.list` 就是这么做的。
+// 2. 表格：列名 + 行数组；formats 与 columns 等长，声明每列的显示语义
+const io: Command = {
+  name: "io",
+  note: "按接口看流量",
+  run: () => ({
+    kind: "table",
+    columns: ["path", "reads", "bytes", "hitRate"],
+    rows: [["/api/user", 1520, 3_600_000, 0.982]],
+    formats: ["auto", "number", "bytes", "number"],
+  }),
+};
 
-```ts
-{
+// 3. JSON：任意可序列化的值，适合嵌套结构或要贴给别人的结果
+const order: Command = {
   name: "order",
   note: "按 id 看订单",
   args: "<id>",
   run: async ({ args }) => {
-    const order = await orders.get(args[0]!);
-    if (order === undefined) throw new Error(`没有订单 ${args[0]}`);
-    return {
-      kind: "table",
-      columns: ["field", "value"],
-      rows: Object.entries(order).map(([field, value]) => [field, JSON.stringify(value) ?? ""]),
-    };
+    const found = orders.get(args[0]!);
+    if (found === undefined) throw new Error(`没有订单 ${args[0]}`);
+    return { kind: "json", value: found };
   },
-}
-```
+};
 
-列可以声明语义，`formats` 与 `columns` 等长：`"bytes"` 走 `toHuman`（`36290560` → `34.61M`），`"duration"` 把数字当毫秒（`57720` → `57.7s`），`"number"` 不缩写，省略按 `auto`。点表头按原始数值排序。
-
-```ts
-{ kind: "table", columns: ["path", "reads", "bytes", "hitRate"], rows, formats: ["auto", "number", "bytes", "number"] }
-```
-
-**JSON**：返回任意可序列化的值，适合嵌套结构，或要贴给别人的结果。
-
-```ts
-{
-  name: "config",
-  note: "当前生效的配置（已脱敏）",
-  run: () => ({ kind: "json", value: redact(config) }),
-}
+export const debug = createConsole({
+  logger: logo,
+  basePath: "/console",
+  auth: { users: { ops: process.env.CONSOLE_PASSWORD! }, secret: process.env.CONSOLE_SECRET! },
+  commands: [ping, io, order],
+});
 ```
 
 细节：
 
-- `args` 是按空白切开的数组，不做引号解析：`order 42` → `["42"]`。字段 `args: "<id>"` 只影响 `help` 里的用法显示。
-- `user` 是当前登录名（本地模式是配置里的 `user`），可以按人返回不同结果。
-- `log` 是控制台用的那个 logger，命令里要留痕就用它。
-- 命令在进程内执行，能直接读内存状态——订单表、连接池、队列长度，不用先为它打一条日志。
-- 抛错会作为命令失败回显给控制台；默认 10 秒超时（`timeoutMs`），超了返回 `timeout`，不会把请求挂住。
-- `public: true` 让命令不登录也能跑，留给 `help` 这类无副作用的；默认 false。
+- **类型**：`Command` 从 `@needle/logo/console` 导出，给每个命令标注类型就能拿到补全和检查。
+- **`args`**：按空白切开的数组，不做引号解析，`order 42` → `["42"]`；字段 `args: "<id>"` 只影响 `help` 里的用法显示。
+- **列语义**：`"bytes"` 走 `toHuman`（`36290560` → `34.61M`），`"duration"` 把数字当毫秒（`57720` → `57.7s`），`"number"` 不缩写，省略按 `auto`。点表头按原始数值排序。
+- **单元格**：`string | number | null | { text, href }`，带 `href` 的渲染成链接（`log.list` 就靠这个打开日志文件）。
+- **`user` / `log`**：当前登录名（本地模式是配置里的 `user`）；`log` 是控制台用的那个 logger，命令里要留痕就用它。
+- **错误与超时**：抛错会作为命令失败回显；默认 10 秒超时（`timeoutMs`），超了返回 `timeout`，不会把请求挂住。
+- **`public: true`**：不登录也能跑，留给 `help` 这类无副作用的命令，默认 false。
+- **进程内执行**：能直接读内存状态——订单表、连接池、队列长度，不用先为它打一条日志。
 
 ## 二、日志模块
 
@@ -143,12 +146,12 @@ process.on("SIGTERM", () => logo.dispose());                                    
 
 同一个库，能拿到什么取决于跑在哪：
 
-| 平台 | 控制台形态 | 文件 sink | 日志视图 | 细节 |
-|---|---|---|---|---|
-| 服务端 Node / Bun | HTTP + SSE | 有 | 全进程 | [server.md](docs/best-practices/server.md) |
-| Cloudflare Workers | HTTP + SSE | 无 | 仅当前 isolate | [server.md](docs/best-practices/server.md) |
-| Chrome 扩展（MV3） | DOM 面板 | 无 | 当前页面 | [chrome-extension.md](docs/best-practices/chrome-extension.md) |
-| 浏览器纯前端页 | DOM 面板 | 无 | 当前页面 | [browser-client.md](docs/best-practices/browser-client.md) |
+| 平台 | 控制台形态 | 文件 sink | 细节 |
+|---|---|---|---|
+| 服务端 Node / Bun | HTTP + SSE | 有 | [server.md](docs/best-practices/server.md) |
+| Cloudflare Workers | HTTP + SSE | 无 | [server.md](docs/best-practices/server.md) |
+| Chrome 扩展（MV3） | DOM 面板 | 无 | [chrome-extension.md](docs/best-practices/chrome-extension.md) |
+| 浏览器纯前端页 | DOM 面板 | 无 | [browser-client.md](docs/best-practices/browser-client.md) |
 
 文件 sink 只在有 `node:fs` 的地方能用：`@needle/logo/node` 顶层 `import "node:fs"`，浏览器和 Workers 打包时不能碰它；core 的 `.` 入口是干净的。
 
