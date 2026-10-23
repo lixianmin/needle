@@ -479,7 +479,7 @@ src/
     collections/    # 与业务无关的通用数据结构
       sorted-table.ts
     web/
-      response.ts   # ResponseX：错误响应的唯一出口（不对外导出）
+      responsex.ts  # ResponseX：错误响应的唯一出口（不对外导出）
     logger.ts       # logo 门面
     record.ts       # 记录构造与参数归一化
     sink.ts         # Sink 类型、stdout sink

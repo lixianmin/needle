@@ -1,4 +1,4 @@
-import { ResponseX } from "../core/web/response.js";
+import { ResponseX } from "../core/web/responsex.js";
 const DEFAULT_MAX_BODY_BYTES = 512;
 /**
  * `POST /auth`：控制台拿到密码的唯一入口。

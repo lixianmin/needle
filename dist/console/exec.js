@@ -1,4 +1,4 @@
-import { ResponseX } from "../core/web/response.js";
+import { ResponseX } from "../core/web/responsex.js";
 const DEFAULT_MAX_BODY_BYTES = 4096;
 function bearerToken(header) {
     if (header === null)
