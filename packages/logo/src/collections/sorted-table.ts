@@ -14,8 +14,14 @@ export type Comparer<K> = (left: K, right: K) => number;
 
 /** 默认比较：数字按大小、字符串按字典序，其余转成字符串再比。 */
 export function defaultComparer<K>(left: K, right: K): number {
-  if (typeof left === "number" && typeof right === "number") return left - right;
-  if (typeof left === "string" && typeof right === "string") return left < right ? -1 : left > right ? 1 : 0;
+  const leftType = typeof left;
+  const rightType = typeof right;
+  // 类型不同就不能转字符串比：`1` 与 `"1"` 会被判成相等，set() 静默覆盖前一个值。
+  if (leftType !== rightType) return leftType < rightType ? -1 : 1;
+
+  if (leftType === "number") return (left as number) - (right as number);
+  if (leftType === "string") return left < right ? -1 : left > right ? 1 : 0;
+
   const a = String(left);
   const b = String(right);
   return a < b ? -1 : a > b ? 1 : 0;

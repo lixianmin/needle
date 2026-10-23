@@ -114,3 +114,15 @@ describe("SortedTable", () => {
     expect(keys).toEqual([...keys].sort((a, b) => a - b));
   });
 });
+
+describe("混合类型 key", () => {
+  test("数字 1 与字符串 \"1\" 不会互相覆盖", () => {
+    const table = new SortedTable<number | string, string>();
+    table.set(1, "number");
+    table.set("1", "string");
+
+    expect(table.size).toBe(2);
+    expect(table.get(1)).toBe("number");
+    expect(table.get("1")).toBe("string");
+  });
+});

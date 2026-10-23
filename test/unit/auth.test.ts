@@ -93,3 +93,9 @@ describe("/auth 请求体上限", () => {
     expect(res.status).toBe(413);
   });
 });
+
+describe("配置校验", () => {
+  test("空 secret 在构造时就报错", () => {
+    expect(() => createAuth({ users: { admin: "secret" }, secret: "" })).toThrow(/secret/);
+  });
+});
