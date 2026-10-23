@@ -2,7 +2,7 @@
 
 Web Shell，支持命令查看当前系统状态，如进程状态、业务数据等。
 
-零运行时依赖：只导入日志 1.8 KB，连 shell 23.7 KB（min+gzip，`bun run size` 可复现）。
+零运行时依赖：只导入日志 1.8 KB，连 shell 24.9 KB（min+gzip，`bun run size` 可复现）。
 
 一个包 `@needle/needle`，三个入口，按环境取用：
 
