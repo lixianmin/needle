@@ -118,12 +118,11 @@ export const shell = createShell({
 
 ## 二、日志模块
 
-### 为什么要有它
+### 1. 为什么要有它
 
-`console.log` 只是把一行字符串丢给 stdout，线上排障时会缺三样东西：
+`console.log` 只是把一行字符串丢给 stdout，它的问题是：
 
-- **级别**：没法让 `debug` 平时闭嘴、`error` 立即出去。
-- **字段**：正文只是字符串，想按 `orderId` 过滤得自己解析。
+- **性能**：`console.log`瞬间发送1000条，会卡死 IO。
 - **去处**：stdout 走了就没了；想按级别分文件、想把 error 推到飞书，得自己接。
 
 所以在日志进 stdout 之前加一层：一次调用变成一条结构化记录，再由你挂的 sink 决定它去哪。
@@ -158,11 +157,10 @@ process.on("SIGTERM", () => logo.dispose());                                    
 
 要另起一个实例（换级别、换名字）用 `newLogger()`；`newLogger({ sinks: [...] })` 可以在创建时就把 sink 配好。
 
-三个设计取舍：
+两个设计取舍：
 
-- **SSE 而不是 WebSocket**：WebSocket 在 Node 要 `ws`、Bun 要传 `websocket`、Workers 必须上 Durable Object；SSE 只要一个 `(Request) => Response`。
 - **批量写而不是逐条**：1000 条日志 = 1 次 IO，`warn` / `error` 例外。
-- **控制台与日志内核拆开**：同一套命令走 HTTP/SSE 或直接挂 DOM，不会有两份实现。
+- **shell 与日志内核拆开**：同一套命令走 HTTP/SSE 或直接挂 DOM，不会有两份实现。
 
 设计文档见 `docs/superpowers/specs/2026-10-22-logo-design.md`。
 
