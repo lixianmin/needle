@@ -87,7 +87,7 @@ function normalizeBasePath(value) {
     const trimmed = value.replace(/\/+$/, "");
     return trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
 }
-/** 按路径段匹配：`/console` 命中 `/console` 与 `/console/...`，不命中 `/consolefoo`。 */
+/** 按路径段匹配：`/shell` 命中 `/shell` 与 `/shell/...`，不命中 `/shellfoo`。 */
 function matchesBasePath(pathname, base) {
     if (base === "")
         return true;

@@ -1,10 +1,10 @@
 # Needle
 
-Web 控制台（console/shell），可输入命令查看当前系统状态，如进程状态、业务数据等。
+Web 控制台（shell），可输入命令查看当前系统状态，如进程状态、业务数据等。
 
 零运行时依赖：只导入日志 1.6 KB，连控制台 16.4 KB（min+gzip，`bun run size` 可复现）。
 
-## 一、控制台（console）
+## 一、控制台（shell）
 
 ### 1. 登录（auth）
 
@@ -33,10 +33,10 @@ $ auth username
 
 ### 3. 自定义命令
 
-命令写在 `createConsole({ commands: [...] })` 里，`run` 拿到的上下文是 `{ args, user, log }`，返回 `text` / `table` / `json` 三种形态之一。下面是装好三个命令的完整文件：
+命令写在 `createShell({ commands: [...] })` 里，`run` 拿到的上下文是 `{ args, user, log }`，返回 `text` / `table` / `json` 三种形态之一。下面是装好三个命令的完整文件：
 
 ```ts
-import { createConsole, logo, type Command } from "@needle/logo";
+import { createShell, logo, type Command } from "@needle/logo";
 
 // 你的业务数据
 const orders = new Map<string, Record<string, unknown>>();
@@ -72,9 +72,9 @@ const order: Command = {
   },
 };
 
-export const debug = createConsole({
+export const debug = createShell({
   logger: logo,
-  basePath: "/console",
+  basePath: "/shell",
   auth: { users: { ops: process.env.CONSOLE_PASSWORD! }, secret: process.env.CONSOLE_SECRET! },
   commands: [ping, io, order],
 });
@@ -174,30 +174,30 @@ bun add git+https://github.com/lixianmin/needle.git
 控制台对外只有一个接口 `(req: Request) => Promise<Response>`，挂载就是把它接到你的服务器上。Hono 是两条路由：
 
 ```ts
-import { createConsole, logo } from "@needle/logo";
+import { createShell, logo } from "@needle/logo";
 import { createLogFiles } from "@needle/logo/node";
 
-const debug = createConsole({
+const debug = createShell({
   logger: logo,
-  basePath: "/console",     // 必须与下面路由前缀一致：handler 内部按它剥前缀
+  basePath: "/shell",     // 必须与下面路由前缀一致：handler 内部按它剥前缀
   title: "order-service",
   auth: { users: { ops: process.env.CONSOLE_PASSWORD! }, secret: process.env.CONSOLE_SECRET! },
   logFiles: createLogFiles({ dir: "logs" }),   // 不给的话 log.list 用不了
 });
 
 // 先注册控制台，再注册业务中间件：app.use 只作用于它之后注册的路由。
-app.all("/console", (c) => debug.handler(c.req.raw));
-app.all("/console/*", (c) => debug.handler(c.req.raw));
+app.all("/shell", (c) => debug.handler(c.req.raw));
+app.all("/shell/*", (c) => debug.handler(c.req.raw));
 ```
 
-两条路由缺一不可：`/console` 是页面，`/console/*` 是 `/events`、`/exec`、`/log/:name`。只挂一条的话页面能打开，登录和命令全是 404。
+两条路由缺一不可：`/shell` 是页面，`/shell/*` 是 `/events`、`/exec`、`/log/:name`。只挂一条的话页面能打开，登录和命令全是 404。
 
-`auth.users` 非空即服务端模式；`user: "local"` 是「能看到页面的人本来就能碰这个进程」时才用的本机开关，绑 `0.0.0.0` 或公网时不能用。其它框架（Express / Fastify / 裸 `node:http`）用 `@needle/logo/node` 的 `attach(server, debug, { basePath: "/console" })`；平台细节见「三、平台支持」指向的三篇。
+`auth.users` 非空即服务端模式；`user: "local"` 是「能看到页面的人本来就能碰这个进程」时才用的本机开关，绑 `0.0.0.0` 或公网时不能用。其它框架（Express / Fastify / 裸 `node:http`）用 `@needle/logo/node` 的 `attach(server, debug, { basePath: "/shell" })`；平台细节见「三、平台支持」指向的三篇。
 
 ### 跑一遍
 
 ```bash
-bun examples/demo.ts    # http://127.0.0.1:1234/console，账号 xmli / 123456
+bun examples/demo.ts    # http://127.0.0.1:1234/shell，账号 xmli / 123456
 ```
 
 `room` 读业务状态、`io` 看表格排序、`burst 200` 看批量推送、`boom` 验证 error 带栈、`slow` 验证 10 秒超时。

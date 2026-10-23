@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
-import { CommandError, findCommand, splitArgs } from "../../src/console/commands.js";
-import type { Command } from "../../src/console/types.js";
+import { CommandError, findCommand, splitArgs } from "../../src/shell/commands.js";
+import type { Command } from "../../src/shell/types.js";
 
 const commands: Command[] = [
   { name: "help", note: "列出命令", run: () => ({ kind: "text", text: "" }) },

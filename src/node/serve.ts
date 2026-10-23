@@ -7,12 +7,12 @@ export interface ServeOptions {
 }
 
 export interface AttachOptions {
-  /** 控制台挂载前缀，如 "/console"；省略表示接管全部请求。 */
+  /** 控制台挂载前缀，如 "/shell"；省略表示接管全部请求。 */
   basePath?: string;
 }
 
-/** 只要求一个 Fetch 形态的 handler，避免把 console 包的类型拖进 node 入口。 */
-export interface ConsoleLike {
+/** 只要求一个 Fetch 形态的 handler，避免把 shell 包的类型拖进 node 入口。 */
+export interface ShellLike {
   handler(req: Request): Promise<Response>;
 }
 
@@ -127,7 +127,7 @@ function normalizeBasePath(value: string | undefined): string {
   return trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
 }
 
-/** 按路径段匹配：`/console` 命中 `/console` 与 `/console/...`，不命中 `/consolefoo`。 */
+/** 按路径段匹配：`/shell` 命中 `/shell` 与 `/shell/...`，不命中 `/shellfoo`。 */
 function matchesBasePath(pathname: string, base: string): boolean {
   if (base === "") return true;
   return pathname === base || pathname.startsWith(`${base}/`);
@@ -143,7 +143,7 @@ function matchesBasePath(pathname: string, base: string): boolean {
  * 它们的 body 解析、鉴权中间件影响）。这正是控制台要的：它自己的 /exec 和 /events
  * 有独立的鉴权。
  */
-export function attach(server: Server, target: ConsoleLike, options: AttachOptions = {}): void {
+export function attach(server: Server, target: ShellLike, options: AttachOptions = {}): void {
   const base = normalizeBasePath(options.basePath);
   const previous = server.listeners("request") as Array<
     (this: Server, req: IncomingMessage, res: ServerResponse) => void

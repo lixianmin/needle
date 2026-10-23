@@ -46,7 +46,7 @@
 
 ```
 .             → logo 日志门面（默认入口）
-./console     → 控制台：kernel + HTTP/SSE 适配器 + 可挂载的 UI
+./shell     → 控制台：kernel + HTTP/SSE 适配器 + 可挂载的 UI
 ./node        → 文件 sink、Node HTTP 挂载助手、Node 指标
 ./lark        → 飞书 sink
 ```
@@ -54,13 +54,13 @@
 控制台分两层，因为它的宿主不止服务器：
 
 ```
-createConsoleSource()   → 纯逻辑：命令注册、exec、主题、环形缓冲、鉴权
+createShellSource()   → 纯逻辑：命令注册、exec、主题、环形缓冲、鉴权
       ↓ 同一个 source
-createConsole(source)   → (Request) => Response，给 Node / Bun / Workers
-mountConsole(el, source) → 直接挂到页面 DOM，给浏览器与扩展
+createShell(source)   → (Request) => Response，给 Node / Bun / Workers
+mountShell(el, source) → 直接挂到页面 DOM，给浏览器与扩展
 ```
 
-UI 只有一份实现（`src/console/ui/view.ts`，DOM 构建 + Solarized Dark 样式）。服务端要吐 HTML，所以构建时用 `scripts/build-ui.mjs` 把 `ui/app.ts` 打包成字符串常量（`ui/script.generated.ts`），页面模板直接内联它。浏览器/扩展场景直接 import `mountConsole`，不走字符串、不走 eval——扩展的 CSP 不允许内联脚本，这条路必须干净。
+UI 只有一份实现（`src/shell/ui/view.ts`，DOM 构建 + Solarized Dark 样式）。服务端要吐 HTML，所以构建时用 `scripts/build-ui.mjs` 把 `ui/app.ts` 打包成字符串常量（`ui/script.generated.ts`），页面模板直接内联它。浏览器/扩展场景直接 import `mountShell`，不走字符串、不走 eval——扩展的 CSP 不允许内联脚本，这条路必须干净。
 
 `core` 的入口只使用 `fetch`、`crypto.subtle`、`TextEncoder` 这些跨运行时 API。唯一的例外是 `core/logo/sinks/file.ts`：它依赖 `node:fs`，因此**只从 `./node` 入口导出**，`.  ` 入口不会把它拉进包里（Workers 集成测试会断言产物里没有 `node:`）。`node` 入口里的 `node:fs` 用静态 import——那个入口本来就只有 Node 会加载。
 
@@ -192,23 +192,23 @@ sink 是同步函数。抛错被捕获并忽略（一条坏 sink 不能拖垮业
 
 ### 8.1 挂载
 
-`createConsole()` 返回一个 `(Request) => Response` 的 handler 和一个 `dispose()`。
+`createShell()` 返回一个 `(Request) => Response` 的 handler 和一个 `dispose()`。
 
 ```ts
-const debug = createConsole({
+const debug = createShell({
   logger: logo,
   auth: { users: { admin: "secret" }, secret: process.env.DBG_SECRET! },
   commands: [myCommand],
   topics: [myTopic],
-  basePath: "/console",
-  title: "my-service",      // 头栏与浏览器标签页显示的项目名，默认 "console"
+  basePath: "/shell",
+  title: "my-service",      // 头栏与浏览器标签页显示的项目名，默认 "shell"
 })
 
 // Hono
-app.all("/console", (c) => debug.handler(c.req.raw))
-app.all("/console/*", (c) => debug.handler(c.req.raw))
+app.all("/shell", (c) => debug.handler(c.req.raw))
+app.all("/shell/*", (c) => debug.handler(c.req.raw))
 // 已有 node:http server（裸 Node / Express / Fastify 底层都是它）
-attach(server, debug, { basePath: "/console" })
+attach(server, debug, { basePath: "/shell" })
 // 自己起一个端口
 const running = await serve(debug.handler, { port: 7701 })
 // Bun（本地开发）
@@ -221,7 +221,7 @@ Bun.serve({ port: 7701, fetch: debug.handler })
 
 控制台内部自己建两个 sink：一个环形缓冲（历史，供 `log.list` 命令）和一个广播器（实时，供 SSE），两者都由 `logger.addSink` 挂上，`dispose()` 时摘掉。因此日志视图在实现上仍然只是一个 sink，但装配细节不丢给调用方。不引入全局单例，依赖从参数进来，装配关系在调用处一眼看全。
 
-`basePath` 可选，默认空字符串。挂在子路径上时必须给（Hono 的 `app.all("/console/*")` 里 `c.req.raw.url` 仍带前缀，`attach` 也要靠它区分前缀），router 按它剥前缀，页面里的 JS 也用它拼 `/events` 和 `/exec` 的地址。
+`basePath` 可选，默认空字符串。挂在子路径上时必须给（Hono 的 `app.all("/shell/*")` 里 `c.req.raw.url` 仍带前缀，`attach` 也要靠它区分前缀），router 按它剥前缀，页面里的 JS 也用它拼 `/events` 和 `/exec` 的地址。
 
 ### 8.2 路由
 
@@ -347,7 +347,7 @@ interface Topic {
 }
 ```
 
-内置 `top`（1000ms）与 `mem`（5000ms）。它们由 `createConsole` 默认创建（数据源就是 §9 的指标对象），调用方传的 `topics` 追加在后面，同名时调用方优先。
+内置 `top`（1000ms）与 `mem`（5000ms）。它们由 `createShell` 默认创建（数据源就是 §9 的指标对象），调用方传的 `topics` 追加在后面，同名时调用方优先。
 
 间隔的两处来源有明确优先级：`Topic.intervalMs` 是默认值；客户端可以用 `?topics=top:5000` 覆盖，覆盖值钳到 `[1000, 60000]`；只写 `topics=top` 表示用默认值。钳位在服务端做，前端传什么都打不死进程。
 
@@ -359,9 +359,9 @@ interface Topic {
 
 | 场景 | 入口 | 传输 |
 |---|---|---|
-| Node / Bun 服务 | `createConsole(options).handler` | HTTP + SSE |
+| Node / Bun 服务 | `createShell(options).handler` | HTTP + SSE |
 | Cloudflare Workers | 同上，直接挂到 `export default { fetch }` | HTTP + SSE |
-| 浏览器页面 / Chrome 扩展 | `createBrowserConsole({ element, ... })` | 进程内直调 |
+| 浏览器页面 / Chrome 扩展 | `createBrowserShell({ element, ... })` | 进程内直调 |
 
 浏览器模式传 `user`，source 跳过 token 鉴权——能看到面板的人本来就能碰到这个进程。
 
@@ -424,7 +424,7 @@ interface Topic {
 
 **Tab 补全**：只按行尾补全，候选来自 handshake 的命令表（所以服务器上自定义的命令一样能补），加上 `auth`/`sub`/`unsub` 这几个客户端命令；`sub`/`unsub` 的第二个词补主题名。唯一候选直接补全，多个候选先补公共前缀，再按一次列出候选。Tab 永远 `preventDefault`，不会把焦点移走。
 
-**头栏**：项目名（`title`，默认 `console`）+ 版本 + 当前用户，全部靠左。项目名同时用作浏览器标签页标题。
+**头栏**：项目名（`title`，默认 `shell`）+ 版本 + 当前用户，全部靠左。项目名同时用作浏览器标签页标题。
 
 ## 12. 鉴权
 
@@ -449,18 +449,18 @@ token   = payload + "." + base64url(HMAC-SHA256(secret, payload))
 ```
 package.json exports:
   "."           → dist/core/index.js
-  "./console"   → dist/console/index.js
+  "./shell"   → dist/shell/index.js
   "./node"      → dist/node/index.js
-  "./lark"      → dist/lark/index.js   // 飞书 sink 单独入口，不拖累 console 的体积
+  "./lark"      → dist/lark/index.js   // 飞书 sink 单独入口，不拖累 shell 的体积
 ```
 
 `"type": "module"`、`"sideEffects": false`。入口靠 subpath 显式区分，不用条件导出——文件 sink 已经在 `./node` 里，核心入口不存在需要按运行时分支的模块。`./node` 内部对 `node:fs` 一律动态 `import()`。
 
 构建：`tsc`（TypeScript 7.0.2 原生版已验证能产出 `.js` + `.d.ts`）。不做额外打包，`bun build` 只在测体积时用。
 
-`dist/` 随源码一起提交，否则 Git 依赖（`git+https://…`）拿到的是没有产物的源码。`.githooks/pre-commit` 在每次提交时重跑 `bun run build` 并把 `dist/`、`src/console/ui/script.generated.ts` stage 进同一个 commit——产物和源码永远同版本，不依赖 CI。
+`dist/` 随源码一起提交，否则 Git 依赖（`git+https://…`）拿到的是没有产物的源码。`.githooks/pre-commit` 在每次提交时重跑 `bun run build` 并把 `dist/`、`src/shell/ui/script.generated.ts` stage 进同一个 commit——产物和源码永远同版本，不依赖 CI。
 
-体积实测：入口 `.` 1.7KB（min+gzip），`./console` 9.2KB（含内联页面脚本）。
+体积实测：入口 `.` 1.7KB（min+gzip），`./shell` 9.2KB（含内联页面脚本）。
 
 ## 14. 目录
 
@@ -487,8 +487,8 @@ src/
     sink.ts         # Sink 类型、stdout sink
     ring.ts         # 环形缓冲（带 read 的 sink）
     types.ts        # 共享类型（level、LogRecord）
-  console/
-    index.ts        # createConsole：装配
+  shell/
+    index.ts        # createShell：装配
     router.ts       # 路由表（method + 模式 → handler）与分派
     sse.ts          # SSE 编码与连接生命周期
     commands.ts     # 参数切分与命令查找
@@ -515,7 +515,7 @@ docs/deploy/workers.md
 代码是给人读的教材，不是给编译器看的。
 
 - 纯函数优先。类只在需要持有生命周期时用（SSE 连接、文件 sink、限流器）。
-- 依赖从参数进来，不在函数体里 `import` 具体实现。`createConsole({ records, auth, commands })` 就是装配点。
+- 依赖从参数进来，不在函数体里 `import` 具体实现。`createShell({ records, auth, commands })` 就是装配点。
 - 每个文件一件事，超过 150 行就拆。函数超过 50 行就拆（AGENTS.md §12）。
 - 命名用完整单词，不用缩写。`createRingSink` 不叫 `mkRing`。
 - 注释写"为什么"，不写"做什么"。凡是看似可以更简单的写法，注释解释为什么没采用。

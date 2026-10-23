@@ -17,14 +17,14 @@
 ```ts
 import { Hono } from "hono";
 import { serve } from "@hono/node-server";
-import { createConsole, logo } from "@needle/logo";
+import { createShell, logo } from "@needle/logo";
 import { createLogFiles } from "@needle/logo/node";
 
 const app = new Hono();
 
-const debug = createConsole({
+const debug = createShell({
   logger: logo,
-  basePath: "/console",
+  basePath: "/shell",
   title: "order-service",
   version: process.env.APP_VERSION,
   auth: { users: { ops: process.env.CONSOLE_PASSWORD! }, secret: process.env.CONSOLE_SECRET! },
@@ -32,8 +32,8 @@ const debug = createConsole({
 });
 
 // 先注册控制台，再注册业务中间件 —— app.use 只作用于它之后注册的路由。
-app.all("/console", (c) => debug.handler(c.req.raw));
-app.all("/console/*", (c) => debug.handler(c.req.raw));
+app.all("/shell", (c) => debug.handler(c.req.raw));
+app.all("/shell/*", (c) => debug.handler(c.req.raw));
 
 app.use("*", async (c, next) => { /* traceId、业务鉴权…… */ });
 app.get("/orders/:id", (c) => c.json({ id: c.req.param("id") }));
@@ -43,9 +43,9 @@ const server = serve({ fetch: app.fetch, port: 3000 });
 
 三处容易写错：
 
-- **两条路由缺一不可。** `/console` 是页面，`/console/*` 是 `/events`、`/exec`、`/log/:name`。只挂一条的话页面能打开，登录和命令全是 404。
-- **`basePath` 与路由前缀必须一致。** handler 内部按它剥前缀：`/console/log/info.log` → `/log/info.log`。
-- **控制台注册在业务中间件之前。** 它自带 token 校验，不该被 CORS、body 解析、登录态中间件影响。反过来，注册在它之前的 `app.use("*")` 会连 `/console` 一起拦掉。
+- **两条路由缺一不可。** `/shell` 是页面，`/shell/*` 是 `/events`、`/exec`、`/log/:name`。只挂一条的话页面能打开，登录和命令全是 404。
+- **`basePath` 与路由前缀必须一致。** handler 内部按它剥前缀：`/shell/log/info.log` → `/log/info.log`。
+- **控制台注册在业务中间件之前。** 它自带 token 校验，不该被 CORS、body 解析、登录态中间件影响。反过来，注册在它之前的 `app.use("*")` 会连 `/shell` 一起拦掉。
 
 ### 鉴权
 
@@ -143,7 +143,7 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
 import { attach, serve } from "@needle/logo/node";
 
 await serve(debug.handler, { port: 7701 });                  // 自己起端口
-attach(server, debug, { basePath: "/console" });             // 挂到已有 http server
+attach(server, debug, { basePath: "/shell" });             // 挂到已有 http server
 ```
 
 `attach` 接管 `request` 事件：前缀内交给控制台，前缀外按原顺序交回原 listener，已有 app 一行都不用改。

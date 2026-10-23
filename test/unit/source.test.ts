@@ -1,14 +1,14 @@
 import { describe, expect, test } from "bun:test";
 
-import { createConsoleSource } from "../../src/console/source.js";
+import { createShellSource } from "../../src/shell/source.js";
 import { newLogger } from "../../src/core/logo/logo.js";
-import type { Command, Topic } from "../../src/console/types.js";
+import type { Command, Topic } from "../../src/shell/types.js";
 
 const auth = { users: { admin: "secret" }, secret: "unit-test-secret" };
 
 function setup(extra: { commands?: Command[]; topics?: Topic[]; timeoutMs?: number } = {}) {
   const logger = newLogger({ flushIntervalMs: 0, batch: false });
-  const source = createConsoleSource({
+  const source = createShellSource({
     logger,
     auth,
     timeoutMs: 20,
@@ -17,7 +17,7 @@ function setup(extra: { commands?: Command[]; topics?: Topic[]; timeoutMs?: numb
   return { logger, source };
 }
 
-describe("createConsoleSource", () => {
+describe("createShellSource", () => {
   test("内置命令默认就在，help 可以匿名跑", async () => {
     const { source } = setup();
     const result = await source.exec("help", null);
@@ -125,7 +125,7 @@ describe("createConsoleSource", () => {
     expect(await source.exec("help", null)).toEqual({
       ok: false,
       code: "disposed",
-      error: "console disposed",
+      error: "shell disposed",
     });
   });
 });

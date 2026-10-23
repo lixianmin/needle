@@ -30,7 +30,7 @@ describe("needle 自己不依赖 Hono", () => {
 
   test("package.json 不导出框架适配入口", () => {
     const pkg = JSON.parse(source("package.json")) as { exports: Record<string, unknown> };
-    expect(Object.keys(pkg.exports)).toEqual([".", "./console", "./node", "./lark"]);
+    expect(Object.keys(pkg.exports)).toEqual([".", "./shell", "./node", "./lark"]);
   });
 
   test("src 与 examples 里不出现 from \"hono\"", () => {

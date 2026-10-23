@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
 
-import { createBuiltinCommands } from "../../src/console/builtins.js";
-import { CommandError, findCommand } from "../../src/console/commands.js";
-import type { CommandContext, CommandOutput } from "../../src/console/types.js";
+import { createBuiltinCommands } from "../../src/shell/builtins.js";
+import { CommandError, findCommand } from "../../src/shell/commands.js";
+import type { CommandContext, CommandOutput } from "../../src/shell/types.js";
 import { newLogger } from "../../src/core/logo/logo.js";
 
 const metrics = { read: async () => ({ runtime: "node", uptimeMs: 1234 }) };
@@ -11,7 +11,7 @@ function setup() {
   const commands = createBuiltinCommands({
     metrics,
     auth: { login: async () => null, verify: async () => null },
-    basePath: "/console",
+    basePath: "/shell",
     logFiles: {
       list: async () => [
         { name: "info.log", size: 2048, modified: 1_700_000_000_000 },
@@ -48,7 +48,7 @@ describe("内置命令", () => {
 
     const first = table.rows[0]?.[0] as { text: string; href: string };
     expect(first.text).toBe("info.log");
-    expect(first.href).toBe("/console/log/info.log");
+    expect(first.href).toBe("/shell/log/info.log");
     // 大小是数字（排序用），不是字符串
     expect(table.rows[0]?.[1]).toBe(2048);
   });

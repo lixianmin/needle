@@ -1,15 +1,15 @@
 /**
  * 本地演示：`bun examples/demo.ts`
  *
- * 打开 http://127.0.0.1:1234/console
+ * 打开 http://127.0.0.1:1234/shell
  * 登录：xmli / 123456
  *
  * 页面每隔一秒会收到一条 heartbeat，用来确认 SSE 是活的。
  */
 import { readFileSync } from "node:fs";
 
-import { createConsole } from "../src/console/index.js";
-import { CommandError } from "../src/console/commands.js";
+import { createShell } from "../src/shell/index.js";
+import { CommandError } from "../src/shell/commands.js";
 import { logo } from "../src/core/index.js";
 import { createFileSink, createLogFiles, serve } from "../src/node/index.js";
 
@@ -29,9 +29,9 @@ const rooms = new Map<string, Record<string, unknown>>([
   ["102", { players: 0, owner: "bob", started: false }],
 ]);
 
-const debug = createConsole({
+const debug = createShell({
   logger: logo,
-  basePath: "/console",
+  basePath: "/shell",
   title: "Needle",
   logFiles: createLogFiles({ dir: LOG_DIR }),
   version: pkg.version,
@@ -93,11 +93,11 @@ const debug = createConsole({
 
 const server = await serve((req) => {
   const { pathname } = new URL(req.url);
-  if (pathname === "/" || pathname.startsWith("/console")) return debug.handler(req);
-  return new Response("这是你的业务服务。控制台在 /console\n");
+  if (pathname === "/" || pathname.startsWith("/shell")) return debug.handler(req);
+  return new Response("这是你的业务服务。控制台在 /shell\n");
 }, { port: PORT });
 
-console.log(`控制台: http://127.0.0.1:${server.port}/console`);
+console.log(`控制台: http://127.0.0.1:${server.port}/shell`);
 console.log("账号:   xmli / 123456");
 console.log("试试:   auth xmli → 密码 123456 → log.list · top · room · io · burst · boom · slow");
 console.log("订阅:   sub top 2000 · unsub top");

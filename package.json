@@ -1,6 +1,6 @@
 {
   "name": "@needle/logo",
-  "version": "0.2.13",
+  "version": "0.2.14",
   "description": "内置调试控制台的 TypeScript 日志库：浏览器里敲命令查状态、订阅指标",
   "type": "module",
   "sideEffects": false,
@@ -10,9 +10,9 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
-    "./console": {
-      "types": "./dist/console/index.d.ts",
-      "default": "./dist/console/index.js"
+    "./shell": {
+      "types": "./dist/shell/index.d.ts",
+      "default": "./dist/shell/index.js"
     },
     "./node": {
       "types": "./dist/node/index.d.ts",

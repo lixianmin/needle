@@ -4,11 +4,11 @@ export interface ServeOptions {
     hostname?: string;
 }
 export interface AttachOptions {
-    /** 控制台挂载前缀，如 "/console"；省略表示接管全部请求。 */
+    /** 控制台挂载前缀，如 "/shell"；省略表示接管全部请求。 */
     basePath?: string;
 }
-/** 只要求一个 Fetch 形态的 handler，避免把 console 包的类型拖进 node 入口。 */
-export interface ConsoleLike {
+/** 只要求一个 Fetch 形态的 handler，避免把 shell 包的类型拖进 node 入口。 */
+export interface ShellLike {
     handler(req: Request): Promise<Response>;
 }
 export interface RunningServer {
@@ -32,4 +32,4 @@ export declare function serve(handler: (req: Request) => Promise<Response>, opti
  * 它们的 body 解析、鉴权中间件影响）。这正是控制台要的：它自己的 /exec 和 /events
  * 有独立的鉴权。
  */
-export declare function attach(server: Server, target: ConsoleLike, options?: AttachOptions): void;
+export declare function attach(server: Server, target: ShellLike, options?: AttachOptions): void;
