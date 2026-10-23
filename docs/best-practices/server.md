@@ -28,7 +28,10 @@ const shell = createShell({
   basePath: "/shell",
   title: "order-service",
   version: process.env.APP_VERSION,
-  auth: { users: { ops: process.env.CONSOLE_PASSWORD! }, secret: process.env.CONSOLE_SECRET! },
+  auth: {
+    users: { admin: process.env.CONSOLE_PASSWORD! },   // 用户名 → 口令；可配多个账号，登录时用这个 key
+    secret: process.env.CONSOLE_SECRET!,               // 签 token 的密钥，不是口令；不传就每次启动随机生成
+  },
   logFiles: createLogFiles({ dir: "logs" }),
 });
 
@@ -52,13 +55,14 @@ const server = serve({ fetch: app.fetch, port: 3000 });
 
 | 配置 | 行为 | 适用 |
 |---|---|---|
-| `auth: { users, secret }` | 服务端模式：`auth ops` + 密码换 token | 所有对外暴露的部署 |
+| `auth: { users, secret }` | 服务端模式：`auth admin` + 密码换 token | 所有对外暴露的部署 |
 | `auth: { users: {} }, user: "local"` | 跳过 token，谁打开页面就是谁 | 只绑 `127.0.0.1` 的本机进程 |
 
+- **`users` 是「用户名 → 口令」的表。** 配几个账号都能登录，token 里记的就是用户名；`auth admin` 里的 `admin` 就是这里的 key。
 - **`secret` 必须显式传且来自环境变量。** 不传就随机生成，重启后所有已签发 token 失效；多进程共享登录态也要求同一个 secret。
 - **绑 `0.0.0.0` / 局域网 / 公网时不能用 `user` 开关。** 那个开关的前提是「能打开页面的人本来就能碰这个进程」；绑非回环地址时前提不成立，同网段任何设备都能执行命令、读日志文件。
 - **`users` 留空不等于免登录，等于谁都登不进去。** `login()` 恒返回 null，页面能开，但非 public 命令全是 401。
-- token 是 HMAC-SHA256，默认 12 小时（`auth.ttlMs`）。口令走独立的 `POST /auth`（请求体上限 512 字节），所以密码不进命令行、不进历史；绕过 UI 直接 `POST /exec` 发 `auth ops 密码` 会被拒掉。
+- token 是 HMAC-SHA256，默认 12 小时（`auth.ttlMs`）。口令走独立的 `POST /auth`（请求体上限 512 字节），所以密码不进命令行、不进历史；绕过 UI 直接 `POST /exec` 发 `auth admin 密码` 会被拒掉。
 
 ### 命令
 

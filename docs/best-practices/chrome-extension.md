@@ -51,7 +51,7 @@ const view = mountShell(
 ```
 
 - `manifest.json` 要给这个源 `host_permissions`，否则跨域请求被拦。
-- `auth ops` 走 token，存在 `localStorage` 的 `logo.shell.token`，随 `Authorization` 头发出去（不用 `EventSource`，正是因为它带不了头）。
+- `auth admin` 走 token，存在 `localStorage` 的 `logo.shell.token`，随 `Authorization` 头发出去（不用 `EventSource`，正是因为它带不了头）。
 - `log.list` 的链接是服务端按自己的 `basePath` 生成的相对路径，跨域点开会 404；远程面板适合敲命令、看订阅主题。
 
 ### MV3 的 CSP 挡不住它
