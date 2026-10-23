@@ -1,5 +1,5 @@
-import { readTextLimited } from "./web/body.js";
-import { ResponseX } from "./web/responsex.js";
+import { readTextLimited } from "../core/web/body.js";
+import { ResponseX } from "../core/web/responsex.js";
 const DEFAULT_MAX_BODY_BYTES = 512;
 /**
  * `POST /auth`：控制台拿到密码的唯一入口。
