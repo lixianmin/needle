@@ -93,3 +93,52 @@ describe("卸载", () => {
     expect(withTopic.broadcast.count()).toBe(0);
   });
 });
+
+describe("fetchFile 读取本机日志", () => {
+  function setupWithLogFiles(reads: Map<string, string | null>) {
+    const logger = newLogger({ flushIntervalMs: 0, batch: false });
+    const source = createShellSource({
+      logger,
+      auth: { users: {} },
+      user: "local-dev",
+      logFiles: {
+        list: async () => [],
+        read: async (name: string) => reads.get(name) ?? null,
+      },
+    });
+    return createLocalAdapter(source);
+  }
+
+  test("/log/:name 直读 logFiles", async () => {
+    const adapter = setupWithLogFiles(new Map([["info.log", "行1\n行2"]]));
+    const result = await adapter.fetchFile("/log/info.log");
+    expect(result).toEqual({ ok: true, text: "行1\n行2" });
+  });
+
+  test("文件不存在返回 ok:false", async () => {
+    const adapter = setupWithLogFiles(new Map());
+    const result = await adapter.fetchFile("/log/ghost.log");
+    expect(result.ok).toBe(false);
+  });
+
+  test("未配置 logFiles 时提示未配置", async () => {
+    const { adapter } = setup();
+    const result = await adapter.fetchFile("/log/info.log");
+    expect(result).toMatchObject({ ok: false });
+    if (!result.ok) {
+      expect(result.error).toContain("未配置");
+    }
+  });
+
+  test("非 /log/ 的 href 维持失败", async () => {
+    const adapter = setupWithLogFiles(new Map([["info.log", "x"]]));
+    const result = await adapter.fetchFile("/other/stuff");
+    expect(result.ok).toBe(false);
+  });
+
+  test("文件名带编码字符与 query 正确解析", async () => {
+    const adapter = setupWithLogFiles(new Map([["a b.log", "内容"]]));
+    const result = await adapter.fetchFile("/log/a%20b.log?x=1");
+    expect(result).toEqual({ ok: true, text: "内容" });
+  });
+});
