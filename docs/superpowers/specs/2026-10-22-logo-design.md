@@ -497,7 +497,7 @@ token   = payload + "." + base64url(HMAC-SHA256(secret, payload))
 @needle/needle
   "."        → dist/index.js          // 日志门面、sink、SortedTable
   "./shell"  → dist/shell/index.js    // createShell / createBrowserShell / mountShell
-  "./node"   → dist/node/index.js     // 文件 sink、createLogFiles、serve / attach
+  "./node"   → dist/node.js           // 文件 sink、createLogFiles、serve / attach
 ```
 
 `src/shell/**` 用相对路径 import `../logo/*.js`，不写包名——同一个包内部不自己引用自己。
@@ -554,8 +554,7 @@ src/
       script.generated.ts  # 由 scripts/build-ui.mjs 生成，勿手改
     web/
       responsex.ts      # 错误响应出口
-  node/
-    index.ts            # ./node 入口：只做转出，自身没有实现
+  node.ts               # ./node 入口的聚合：只做转出，自身没有实现
 dist/                   # 提交进仓库
 test/
   unit/  integration/  smoke/  workers/
@@ -567,9 +566,8 @@ docs/best-practices/  docs/deploy/
 
 - `src/logo/**` 只 import `src/logo/**` 与 `src/collections/**`，**不出现** `../shell/`。
 - `src/shell/**` 可以 import `../logo/**`，反向不允许。
-- `src/node/index.ts` 是唯一的 Node 出口，它可以同时 import logo 与 shell。
+- `src/node.ts` 是唯一的 Node 出口：只做聚合，不写实现，把 logo 与 shell 的 Node 能力转出一个口。
 - 三处 `node:` 依赖（`logo/sinks/file.ts`、`logo/log-files.ts`、`shell/node.ts`）都只从 `./node` 可达。
-- `src/node/` 只剩入口转出（一个 `index.ts`），实现都住在它所属的领域目录里。
 
 ## 15. 代码风格契约
 
