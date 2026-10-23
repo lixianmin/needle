@@ -232,3 +232,17 @@ describe("batch:false", () => {
     logger.dispose();
   });
 });
+
+describe("dispose 与 child", () => {
+  test("父 logger dispose 后，子 logger 也停止写入", () => {
+    const { calls, sink } = collector();
+    const parent = newLogger({ ...base, sinks: [sink] });
+    const child = parent.child({ name: "db" });
+
+    parent.dispose();
+    const afterDispose = calls.length;
+    child.info("after");
+
+    expect(calls.length).toBe(afterDispose);
+  });
+});

@@ -1,4 +1,7 @@
 import type { Level, LogRecord } from "./types.js";
+interface Budget {
+    nodes: number;
+}
 /**
  * 把任意值变成 JSON 安全的副本。
  *
@@ -8,7 +11,7 @@ import type { Level, LogRecord } from "./types.js";
  *
  * 代价是每次写日志多一次遍历。日志对象通常很小，这个代价远小于丢日志的风险。
  */
-export declare function sanitize(value: unknown, depth?: number, ancestors?: WeakSet<object>): unknown;
+export declare function sanitize(value: unknown, depth?: number, ancestors?: WeakSet<object>, budget?: Budget): unknown;
 /** 序列化成字符串，失败时退回 `String(value)`。序列化本身永不抛。 */
 export declare function safeStringify(value: unknown): string;
 export interface BuildOptions {
@@ -28,3 +31,4 @@ export interface BuildOptions {
  * 信封字段（time/level/msg/name/stack）最后写入，因此永远压过同名业务字段。
  */
 export declare function buildRecord(level: Level, args: readonly unknown[], options?: BuildOptions): LogRecord;
+export {};

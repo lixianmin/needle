@@ -53,6 +53,7 @@ export function createLarkSink(options) {
     const now = options.now ?? Date.now;
     let queue = [];
     let timer;
+    let closed = false;
     let tokens = maxPerMinute;
     let lastRefill = now();
     function refill() {
@@ -105,6 +106,8 @@ export function createLarkSink(options) {
         }
     }
     const sink = ((batch) => {
+        if (closed)
+            return;
         for (const record of batch) {
             if (LEVELS[record.level] < minLevel)
                 continue;
@@ -121,10 +124,14 @@ export function createLarkSink(options) {
     sink.flush = flush;
     // dispose() 只调用带 close 的 sink。没有它，队列里最后一条 error 会随进程消失。
     sink.close = () => {
+        if (closed)
+            return;
+        closed = true;
         if (timer !== undefined) {
             clearTimeout(timer);
             timer = undefined;
         }
+        // best-effort：dispose 是同步的，进程若紧接着 exit，这次发送可能来不及完成。
         void flush();
     };
     return sink;

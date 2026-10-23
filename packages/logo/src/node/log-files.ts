@@ -1,4 +1,5 @@
-import { lstat, readdir, readFile } from "node:fs/promises";
+import { constants } from "node:fs";
+import { lstat, open, readdir } from "node:fs/promises";
 import { join, resolve, sep } from "node:path";
 
 import type { LogFileEntry, LogFiles } from "../logo/types.js";
@@ -56,12 +57,18 @@ export function createLogFiles(options: LogFilesOptions): LogFiles {
       const full = resolve(dir, name);
       if (full !== join(dir, name) || !full.startsWith(dir + sep)) return null;
 
+      let handle;
       try {
-        const info = await lstat(full);
+        // O_NOFOLLOW + 句柄上 fstat：打开与检查是同一个对象，中间被换成符号链接
+        // 会直接 ELOOP，写入增长也按打开那一刻之后的真实大小判断。
+        handle = await open(full, constants.O_RDONLY | constants.O_NOFOLLOW);
+        const info = await handle.stat();
         if (!info.isFile() || info.size > maxFileBytes) return null;
-        return await readFile(full, "utf8");
+        return await handle.readFile("utf8");
       } catch {
         return null;
+      } finally {
+        await handle?.close().catch(() => {});
       }
     },
   };

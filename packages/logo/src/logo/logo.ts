@@ -57,7 +57,16 @@ function captureStack(): string {
     .join("\n");
 }
 
+/** 父子 logger 共用同一个状态：父级 dispose 之后，子级也必须停。 */
+interface LoggerState {
+  disposed: boolean;
+}
+
 export function newLogger(options: LoggerOptions = {}): Logger {
+  return buildLogger(options, { disposed: false });
+}
+
+function buildLogger(options: LoggerOptions, state: LoggerState): Logger {
   const now = options.now ?? Date.now;
   const flushIntervalMs = options.flushIntervalMs ?? DEFAULT_FLUSH_INTERVAL_MS;
   const maxBuffer = options.maxBuffer ?? DEFAULT_MAX_BUFFER;
@@ -68,7 +77,6 @@ export function newLogger(options: LoggerOptions = {}): Logger {
   let buffer: LogRecord[] = [];
   let timer: ReturnType<typeof setTimeout> | undefined;
   let sinkReported = false;
-  let disposed = false;
 
   const sinks: Sink[] = [...(options.sinks ?? [])];
   const fixedFields = { ...options.fields };
@@ -118,7 +126,7 @@ export function newLogger(options: LoggerOptions = {}): Logger {
 
   function emit(recordLevel: Level, args: readonly unknown[]): void {
     // dispose 之后静默丢弃：之前 stdout 还在写、文件 sink 已经丢了，行为不一致。
-    if (disposed) return;
+    if (state.disposed) return;
     if (LEVELS[recordLevel] < LEVELS[level]) return;
 
     const withStack = stackLevel !== "off" && LEVELS[recordLevel] >= LEVELS[stackLevel];
@@ -166,7 +174,7 @@ export function newLogger(options: LoggerOptions = {}): Logger {
 
     child(fields) {
       const { name, ...rest } = fields;
-      return newLogger({
+      return buildLogger({
         level,
         name: (name as string | undefined) ?? options.name,
         // 快照父级 sink：之后父级增删 sink 不影响已存在的子 logger。
@@ -177,7 +185,7 @@ export function newLogger(options: LoggerOptions = {}): Logger {
         stackLevel,
         batch,
         fields: { ...fixedFields, ...rest },
-      });
+      }, state);
     },
 
     addSink(sink) {
@@ -196,7 +204,7 @@ export function newLogger(options: LoggerOptions = {}): Logger {
     flush,
 
     dispose() {
-      disposed = true;
+      state.disposed = true;
       clearTimer();
       flush();
       for (const sink of sinks) {
