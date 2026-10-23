@@ -1,11 +1,13 @@
-# 服务端部署（Node / Bun 与 Cloudflare Workers）Shell 和日志在服务端都是全功能，唯一的平台差异是有没有文件系统：
+# 服务端部署（Node / Bun 与 Cloudflare Workers）
+
+Shell 和日志在服务端都是全功能，唯一的平台差异是有没有文件系统：
 
 | runtime | 文件 sink | 挂载方式 |
 |---|---|---|
 | Node / Bun | 有 | 任意 HTTP 框架，或 `node:http` |
 | Cloudflare Workers | 无 | `export default { fetch }` |
 
-前四节讲 Node / Bun；[四、Cloudflare Workers](#四cloudflare-workers) 讲 Workers——同一套代码，不用为它改。
+前三节是 Node / Bun 的做法，第四节是 Cloudflare Workers——同一套代码，不用为它改。
 
 ## 一、挂到 HTTP 框架
 
