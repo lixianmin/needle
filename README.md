@@ -93,7 +93,8 @@ export const shell = createShell({
 - **`args`**：按空白切开的数组，不做引号解析，`order 42` → `["42"]`；字段 `args: "<id>"` 只影响 `help` 里的用法显示。
 - **列语义**：`"bytes"` 走 `toHuman`（`36290560` → `34.61M`），`"duration"` 把数字当毫秒（`57720` → `57.7s`），`"number"` 不缩写，省略按 `auto`。点表头按原始数值排序。
 - **单元格**：`string | number | null | { text, href }`，带 `href` 的渲染成链接（`log.list` 就靠这个打开日志文件）。
-- **`user` / `log`**：当前登录名（本地模式是配置里的 `user`）；`log` 是控制台用的那个 logger，命令里要留痕就用它。
+- **`user`**：跑这条命令的人。服务端模式是登录用户名；本地模式是配置里的 `user`；标了 `public: true` 的命令（如 `help`）不登录也能跑，这时是 `null`。
+- **`log`**：`createShell({ logger })` 传进来的那个 logger。命令里 `log.info(...)` 写的是业务日志，落点跟你挂的 sink 一致（文件、飞书），不会显示在 shell 页面上。
 - **错误与超时**：抛错会作为命令失败回显；默认 10 秒超时（`timeoutMs`），超了返回 `timeout`，不会把请求挂住。
 - **`public: true`**：不登录也能跑，留给 `help` 这类无副作用的命令，默认 false。
 - **进程内执行**：能直接读内存状态——订单表、连接池、队列长度，不用先为它打一条日志。
