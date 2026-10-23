@@ -62,7 +62,7 @@ describe("createConsoleSource", () => {
     expect((result as { output: { text: string } }).output.text).toBe("mine");
   });
 
-  test("日志实时进广播", async () => {
+  test("日志不进广播：控制台不自动打印日志", async () => {
     const { logger, source } = setup();
     const received: unknown[] = [];
     source.broadcast.attach({ send: (_event, data) => received.push(data), close: () => {} });
@@ -70,7 +70,7 @@ describe("createConsoleSource", () => {
     logger.info("hello");
     logger.flush();
 
-    expect((received[0] as { msg: string }).msg).toBe("hello");
+    expect(received).toHaveLength(0);
   });
 
   test("默认主题 top 与 mem 都在", () => {

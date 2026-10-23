@@ -1,4 +1,3 @@
-import type { LogRecord } from "../../core/logo/types.js";
 import type { ConsoleSource } from "../source.js";
 import type { AuthResult, ConsoleAdapter, ConsoleEvent, ExecResult, FileResult } from "./adapter.js";
 
@@ -23,7 +22,6 @@ export function createLocalAdapter(source: ConsoleSource): ConsoleAdapter {
 
     source.broadcast.attach({
       send(event, data) {
-        if (event === "log") emit({ type: "log", record: data as LogRecord });
         if (event === "topic") {
           const payload = data as { name: string; data: unknown };
           emit({ type: "topic", name: payload.name, data: payload.data });

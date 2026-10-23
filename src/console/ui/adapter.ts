@@ -1,4 +1,3 @@
-import type { LogRecord } from "../../core/logo/types.js";
 import type { CommandOutput } from "../types.js";
 
 export interface HandshakeInfo {
@@ -11,7 +10,6 @@ export interface HandshakeInfo {
 
 export type ConsoleEvent =
   | { type: "handshake"; info: HandshakeInfo }
-  | { type: "log"; record: LogRecord }
   | { type: "topic"; name: string; data: unknown }
   /** 连接状态、鉴权失败之类的提示，由适配器发出。 */
   | { type: "status"; message: string; level: "info" | "warn" | "error" };

@@ -1,5 +1,4 @@
 import { safeStringify } from "../core/logo/record.js";
-import type { Sink } from "../core/logo/types.js";
 import type { Command, Topic } from "./types.js";
 
 /** 主题最短间隔。前端传什么都打不死进程。 */
@@ -15,8 +14,6 @@ export interface Connection {
 }
 
 export interface Broadcast {
-  /** 作为 sink 挂在 logger 上，把实时日志推给所有连接。 */
-  sink: Sink;
   attach(connection: Connection): () => void;
   count(): number;
   closeAll(): void;
@@ -31,20 +28,6 @@ export function createBroadcast(): Broadcast {
   const connections = new Set<Connection>();
 
   return {
-    sink(batch) {
-      if (connections.size === 0) return;
-      for (const record of batch) {
-        for (const connection of connections) {
-          try {
-            connection.send("log", record);
-          } catch {
-            // 写不进去说明连接已经坏了，摘掉即可，不能让一条坏连接影响其他连接。
-            connections.delete(connection);
-          }
-        }
-      }
-    },
-
     attach(connection) {
       connections.add(connection);
       return () => {

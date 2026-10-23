@@ -103,8 +103,6 @@ export function createFetchAdapter(options) {
                 try {
                     if (event === "handshake")
                         emit({ type: "handshake", info: JSON.parse(data) });
-                    else if (event === "log")
-                        emit({ type: "log", record: JSON.parse(data) });
                     else if (event === "topic") {
                         const payload = JSON.parse(data);
                         emit({ type: "topic", name: payload.name, data: payload.data });

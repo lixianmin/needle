@@ -4,10 +4,8 @@ import {
   createBroadcast,
   createSseResponse,
   parseTopicSpecs,
-  type Connection,
 } from "../../src/console/sse.js";
 import type { Command, Topic } from "../../src/console/types.js";
-import type { LogRecord } from "../../src/core/logo/types.js";
 import { TEST_VERSION } from "../fixtures.js";
 
 const commands: Command[] = [
@@ -18,8 +16,6 @@ const topics: Topic[] = [
   { name: "top", note: "cpu", intervalMs: 1000, read: () => ({ cpu: 1 }) },
   { name: "mem", note: "内存", intervalMs: 5000, read: () => ({ rss: 2 }) },
 ];
-
-const record = (msg: string): LogRecord => ({ time: 1, level: "info", msg });
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -46,30 +42,12 @@ async function readFor(response: Response, ms: number): Promise<string> {
 }
 
 describe("createBroadcast", () => {
-  test("batch 里的每条记录都推给已连接的客户端", () => {
+  test("detach 之后计数归零", () => {
     const broadcast = createBroadcast();
-    const received: Array<{ event: string; data: unknown }> = [];
-    const connection: Connection = {
-      send: (event, data) => received.push({ event, data }),
-      close: () => {},
-    };
+    const detach = broadcast.attach({ send: () => {}, close: () => {} });
 
-    broadcast.attach(connection);
-    broadcast.sink([record("a"), record("b")]);
-
-    expect(received.map((item) => item.event)).toEqual(["log", "log"]);
-    expect(received.map((item) => (item.data as LogRecord).msg)).toEqual(["a", "b"]);
-  });
-
-  test("detach 之后不再收到", () => {
-    const broadcast = createBroadcast();
-    const received: unknown[] = [];
-    const detach = broadcast.attach({ send: (_e, data) => received.push(data), close: () => {} });
-
+    expect(broadcast.count()).toBe(1);
     detach();
-    broadcast.sink([record("a")]);
-
-    expect(received).toHaveLength(0);
     expect(broadcast.count()).toBe(0);
   });
 
@@ -125,23 +103,21 @@ describe("createSseResponse", () => {
     expect(text).toContain('"name":"help"');
   });
 
-  test("日志通过 broadcast 推到流里", async () => {
-    const broadcast = createBroadcast();
+  test("控制台不再把日志推到流里", async () => {
     const response = createSseResponse({
       user: "admin",
       title: "node",
       version: TEST_VERSION,
       commands,
       topics: [],
-      broadcast,
+      broadcast: createBroadcast(),
       heartbeatMs: 60_000,
     });
 
-    broadcast.sink([record("live")]);
     const text = await readFor(response, 100);
 
-    expect(text).toContain("event: log");
-    expect(text).toContain('"msg":"live"');
+    expect(text.startsWith("event: handshake")).toBe(true);
+    expect(text).not.toContain("event: log");
   });
 
   test("订阅的主题按间隔推送", async () => {

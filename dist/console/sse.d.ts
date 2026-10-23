@@ -1,12 +1,9 @@
-import type { Sink } from "../core/logo/types.js";
 import type { Command, Topic } from "./types.js";
 export interface Connection {
     send(event: string, data: unknown): void;
     close(): void;
 }
 export interface Broadcast {
-    /** 作为 sink 挂在 logger 上，把实时日志推给所有连接。 */
-    sink: Sink;
     attach(connection: Connection): () => void;
     count(): number;
     closeAll(): void;

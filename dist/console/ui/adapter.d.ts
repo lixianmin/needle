@@ -1,4 +1,3 @@
-import type { LogRecord } from "../../core/logo/types.js";
 import type { CommandOutput } from "../types.js";
 export interface HandshakeInfo {
     title: string;
@@ -18,9 +17,6 @@ export interface HandshakeInfo {
 export type ConsoleEvent = {
     type: "handshake";
     info: HandshakeInfo;
-} | {
-    type: "log";
-    record: LogRecord;
 } | {
     type: "topic";
     name: string;

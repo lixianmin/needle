@@ -12,7 +12,7 @@ import { TEST_VERSION } from "../fixtures.js";
  * 这个用例证明"装进一个真服务里能用"。
  */
 describe("控制台端到端", () => {
-  test("登录后能通过 SSE 收到实时日志", async () => {
+  test("登录后能通过 SSE 收到握手，日志不上行", async () => {
     const logger = newLogger({ flushIntervalMs: 0, batch: false });
     const debug = createConsole({
       logger,
@@ -30,8 +30,10 @@ describe("控制台端到端", () => {
       });
       const token = ((await login.json()) as { token: string }).token;
 
+      const controller = new AbortController();
       const events = await fetch(`${base}/events`, {
         headers: { authorization: `Bearer ${token}` },
+        signal: controller.signal,
       });
       expect(events.status).toBe(200);
 
@@ -43,16 +45,16 @@ describe("控制台端到端", () => {
       logger.info("live-line");
       logger.flush();
 
-      // 继续读，直到看到那条日志（最多 50 帧）。
-      for (let i = 0; i < 50 && !text.includes("live-line"); i += 1) {
-        const chunk = await reader?.read();
-        if (chunk?.done === true) break;
-        text += decoder.decode(chunk?.value);
+      // 日志不再走事件流：等 200ms 后主动断开，这段时间里只可能读到心跳注释。
+      setTimeout(() => controller.abort(), 200);
+      try {
+        text += decoder.decode((await reader?.read())?.value);
+      } catch {
+        // abort 会让挂起的 read 抛错，正好说明这期间没有新帧。
       }
 
-      expect(text).toContain("event: log");
-      expect(text).toContain("live-line");
-      await reader?.cancel();
+      expect(text).not.toContain("event: log");
+      expect(text).not.toContain("live-line");
     } finally {
       await server.close();
       debug.dispose();
