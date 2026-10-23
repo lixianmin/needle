@@ -32,7 +32,9 @@ describe("newLogger", () => {
     const { calls, sink } = collector();
     const logger = newLogger({ ...base, sinks: [sink] });
 
-    for (let i = 0; i < 1000; i += 1) logger.info("n", i);
+    for (let i = 0; i < 1000; i += 1) {
+      logger.info("n", i);
+    }
     logger.flush();
 
     expect(calls).toHaveLength(1);
@@ -159,7 +161,9 @@ describe("newLogger", () => {
     const { calls, sink } = collector();
     const logger = newLogger({ ...base, maxBuffer: 3, sinks: [sink] });
 
-    for (let i = 0; i < 10; i += 1) logger.info("n", i);
+    for (let i = 0; i < 10; i += 1) {
+      logger.info("n", i);
+    }
 
     const written = calls.flat().map((r) => r.msg);
     expect(written).toEqual(["n 0", "n 1", "n 2", "n 3", "n 4", "n 5", "n 6", "n 7", "n 8"]);

@@ -43,7 +43,9 @@ export function createBroadcast(): Broadcast {
 
   return {
     sink(batch) {
-      if (connections.size === 0) return;
+      if (connections.size === 0) {
+        return;
+      }
 
       // 不过滤级别：logger 已经按自己的 level 过滤过了，这里原样转发。
       for (let start = 0; start < batch.length; start += MAX_LOG_FRAME) {
@@ -53,8 +55,12 @@ export function createBroadcast(): Broadcast {
 
         for (const connection of connections) {
           try {
-            if (connection.sendText === undefined) connection.send("log", frame);
-            else connection.sendText(text);
+            if (connection.sendText === undefined) {
+              connection.send("log", frame);
+            }
+            else {
+              connection.sendText(text);
+            }
           } catch {
             // 写不进去说明连接已经坏了，摘掉即可，不能让一条坏连接影响其他连接。
             connections.delete(connection);
@@ -75,7 +81,9 @@ export function createBroadcast(): Broadcast {
     },
 
     closeAll() {
-      for (const connection of connections) connection.close();
+      for (const connection of connections) {
+        connection.close();
+      }
       connections.clear();
     },
   };
@@ -92,17 +100,23 @@ export interface TopicSpec {
  * 未知名字直接忽略，而不是报错：前端拼错一个名字不值得让整条流失败。
  */
 export function parseTopicSpecs(spec: string | null, topics: readonly Topic[]): TopicSpec[] {
-  if (spec === null || spec.trim() === "") return [];
+  if (spec === null || spec.trim() === "") {
+    return [];
+  }
 
   const specs: TopicSpec[] = [];
   const seen = new Set<string>();
   for (const part of spec.split(",")) {
-    if (specs.length >= MAX_TOPIC_SPECS) break;
+    if (specs.length >= MAX_TOPIC_SPECS) {
+      break;
+    }
     const [name, rawInterval] = part.split(":");
     const trimmed = name?.trim() ?? "";
     const topic = topics.find((candidate) => candidate.name === trimmed);
     // 去重：同一个名字重复出现会重复建 interval，一条 URL 就能压满事件循环。
-    if (topic === undefined || seen.has(topic.name)) continue;
+    if (topic === undefined || seen.has(topic.name)) {
+      continue;
+    }
     seen.add(topic.name);
 
     const requested = rawInterval === undefined ? topic.intervalMs : Number(rawInterval);
@@ -144,7 +158,9 @@ export function createSseResponse(init: SseInit): Response {
   /** 唯一的清理出口：定时器不清，连接关了也还在每秒读主题。 */
   function teardown(): void {
     closed = true;
-    for (const timer of timers) clearInterval(timer);
+    for (const timer of timers) {
+      clearInterval(timer);
+    }
     timers.length = 0;
   }
 
@@ -153,7 +169,9 @@ export function createSseResponse(init: SseInit): Response {
       let lastWrite = Date.now();
 
       const write = (chunk: string) => {
-        if (closed) return;
+        if (closed) {
+          return;
+        }
         try {
           controller.enqueue(encoder.encode(chunk));
           lastWrite = Date.now();
@@ -173,7 +191,9 @@ export function createSseResponse(init: SseInit): Response {
           write(text);
         },
         close() {
-          if (closed) return;
+          if (closed) {
+            return;
+          }
           teardown();
           try {
             controller.close();
@@ -205,10 +225,14 @@ export function createSseResponse(init: SseInit): Response {
         let busy = false;
         timers.push(
           setInterval(() => {
-            if (closed) return;
+            if (closed) {
+              return;
+            }
             // 慢主题不叠加：上一轮没读完就跳过这一轮，否则连接会被越堆越多的
             // 读取任务拖死。
-            if (busy) return;
+            if (busy) {
+              return;
+            }
             busy = true;
             Promise.resolve()
               .then(() => topic.read())
@@ -229,12 +253,18 @@ export function createSseResponse(init: SseInit): Response {
       // 这一行是给它们看的，控制台里不会显示。
       timers.push(
         setInterval(() => {
-          if (closed) return;
-          if (Date.now() - lastWrite < heartbeatMs) return;
+          if (closed) {
+            return;
+          }
+          if (Date.now() - lastWrite < heartbeatMs) {
+            return;
+          }
           write(": ping\n\n");
         }, heartbeatMs),
       );
-      for (const timer of timers) (timer as unknown as { unref?: () => void }).unref?.();
+      for (const timer of timers) {
+        (timer as unknown as { unref?: () => void }).unref?.();
+      }
     },
 
     cancel() {

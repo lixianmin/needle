@@ -2,8 +2,9 @@ import { readTextLimited } from "../core/web/body.js";
 import { ResponseX } from "../core/web/responsex.js";
 const DEFAULT_MAX_BODY_BYTES = 4096;
 function bearerToken(header) {
-    if (header === null)
+    if (header === null) {
         return null;
+    }
     const match = /^bearer\s+(.+)$/i.exec(header.trim());
     return match?.[1] ?? null;
 }
@@ -18,8 +19,9 @@ export function createExecHandler(options) {
     return async (req) => {
         // 边读边计数：chunked 请求没有 content-length，先读后检查等于没检查。
         const body = await readTextLimited(req, maxBodyBytes);
-        if (body === null)
+        if (body === null) {
             return ResponseX.payloadTooLarge("payload too large");
+        }
         let parsed;
         try {
             parsed = JSON.parse(body);
@@ -32,11 +34,13 @@ export function createExecHandler(options) {
             return ResponseX.badRequest("line 必须是字符串");
         }
         // 空命令是畸形请求，不是业务结果，走 400。
-        if (line.trim() === "")
+        if (line.trim() === "") {
             return ResponseX.badRequest("空命令");
+        }
         const result = await options.source.exec(line, bearerToken(req.headers.get("authorization")));
-        if (result.ok)
+        if (result.ok) {
             return Response.json({ data: result.output });
+        }
         // 内部失败原因比线上 code 细：一个状态码只配一个 code，细分靠 message。
         switch (result.code) {
             case "disposed":

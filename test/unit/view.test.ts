@@ -697,8 +697,12 @@ describe("焦点丢失时", () => {
     root.dispatchEvent(event);
 
     // 先恢复真实实现，再看 focus() 有没有生效（桩会一直返回 null）。
-    if (original !== undefined) Object.defineProperty(document, "activeElement", original);
-    else delete (document as unknown as Record<string, unknown>).activeElement;
+    if (original !== undefined) {
+      Object.defineProperty(document, "activeElement", original);
+    }
+    else {
+      delete (document as unknown as Record<string, unknown>).activeElement;
+    }
 
     expect(event.defaultPrevented).toBe(true);
     expect(document.activeElement).toBe(document.querySelector("input"));

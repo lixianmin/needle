@@ -160,10 +160,14 @@ export function createShellSource(options: ShellSourceOptions): ShellSource {
   let disposed = false;
 
   async function exec(line: string, token: string | null): Promise<ExecResult> {
-    if (disposed) return { ok: false, code: "disposed", error: "shell disposed" };
+    if (disposed) {
+      return { ok: false, code: "disposed", error: "shell disposed" };
+    }
 
     const [name, ...args] = splitArgs(line);
-    if (name === undefined) return { ok: false, code: "bad_request", error: "空命令" };
+    if (name === undefined) {
+      return { ok: false, code: "bad_request", error: "空命令" };
+    }
 
     const command = findCommand(commands, name);
     if (command === undefined) {
@@ -207,12 +211,16 @@ export function createShellSource(options: ShellSourceOptions): ShellSource {
       ]);
       return { ok: true, output };
     } catch (error) {
-      if (timedOut) return { ok: false, code: "timeout", error: "timeout" };
+      if (timedOut) {
+        return { ok: false, code: "timeout", error: "timeout" };
+      }
       // 只回 message：堆栈里有文件路径，是给本地排错用的，不该顺 HTTP 跑出去。
       const message = error instanceof CommandError ? error.message : String(error);
       return { ok: false, code: "command_failed", error: message };
     } finally {
-      if (timer !== undefined) clearTimeout(timer);
+      if (timer !== undefined) {
+        clearTimeout(timer);
+      }
     }
   }
 
@@ -230,12 +238,16 @@ export function createShellSource(options: ShellSourceOptions): ShellSource {
 
     async authenticate(user, password) {
       const token = await auth.login(user, password);
-      if (token === null) return { ok: false, error: "用户名或密码错误" };
+      if (token === null) {
+        return { ok: false, error: "用户名或密码错误" };
+      }
       return { ok: true, user, token };
     },
 
     dispose() {
-      if (disposed) return;
+      if (disposed) {
+        return;
+      }
       disposed = true;
       broadcast.closeAll();
       logger.removeSink(broadcast.sink);

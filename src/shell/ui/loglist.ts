@@ -80,7 +80,9 @@ export function createLogList<T>(
     view?.cancelAnimationFrame?.bind(view) ?? ((handle) => clearTimeout(handle));
 
   function ensureOffsets(): void {
-    if (!dirty) return;
+    if (!dirty) {
+      return;
+    }
     offsets = new Array<number>(rows.length + 1);
     offsets[0] = 0;
     for (let index = 0; index < rows.length; index += 1) {
@@ -114,7 +116,9 @@ export function createLogList<T>(
     const first = Math.max(0, indexAt(el.scrollTop) - OVERSCAN);
     const limit = el.scrollTop + viewport;
     let last = first;
-    while (last < rows.length && (offsets[last] as number) < limit) last += 1;
+    while (last < rows.length && (offsets[last] as number) < limit) {
+      last += 1;
+    }
     last = Math.min(rows.length, last + OVERSCAN);
 
     for (const [index, node] of live) {
@@ -163,20 +167,28 @@ export function createLogList<T>(
     if (remeasured) {
       dirty = true;
       ensureOffsets();
-      for (const [index, node] of live) node.style.top = `${offsets[index]}px`;
+      for (const [index, node] of live) {
+        node.style.top = `${offsets[index]}px`;
+      }
       spacer.style.height = `${offsets[rows.length]}px`;
       // 高度一变，总高跟着变；贴着底看的时候要重新钉住，否则会往上飘一截。
-      if (following) el.scrollTop = offsets[rows.length] as number;
+      if (following) {
+        el.scrollTop = offsets[rows.length] as number;
+      }
     }
   }
 
   function schedule(): void {
-    if (frame !== 0) return;
+    if (frame !== 0) {
+      return;
+    }
     frame = raf(paint);
   }
 
   function rebuild(): void {
-    for (const node of live.values()) node.remove();
+    for (const node of live.values()) {
+      node.remove();
+    }
     live.clear();
     unmeasured.clear();
   }
@@ -190,27 +202,41 @@ export function createLogList<T>(
   // 行高跟宽度有关：窗口变窄，同一行栈会折成更多行。宽度变了就把高度全部作废重量。
   const onResize = (): void => {
     const next = el.clientWidth;
-    if (next === width) return;
+    if (next === width) {
+      return;
+    }
     width = next;
-    if (rows.length === 0) return;
-    for (let index = 0; index < rows.length; index += 1) heights[index] = estimates[index] as number;
+    if (rows.length === 0) {
+      return;
+    }
+    for (let index = 0; index < rows.length; index += 1) {
+      heights[index] = estimates[index] as number;
+    }
     dirty = true;
     rebuild();
     schedule();
   };
   const resizeObserver =
     view?.ResizeObserver !== undefined ? new view.ResizeObserver(onResize) : undefined;
-  if (resizeObserver === undefined) view?.addEventListener("resize", onResize);
-  else resizeObserver.observe(el);
+  if (resizeObserver === undefined) {
+    view?.addEventListener("resize", onResize);
+  }
+  else {
+    resizeObserver.observe(el);
+  }
 
   function append(next: readonly T[]): void {
-    if (next.length === 0) return;
+    if (next.length === 0) {
+      return;
+    }
     for (const row of next) {
       const height = estimate(row);
       rows.push(row);
       heights.push(height);
       estimates.push(height);
-      if (!dirty) offsets.push((offsets[offsets.length - 1] as number) + height);
+      if (!dirty) {
+        offsets.push((offsets[offsets.length - 1] as number) + height);
+      }
     }
 
     const excess = rows.length - capacity;
@@ -263,9 +289,15 @@ export function createLogList<T>(
       paint();
     },
     dispose() {
-      if (frame !== 0) cancel(frame);
-      if (resizeObserver === undefined) view?.removeEventListener("resize", onResize);
-      else resizeObserver.disconnect();
+      if (frame !== 0) {
+        cancel(frame);
+      }
+      if (resizeObserver === undefined) {
+        view?.removeEventListener("resize", onResize);
+      }
+      else {
+        resizeObserver.disconnect();
+      }
       el.removeEventListener("scroll", onScroll);
       el.remove();
     },

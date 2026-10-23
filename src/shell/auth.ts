@@ -16,15 +16,21 @@ export interface Auth {
  * 信息通过耗时泄露出去。长度不同直接返回 false，长度本身不算秘密。
  */
 function equalBytes(a: Uint8Array, b: Uint8Array): boolean {
-  if (a.length !== b.length) return false;
+  if (a.length !== b.length) {
+    return false;
+  }
   let diff = 0;
-  for (let i = 0; i < a.length; i += 1) diff |= (a[i] as number) ^ (b[i] as number);
+  for (let i = 0; i < a.length; i += 1) {
+    diff |= (a[i] as number) ^ (b[i] as number);
+  }
   return diff === 0;
 }
 
 function toBase64Url(bytes: Uint8Array): string {
   let binary = "";
-  for (const byte of bytes) binary += String.fromCharCode(byte);
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte);
+  }
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
@@ -33,7 +39,9 @@ function fromBase64Url(text: string): Uint8Array | null {
     const padded = text.replace(/-/g, "+").replace(/_/g, "/");
     const binary = atob(padded.padEnd(Math.ceil(padded.length / 4) * 4, "="));
     const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+    for (let i = 0; i < binary.length; i += 1) {
+      bytes[i] = binary.charCodeAt(i);
+    }
     return bytes;
   } catch {
     return null;
@@ -85,32 +93,50 @@ export function createAuth(options: AuthOptions & { now?: () => number }): Auth 
   return {
     async login(user, password) {
       const expected = credentials.get(user);
-      if (expected === undefined) return null;
-      if (!equalBytes(expected, encoder.encode(password))) return null;
+      if (expected === undefined) {
+        return null;
+      }
+      if (!equalBytes(expected, encoder.encode(password))) {
+        return null;
+      }
 
       return signPayload(user, ttlMs);
     },
 
     async verify(token) {
-      if (token === null) return null;
+      if (token === null) {
+        return null;
+      }
 
       const parts = token.split(".");
-      if (parts.length !== 2) return null;
+      if (parts.length !== 2) {
+        return null;
+      }
 
       const [payloadText, signatureText] = parts as [string, string];
       const payloadBytes = fromBase64Url(payloadText);
       const signatureBytes = fromBase64Url(signatureText);
-      if (payloadBytes === null || signatureBytes === null) return null;
+      if (payloadBytes === null || signatureBytes === null) {
+        return null;
+      }
 
       const expected = await sign(keyBytes, encoder.encode(payloadText));
-      if (!equalBytes(expected, signatureBytes)) return null;
+      if (!equalBytes(expected, signatureBytes)) {
+        return null;
+      }
 
       try {
         const decoded: unknown = JSON.parse(new TextDecoder().decode(payloadBytes));
-        if (typeof decoded !== "object" || decoded === null) return null;
+        if (typeof decoded !== "object" || decoded === null) {
+          return null;
+        }
         const { sub, exp } = decoded as { sub?: unknown; exp?: unknown };
-        if (typeof sub !== "string" || typeof exp !== "number") return null;
-        if (exp <= now()) return null;
+        if (typeof sub !== "string" || typeof exp !== "number") {
+          return null;
+        }
+        if (exp <= now()) {
+          return null;
+        }
         return { sub };
       } catch {
         return null;

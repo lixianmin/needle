@@ -41,9 +41,13 @@ export function createLogFiles(options: LogFilesOptions): LogFiles {
 
       const entries: LogFileEntry[] = [];
       for (const name of names) {
-        if (!isLogFile(name)) continue;
+        if (!isLogFile(name)) {
+          continue;
+        }
         const info = await lstat(join(dir, name)).catch(() => null);
-        if (info === null || !info.isFile()) continue;   // 符号链接 isFile() 为 false
+        if (info === null || !info.isFile()) {
+          continue; // 符号链接 isFile() 为 false
+        }
         entries.push({ name, size: info.size, modified: info.mtimeMs });
       }
 
@@ -52,10 +56,14 @@ export function createLogFiles(options: LogFilesOptions): LogFiles {
 
     async read(name: string): Promise<string | null> {
       // 分隔符、.. 一律拒绝：不给自己留拼接路径的机会。
-      if (!isLogFile(name)) return null;
+      if (!isLogFile(name)) {
+        return null;
+      }
 
       const full = resolve(dir, name);
-      if (full !== join(dir, name) || !full.startsWith(dir + sep)) return null;
+      if (full !== join(dir, name) || !full.startsWith(dir + sep)) {
+        return null;
+      }
 
       let handle;
       try {
@@ -63,7 +71,9 @@ export function createLogFiles(options: LogFilesOptions): LogFiles {
         // 会直接 ELOOP，写入增长也按打开那一刻之后的真实大小判断。
         handle = await open(full, constants.O_RDONLY | constants.O_NOFOLLOW);
         const info = await handle.stat();
-        if (!info.isFile() || info.size > maxFileBytes) return null;
+        if (!info.isFile() || info.size > maxFileBytes) {
+          return null;
+        }
         return await handle.readFile("utf8");
       } catch {
         return null;

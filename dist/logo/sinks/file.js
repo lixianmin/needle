@@ -34,19 +34,22 @@ export function createFileSink(options) {
     /** 过期归档每次进程只清一次：低流量时没有轮转，靠它兜底。 */
     let pruned = false;
     function ensureDir() {
-        if (!existsSync(options.dir))
+        if (!existsSync(options.dir)) {
             mkdirSync(options.dir, { recursive: true });
+        }
     }
     function prune() {
         const cutoff = now() - keepDays * 24 * 60 * 60 * 1000;
         for (const name of readdirSync(options.dir)) {
             // 只清归档（带时间戳的），当前正在写的四个文件不动。
-            if (!name.endsWith(".log") || !name.includes("-"))
+            if (!name.endsWith(".log") || !name.includes("-")) {
                 continue;
+            }
             const path = join(options.dir, name);
             try {
-                if (statSync(path).mtimeMs < cutoff)
+                if (statSync(path).mtimeMs < cutoff) {
                     unlinkSync(path);
+                }
             }
             catch {
                 // 被别的进程删了/锁了：下一次滚动再处理。
@@ -55,8 +58,9 @@ export function createFileSink(options) {
     }
     /** 进程重启后磁盘上已经有同名文件：不清零的话 maxBytes 会按旧大小继续累加。 */
     function seed(level, file) {
-        if (bytes.has(level))
+        if (bytes.has(level)) {
             return;
+        }
         try {
             bytes.set(level, statSync(file).size);
         }
@@ -83,21 +87,24 @@ export function createFileSink(options) {
         prune();
     }
     function write(level, lines) {
-        if (lines.length === 0)
+        if (lines.length === 0) {
             return;
+        }
         const file = join(options.dir, `${level}.log`);
         const text = `${lines.join("\n")}\n`;
         const size = Buffer.byteLength(text, "utf8");
         seed(level, file);
         const current = bytes.get(level) ?? 0;
-        if (current > 0 && current + size > maxBytes)
+        if (current > 0 && current + size > maxBytes) {
             rotate(file, level);
+        }
         appendFileSync(file, text, "utf8");
         bytes.set(level, (bytes.get(level) ?? 0) + size);
     }
     const sink = ((batch) => {
-        if (closed || batch.length === 0)
+        if (closed || batch.length === 0) {
             return;
+        }
         ensureDir();
         if (!pruned) {
             pruned = true;
@@ -108,15 +115,17 @@ export function createFileSink(options) {
         const buckets = new Map();
         for (const record of batch) {
             for (const target of fileLevels) {
-                if (LEVELS[record.level] < LEVELS[target])
+                if (LEVELS[record.level] < LEVELS[target]) {
                     continue;
+                }
                 const lines = buckets.get(target) ?? [];
                 lines.push(formatLine(record));
                 buckets.set(target, lines);
             }
         }
-        for (const [level, lines] of buckets)
+        for (const [level, lines] of buckets) {
             write(level, lines);
+        }
     });
     sink.close = () => {
         closed = true;

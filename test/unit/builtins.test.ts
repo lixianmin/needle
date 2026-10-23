@@ -27,7 +27,9 @@ function setup() {
   });
   const run = async (name: string, args: string[] = []): Promise<CommandOutput> => {
     const command = findCommand(commands, name);
-    if (command === undefined) throw new Error(`没有命令 ${name}`);
+    if (command === undefined) {
+      throw new Error(`没有命令 ${name}`);
+    }
     return command.run(context(args));
   };
   return { commands, run };

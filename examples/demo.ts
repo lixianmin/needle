@@ -25,7 +25,9 @@ const PORT = Number(process.env.PORT ?? 1234);
 
 /** 命令行参数转成条数：非法值退回 20，上限 10 万（再多页面也扛不住）。 */
 function clamp(value: number): number {
-  if (!Number.isFinite(value)) return 20;
+  if (!Number.isFinite(value)) {
+    return 20;
+  }
   return Math.min(Math.max(1, Math.trunc(value)), 100_000);
 }
 
@@ -93,9 +95,15 @@ const shell = createShell({
         for (let i = 1; i <= count; i += 1) {
           const line = `burst #${i}/${count}`;
           // 三种级别混着写：右栏能看出着色，也能看出 warn / error 是立刻刷的。
-          if (i % 17 === 0) logo.error(line);
-          else if (i % 7 === 0) logo.warn(line);
-          else logo.info(line);
+          if (i % 17 === 0) {
+            logo.error(line);
+          }
+          else if (i % 7 === 0) {
+            logo.warn(line);
+          }
+          else {
+            logo.info(line);
+          }
         }
         return { kind: "text", text: `已写 ${count} 条：${Math.floor(count / 7)} 条 warn、${Math.floor(count / 17)} 条 error` };
       },
@@ -113,7 +121,9 @@ const shell = createShell({
 
 const server = await serve(async (req) => {
   const { pathname } = new URL(req.url);
-  if (pathname === "/" || pathname.startsWith("/shell")) return shell.handler(req);
+  if (pathname === "/" || pathname.startsWith("/shell")) {
+    return shell.handler(req);
+  }
   return new Response("这是你的业务服务。控制台在 /shell\n");
 }, { port: PORT });
 
@@ -125,7 +135,9 @@ console.log("订阅:   sub top 2000 · unsub top");
 let closing = false;
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.on(signal, () => {
-    if (closing) return;
+    if (closing) {
+      return;
+    }
     closing = true;
     logo.info("收到退出信号，flush 后退出");
     // 顺序很重要：先冲日志，再关连接。

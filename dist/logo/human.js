@@ -13,12 +13,14 @@ const UNITS = ["B", "K", "M", "G", "T", "P"];
  * 这样计数类数据（如 200 条日志）不会被写成 "200B"。
  */
 export function toHuman(num) {
-    if (!Number.isFinite(num))
+    if (!Number.isFinite(num)) {
         return String(num);
+    }
     const sign = num < 0 ? "-" : "";
     let value = Math.abs(num);
-    if (value < 1024)
+    if (value < 1024) {
         return `${sign}${Math.round(value)}${UNITS[0]}`;
+    }
     let unit = 0;
     while (value >= 1024 && unit < UNITS.length - 1) {
         value /= 1024;
@@ -33,8 +35,9 @@ export function toHuman(num) {
  * 四舍五入成 "0B"，那比不格式化更糟。
  */
 export function displayNumber(value) {
-    if (!Number.isInteger(value) || Math.abs(value) < 1024)
+    if (!Number.isInteger(value) || Math.abs(value) < 1024) {
         return String(value);
+    }
     return toHuman(value);
 }
 /**
@@ -48,22 +51,27 @@ export function displayNumber(value) {
  *   277_200_000 → "3d 5h"
  */
 export function formatDuration(ms) {
-    if (!Number.isFinite(ms))
+    if (!Number.isFinite(ms)) {
         return String(ms);
+    }
     const sign = ms < 0 ? "-" : "";
     const value = Math.abs(ms);
-    if (value < 1000)
+    if (value < 1000) {
         return `${sign}${Math.round(value)}ms`;
-    if (value < 60_000)
+    }
+    if (value < 60_000) {
         return `${sign}${(value / 1000).toFixed(1)}s`;
+    }
     const totalSeconds = Math.floor(value / 1000);
     const days = Math.floor(totalSeconds / 86_400);
     const hours = Math.floor((totalSeconds % 86_400) / 3600);
     const minutes = Math.floor((totalSeconds % 3600) / 60);
     const seconds = totalSeconds % 60;
-    if (days > 0)
+    if (days > 0) {
         return `${sign}${days}d ${hours}h`;
-    if (hours > 0)
+    }
+    if (hours > 0) {
         return `${sign}${hours}h ${String(minutes).padStart(2, "0")}m`;
+    }
     return `${sign}${minutes}m ${String(seconds).padStart(2, "0")}s`;
 }

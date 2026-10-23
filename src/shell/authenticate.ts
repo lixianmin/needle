@@ -23,7 +23,9 @@ export function createAuthRoute(options: AuthRouteOptions): (req: Request) => Pr
   return async (req) => {
     // 密码接口更该防这一手：它不需要 token，chunked 就能绕过声明长度。
     const body = await readTextLimited(req, maxBodyBytes);
-    if (body === null) return ResponseX.payloadTooLarge("payload too large");
+    if (body === null) {
+      return ResponseX.payloadTooLarge("payload too large");
+    }
 
     let parsed: unknown;
     try {
@@ -38,7 +40,9 @@ export function createAuthRoute(options: AuthRouteOptions): (req: Request) => Pr
     }
 
     const result = await options.source.authenticate(user, password);
-    if (!result.ok) return ResponseX.badCredentials(result.error);
+    if (!result.ok) {
+      return ResponseX.badCredentials(result.error);
+    }
     return Response.json({ user: result.user, token: result.token });
   };
 }

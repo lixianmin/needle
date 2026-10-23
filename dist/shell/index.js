@@ -8,8 +8,9 @@ import { createSseResponse } from "./sse.js";
 import { createLocalAdapter } from "./ui/local.js";
 import { mountShell } from "./ui/view.js";
 function bearer(header) {
-    if (header === null)
+    if (header === null) {
         return null;
+    }
     const match = /^bearer\s+(.+)$/i.exec(header.trim());
     return match?.[1] ?? null;
 }
@@ -39,18 +40,21 @@ export function createShell(options) {
      * 没有有效 token 返回 null。`/log/:name` 与 `/events` 共用这一处口径。
      */
     async function resolveUser(req) {
-        if (source.user !== null)
+        if (source.user !== null) {
             return source.user;
+        }
         const verified = await source.auth.verify(bearer(req.headers.get("authorization")));
         return verified === null ? null : verified.sub;
     }
     async function logRoute({ req, params }) {
         const user = await resolveUser(req);
-        if (user === null)
+        if (user === null) {
             return ResponseX.unauthorized("未登录或 token 无效");
+        }
         const body = await source.logFiles?.read(params.name ?? "");
-        if (body === null || body === undefined)
+        if (body === null || body === undefined) {
             return ResponseX.notFound("日志文件不存在");
+        }
         return new Response(body, {
             headers: {
                 "content-type": "text/plain; charset=utf-8",
@@ -61,8 +65,9 @@ export function createShell(options) {
     async function eventsRoute({ req, url }) {
         // 事件流必须鉴权：日志里什么都有，匿名不该看到。本地模式是唯一的例外，理由同 /log/。
         const user = await resolveUser(req);
-        if (user === null)
+        if (user === null) {
             return ResponseX.unauthorized("未登录或 token 无效");
+        }
         return createSseResponse({
             user,
             title: source.title,
@@ -89,12 +94,14 @@ export function createShell(options) {
     return {
         source,
         async handler(req) {
-            if (disposed)
+            if (disposed) {
                 return ResponseX.unavailable("shell disposed");
+            }
             const found = router.match(req);
             // 消息里必须带方法与路径：只回 "not found" 等于没回，调用方无法判断是路径写错还是方法不对
-            if (found === null)
+            if (found === null) {
                 return ResponseX.notFound(`未匹配的路由：${req.method} ${new URL(req.url).pathname}`);
+            }
             return found.handler({ req, url: found.url, params: found.params });
         },
         dispose() {

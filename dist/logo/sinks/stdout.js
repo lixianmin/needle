@@ -23,8 +23,9 @@ export function hasStdout() {
  * 换来的是这个函数不依赖"进程长什么样"这个模块级快照。
  */
 export const stdoutSink = (batch) => {
-    if (batch.length === 0)
+    if (batch.length === 0) {
         return;
+    }
     if (hasStdout()) {
         const text = batch.map(formatLine).join("\n");
         process.stdout.write(`${text}\n`);

@@ -53,7 +53,9 @@ export function formatLine(record: LogRecord): string {
 /** 从一行日志里把 JSON 载荷解析回来。前缀不参与解析。 */
 export function parseLine(line: string): Record<string, unknown> | null {
   const index = line.indexOf("] ");
-  if (index < 0) return null;
+  if (index < 0) {
+    return null;
+  }
   try {
     const parsed: unknown = JSON.parse(line.slice(index + 2));
     return typeof parsed === "object" && parsed !== null ? (parsed as Record<string, unknown>) : null;

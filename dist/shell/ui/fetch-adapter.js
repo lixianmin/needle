@@ -11,8 +11,9 @@ function readToken() {
 async function errorMessage(response) {
     try {
         const body = (await response.json());
-        if (typeof body.message === "string" && body.message !== "")
+        if (typeof body.message === "string" && body.message !== "") {
             return body.message;
+        }
     }
     catch {
         // 网关/代理插进来的非 JSON 错误页，不猜内容
@@ -21,10 +22,12 @@ async function errorMessage(response) {
 }
 function writeToken(token) {
     try {
-        if (token === null)
+        if (token === null) {
             localStorage.removeItem(TOKEN_KEY);
-        else
+        }
+        else {
             localStorage.setItem(TOKEN_KEY, token);
+        }
     }
     catch {
         // 隐私模式下写不进去，那就每次刷新重登一次，不算故障。
@@ -42,13 +45,16 @@ function createFrameParser(onFrame) {
             let event = "message";
             const data = [];
             for (const line of frame.split("\n")) {
-                if (line.startsWith("event:"))
+                if (line.startsWith("event:")) {
                     event = line.slice(6).trim();
-                else if (line.startsWith("data:"))
+                }
+                else if (line.startsWith("data:")) {
                     data.push(line.slice(5).trim());
+                }
             }
-            if (data.length > 0)
+            if (data.length > 0) {
                 onFrame(event, data.join("\n"));
+            }
             index = buffer.indexOf("\n\n");
         }
     };
@@ -67,15 +73,17 @@ export function createFetchAdapter(options) {
     let retry = 0;
     let disposed = false;
     const emit = (event) => {
-        for (const listener of listeners)
+        for (const listener of listeners) {
             listener(event);
+        }
     };
     const status = (message, level = "info") => {
         emit({ type: "status", message, level });
     };
     async function connect() {
-        if (disposed)
+        if (disposed) {
             return;
+        }
         controller?.abort();
         // 每轮持有自己的 Controller：旧轮次被 abort 时，catch 里不能去读那个
         // 已经被换成新轮次的 controller，否则守卫失效、旧轮次会把新连接再 abort 一遍。
@@ -110,10 +118,12 @@ export function createFetchAdapter(options) {
             const decoder = new TextDecoder();
             const parse = createFrameParser((event, data) => {
                 try {
-                    if (event === "handshake")
+                    if (event === "handshake") {
                         emit({ type: "handshake", info: JSON.parse(data) });
-                    else if (event === "log")
+                    }
+                    else if (event === "log") {
                         emit({ type: "logs", records: JSON.parse(data) });
+                    }
                     else if (event === "topic") {
                         const payload = JSON.parse(data);
                         // 主题读取失败时服务端发的是 { error }，兜一下，别渲染成 "[top] undefined"。
@@ -126,21 +136,25 @@ export function createFetchAdapter(options) {
             });
             for (;;) {
                 const chunk = await reader.read();
-                if (chunk.done)
+                if (chunk.done) {
                     break;
+                }
                 parse(decoder.decode(chunk.value, { stream: true }));
             }
-            if (!disposed)
+            if (!disposed) {
                 status("连接已断开，正在重连…", "warn");
+            }
         }
         catch (error) {
-            if (disposed || local.signal.aborted)
+            if (disposed || local.signal.aborted) {
                 return;
+            }
             status(`连接失败：${String(error)}`, "error");
         }
         // 只有这一轮仍是最新时才安排重连：被 abort 的旧轮次不该再拉起一次。
-        if (disposed || controller !== local)
+        if (disposed || controller !== local) {
             return;
+        }
         // 指数退避，封顶 10 秒：服务重启期间不要把浏览器打死。
         retry += 1;
         setTimeout(() => void connect(), Math.min(10_000, 500 * 2 ** retry));
@@ -149,8 +163,9 @@ export function createFetchAdapter(options) {
         async exec(line) {
             const token = readToken();
             const headers = { "content-type": "application/json" };
-            if (token !== null)
+            if (token !== null) {
                 headers.authorization = `Bearer ${token}`;
+            }
             const response = await fetch(`${options.basePath}/exec`, {
                 method: "POST",
                 headers,
@@ -161,8 +176,9 @@ export function createFetchAdapter(options) {
                 status("未登录：执行 auth <user>", "warn");
                 return { ok: false, error: "unauthorized", unauthorized: true };
             }
-            if (!response.ok)
+            if (!response.ok) {
                 return { ok: false, error: await errorMessage(response) };
+            }
             // 成功响应不加壳：命令输出直接在 body.data 里。
             const body = (await response.json());
             return { ok: true, output: body.data };
@@ -170,14 +186,17 @@ export function createFetchAdapter(options) {
         async fetchFile(href) {
             const token = readToken();
             const headers = {};
-            if (token !== null)
+            if (token !== null) {
                 headers.authorization = `Bearer ${token}`;
+            }
             try {
                 const response = await fetch(href, { headers });
-                if (response.status === 401)
+                if (response.status === 401) {
                     return { ok: false, error: "未登录：先执行 auth <user>" };
-                if (!response.ok)
+                }
+                if (!response.ok) {
                     return { ok: false, error: await errorMessage(response) };
+                }
                 return { ok: true, text: await response.text() };
             }
             catch (error) {
@@ -201,13 +220,15 @@ export function createFetchAdapter(options) {
         },
         setTopics(spec) {
             topicSpec = spec;
-            if (listeners.size > 0)
+            if (listeners.size > 0) {
                 void connect();
+            }
         },
         subscribe(listener) {
             listeners.add(listener);
-            if (listeners.size === 1)
+            if (listeners.size === 1) {
                 void connect();
+            }
             return () => {
                 listeners.delete(listener);
                 if (listeners.size === 0) {

@@ -13,8 +13,9 @@ export function createAuthRoute(options) {
     return async (req) => {
         // 密码接口更该防这一手：它不需要 token，chunked 就能绕过声明长度。
         const body = await readTextLimited(req, maxBodyBytes);
-        if (body === null)
+        if (body === null) {
             return ResponseX.payloadTooLarge("payload too large");
+        }
         let parsed;
         try {
             parsed = JSON.parse(body);
@@ -27,8 +28,9 @@ export function createAuthRoute(options) {
             return ResponseX.badRequest("user 与 password 都必须是字符串");
         }
         const result = await options.source.authenticate(user, password);
-        if (!result.ok)
+        if (!result.ok) {
             return ResponseX.badCredentials(result.error);
+        }
         return Response.json({ user: result.user, token: result.token });
     };
 }

@@ -43,8 +43,9 @@ export function createLogList(doc, render, options = {}) {
     const raf = view?.requestAnimationFrame?.bind(view) ?? ((callback) => setTimeout(callback, 16));
     const cancel = view?.cancelAnimationFrame?.bind(view) ?? ((handle) => clearTimeout(handle));
     function ensureOffsets() {
-        if (!dirty)
+        if (!dirty) {
             return;
+        }
         offsets = new Array(rows.length + 1);
         offsets[0] = 0;
         for (let index = 0; index < rows.length; index += 1) {
@@ -76,8 +77,9 @@ export function createLogList(doc, render, options = {}) {
         const first = Math.max(0, indexAt(el.scrollTop) - OVERSCAN);
         const limit = el.scrollTop + viewport;
         let last = first;
-        while (last < rows.length && offsets[last] < limit)
+        while (last < rows.length && offsets[last] < limit) {
             last += 1;
+        }
         last = Math.min(rows.length, last + OVERSCAN);
         for (const [index, node] of live) {
             if (index < first || index >= last) {
@@ -121,22 +123,26 @@ export function createLogList(doc, render, options = {}) {
         if (remeasured) {
             dirty = true;
             ensureOffsets();
-            for (const [index, node] of live)
+            for (const [index, node] of live) {
                 node.style.top = `${offsets[index]}px`;
+            }
             spacer.style.height = `${offsets[rows.length]}px`;
             // 高度一变，总高跟着变；贴着底看的时候要重新钉住，否则会往上飘一截。
-            if (following)
+            if (following) {
                 el.scrollTop = offsets[rows.length];
+            }
         }
     }
     function schedule() {
-        if (frame !== 0)
+        if (frame !== 0) {
             return;
+        }
         frame = raf(paint);
     }
     function rebuild() {
-        for (const node of live.values())
+        for (const node of live.values()) {
             node.remove();
+        }
         live.clear();
         unmeasured.clear();
     }
@@ -148,32 +154,39 @@ export function createLogList(doc, render, options = {}) {
     // 行高跟宽度有关：窗口变窄，同一行栈会折成更多行。宽度变了就把高度全部作废重量。
     const onResize = () => {
         const next = el.clientWidth;
-        if (next === width)
+        if (next === width) {
             return;
+        }
         width = next;
-        if (rows.length === 0)
+        if (rows.length === 0) {
             return;
-        for (let index = 0; index < rows.length; index += 1)
+        }
+        for (let index = 0; index < rows.length; index += 1) {
             heights[index] = estimates[index];
+        }
         dirty = true;
         rebuild();
         schedule();
     };
     const resizeObserver = view?.ResizeObserver !== undefined ? new view.ResizeObserver(onResize) : undefined;
-    if (resizeObserver === undefined)
+    if (resizeObserver === undefined) {
         view?.addEventListener("resize", onResize);
-    else
+    }
+    else {
         resizeObserver.observe(el);
+    }
     function append(next) {
-        if (next.length === 0)
+        if (next.length === 0) {
             return;
+        }
         for (const row of next) {
             const height = estimate(row);
             rows.push(row);
             heights.push(height);
             estimates.push(height);
-            if (!dirty)
+            if (!dirty) {
                 offsets.push(offsets[offsets.length - 1] + height);
+            }
         }
         const excess = rows.length - capacity;
         if (excess > 0) {
@@ -223,12 +236,15 @@ export function createLogList(doc, render, options = {}) {
             paint();
         },
         dispose() {
-            if (frame !== 0)
+            if (frame !== 0) {
                 cancel(frame);
-            if (resizeObserver === undefined)
+            }
+            if (resizeObserver === undefined) {
                 view?.removeEventListener("resize", onResize);
-            else
+            }
+            else {
                 resizeObserver.disconnect();
+            }
             el.removeEventListener("scroll", onScroll);
             el.remove();
         },

@@ -6,8 +6,9 @@
  */
 /** `"shell"` → `"/shell"`，`"/shell/"` → `"/shell"`，`""` 与 `"/"` → `""`。 */
 export function normalizeBasePath(value) {
-    if (value === "" || value === "/")
+    if (value === "" || value === "/") {
         return "";
+    }
     const trimmed = value.replace(/\/+$/, "");
     return trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
 }
@@ -16,8 +17,9 @@ function segments(path) {
     return path.split("/").filter((part) => part !== "");
 }
 function matchPattern(pattern, path) {
-    if (pattern.length !== path.length)
+    if (pattern.length !== path.length) {
         return null;
+    }
     const params = {};
     for (const [index, part] of pattern.entries()) {
         const value = path[index] ?? "";
@@ -32,8 +34,9 @@ function matchPattern(pattern, path) {
             }
             continue;
         }
-        if (part !== value)
+        if (part !== value) {
             return null;
+        }
     }
     return params;
 }
@@ -46,30 +49,37 @@ export function createRouter(options) {
     }));
     /** basePath 之外返回 null；`"/dbg"` 自身当归一化成 `"/"`。 */
     function strip(pathname) {
-        if (basePath === "")
+        if (basePath === "") {
             return pathname;
-        if (pathname === basePath)
+        }
+        if (pathname === basePath) {
             return "/";
-        if (!pathname.startsWith(`${basePath}/`))
+        }
+        if (!pathname.startsWith(`${basePath}/`)) {
             return null;
+        }
         return pathname.slice(basePath.length);
     }
     return {
         match(req) {
             const url = new URL(req.url);
             const path = strip(url.pathname);
-            if (path === null)
+            if (path === null) {
                 return null;
+            }
             // 尾随斜杠不算命中（`/health/` 仍 404），与改动前一致；`strip` 把 basePath
             // 自身归一成 `/`，所以挂载点带不带尾斜杠都进根路由。
-            if (path.length > 1 && path.endsWith("/"))
+            if (path.length > 1 && path.endsWith("/")) {
                 return null;
+            }
             for (const route of routes) {
-                if (route.method !== req.method)
+                if (route.method !== req.method) {
                     continue;
+                }
                 const params = matchPattern(route.segments, segments(path));
-                if (params !== null)
+                if (params !== null) {
                     return { url, params, handler: route.handler };
+                }
             }
             return null;
         },
