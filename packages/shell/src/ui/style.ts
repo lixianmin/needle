@@ -101,6 +101,19 @@ export const STYLE = `
 .logo-shell .row .lv-info { color: var(--text); }
 .logo-shell .row .lv-warn { color: var(--yellow); }
 .logo-shell .row .lv-error { color: var(--red); }
+.logo-shell .row { cursor: pointer; }
+.logo-shell .row.on { background: rgba(38, 139, 210, 0.18); }
+
+/* 点某一行后展开的详情：完整消息 + 调用栈 + 其它字段，可整段复制 */
+.logo-shell .detail {
+  max-height: 45%; overflow: auto; padding: 6px 12px;
+  border-top: 1px solid var(--line); background: var(--bg-alt);
+}
+.logo-shell .detail[hidden] { display: none; }
+.logo-shell .detail pre {
+  margin: 0; white-space: pre-wrap; word-break: break-word;
+  color: var(--text-strong); font: inherit;
+}
 
 .logo-shell .toggle {
   display: none; margin-left: auto; background: transparent; border: 1px solid var(--line);
