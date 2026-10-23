@@ -142,8 +142,14 @@ describe("createConsole", () => {
     expect(api.source.broadcast.count()).toBe(0);
   });
 
-  test("未知路径 404", async () => {
+  test("未知路径 404，message 能定位到是哪条请求没命中", async () => {
     const { console: api } = setup();
-    expect((await api.handler(get("/nope"))).status).toBe(404);
+    const res = await api.handler(get("/nope"));
+    expect(res.status).toBe(404);
+    const body = (await res.json()) as { code: string; message: string };
+    expect(body.code).toBe("not_found");
+    // message 必须带方法与路径，只回 "not found" 等于没回
+    expect(body.message).toContain("GET");
+    expect(body.message).toContain("/nope");
   });
 });
