@@ -110,7 +110,7 @@ logo.error("paid failed", err, { userId: 7 })
 
 `time`、`level`、`msg` 是保留字段，用户数据与之同名时保留信封值。`name` 只能通过 `logo.child({ name })` 设置——那是 logger 的名字，不是业务数据。
 
-`warn` 与 `error` 默认附带 `stack`（调用点栈帧，已剪掉 logger 内部帧）；`info`/`debug` 不采集，因为采集栈比拼字符串慢两个数量级。由 `stackLevel` 控制，默认 `"warn"`，可设成 `"error"` 或 `"off"`。
+`error` 默认附带 `stack`（调用点栈帧，已剪掉 logger 内部帧）；`info`/`warn`/`debug` 不采集，因为采集栈比拼字符串慢两个数量级。由 `stackLevel` 控制：默认 `"error"`（与 Go 版 `stackLevel: LevelError` 对齐），要 warn 也带就设 `"warn"`，关掉用 `"off"`。
 
 ### 6.3 落盘格式
 
@@ -134,7 +134,7 @@ interface LogRecord {
   level: "debug" | "info" | "warn" | "error"
   name?: string           // child 的标识，默认不出现
   msg?: string
-  stack?: string          // 仅 warn/error（由 stackLevel 控制）
+  stack?: string          // 默认仅 error（由 stackLevel 控制）
   [field: string]: unknown
 }
 ```
@@ -448,6 +448,7 @@ interface Topic {
 | 渲染节奏 | `requestAnimationFrame`，每帧最多 200 行 | 10k 突发放进缓冲是纯数组操作，渲染按帧切片 |
 | 跟随 | 只在贴底时自动滚 | 用户往上翻就停住，显示「已暂停跟随 · 回到最新」 |
 | 暂停 | 冻结画面，新行只计数不渲染 | 排查时不让画面自己动 |
+| 详情 | 点行在列表下方展开 | 完整消息 + `stack` + 其它字段，可整段复制；行高不变，虚拟滚动不受影响。再点一次或 Esc 收起 |
 
 服务端不存历史：日志栏刷新即空，回看历史仍然用 `log.list`。
 

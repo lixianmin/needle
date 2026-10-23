@@ -501,3 +501,48 @@ describe("mountShell", () => {
     expect((root as unknown as HTMLElement).childElementCount).toBe(0);
   });
 });
+
+describe("日志详情", () => {
+  const errorRecord = {
+    time: 1,
+    level: "error" as const,
+    msg: "boom",
+    stack: "Error: boom\n    at run (demo.ts:99:38)",
+    seq: 7,
+  };
+
+  test("点一行看完整内容，Esc 收起", () => {
+    const { document, root, emit } = mount();
+    emit({ type: "logs", records: [errorRecord] });
+    (document.querySelectorAll(".tab")[0] as unknown as HTMLElement).click();
+
+    const detail = document.querySelector(".detail") as unknown as HTMLElement;
+    expect(detail.hidden).toBe(true);
+
+    (document.querySelector(".panel.active .row") as unknown as HTMLElement).click();
+    expect(detail.hidden).toBe(false);
+    expect(detail.textContent).toContain("boom");
+    expect(detail.textContent).toContain("at run (demo.ts:99:38)");
+    expect(detail.textContent).toContain('"seq":7');
+
+    root.dispatchEvent(
+      new (window as unknown as { KeyboardEvent: typeof KeyboardEvent }).KeyboardEvent("keydown", {
+        key: "Escape",
+        bubbles: true,
+      }),
+    );
+    expect(detail.hidden).toBe(true);
+    expect(document.querySelector(".row.on")).toBeNull();
+  });
+
+  test("没有栈的日志只显示消息", () => {
+    const { document, emit } = mount();
+    emit({ type: "logs", records: [{ time: 1, level: "info", msg: "plain" }] });
+    (document.querySelectorAll(".tab")[0] as unknown as HTMLElement).click();
+
+    (document.querySelector(".panel.active .row") as unknown as HTMLElement).click();
+    const detail = document.querySelector(".detail") as unknown as HTMLElement;
+    expect(detail.textContent).toContain("[I] plain");
+    expect(detail.textContent).not.toContain("at ");
+  });
+});

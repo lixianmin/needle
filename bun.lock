@@ -15,11 +15,11 @@
     },
     "packages/logo": {
       "name": "@needle/logo",
-      "version": "0.2.19",
+      "version": "0.2.20",
     },
     "packages/shell": {
       "name": "@needle/shell",
-      "version": "0.2.19",
+      "version": "0.2.20",
       "dependencies": {
         "@needle/logo": "^0.2.15",
       },

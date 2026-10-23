@@ -7,6 +7,12 @@ const DEFAULT_CAPACITY = 100_000;
 /** 可见窗口上下各多渲染几行，快速滚动时不留白。 */
 const OVERSCAN = 20;
 
+export interface LogListOptions<T> {
+  capacity?: number;
+  /** 点行时回调；取消选择传 undefined。 */
+  onSelect?: (row: T | undefined) => void;
+}
+
 export interface LogList<T> {
   el: HTMLElement;
   append(rows: readonly T[]): void;
@@ -14,6 +20,8 @@ export interface LogList<T> {
   isFollowing(): boolean;
   follow(): void;
   dropped(): number;
+  /** 取消选中（Esc 用）。已经没选时什么都不做。 */
+  clearSelection(): void;
   /** 立刻重绘（切 tab、容器刚可见时用；平时由 rAF 驱动）。 */
   flush(): void;
   dispose(): void;
@@ -28,8 +36,9 @@ export interface LogList<T> {
 export function createLogList<T>(
   doc: Document,
   render: (row: T) => HTMLElement,
-  capacity: number = DEFAULT_CAPACITY,
+  options: LogListOptions<T> = {},
 ): LogList<T> {
+  const capacity = options.capacity ?? DEFAULT_CAPACITY;
   const el = doc.createElement("div");
   el.className = "list";
   const spacer = doc.createElement("div");
@@ -41,6 +50,8 @@ export function createLogList<T>(
   let dropped = 0;
   let following = true;
   let frame = 0;
+  /** 选中行的下标；-1 表示没选。行会被丢弃，所以下标要跟着缓冲区一起挪。 */
+  let selected = -1;
 
   const view = doc.defaultView;
   const raf: (callback: () => void) => number =
@@ -65,6 +76,8 @@ export function createLogList<T>(
       if (live.has(index)) continue;
       const node = render(rows[index] as T);
       node.style.top = `${index * ROW_HEIGHT}px`;
+      node.dataset.index = String(index);
+      if (index === selected) node.classList.add("on");
       spacer.append(node);
       live.set(index, node);
     }
@@ -80,6 +93,23 @@ export function createLogList<T>(
     live.clear();
   }
 
+  function select(next: number): void {
+    live.get(selected)?.classList.remove("on");
+    selected = next;
+    live.get(selected)?.classList.add("on");
+    options.onSelect?.(selected < 0 ? undefined : (rows[selected] as T));
+  }
+
+  const onClick = (event: Event): void => {
+    const target = event.target as HTMLElement | null;
+    const node = target?.closest?.(".row") as HTMLElement | null;
+    if (node === null) return;
+    const index = Number(node.dataset.index);
+    if (!Number.isInteger(index)) return;
+    select(index === selected ? -1 : index);
+  };
+  el.addEventListener("click", onClick);
+
   const onScroll = (): void => {
     following = el.scrollHeight - el.scrollTop - el.clientHeight <= ROW_HEIGHT;
     schedule();
@@ -94,6 +124,15 @@ export function createLogList<T>(
     if (excess > 0) {
       rows.splice(0, excess);
       dropped += excess;
+      if (selected >= 0) {
+        const moved = selected - excess;
+        if (moved < 0) {
+          selected = -1;
+          options.onSelect?.(undefined);
+        } else {
+          selected = moved;
+        }
+      }
       rebuild();
     }
 
@@ -114,11 +153,16 @@ export function createLogList<T>(
     clear() {
       rows.length = 0;
       dropped = 0;
+      selected = -1;
+      options.onSelect?.(undefined);
       rebuild();
       spacer.style.height = "0px";
       schedule();
     },
     dropped: () => dropped,
+    clearSelection() {
+      if (selected >= 0) select(-1);
+    },
     flush() {
       if (frame !== 0) {
         cancel(frame);
@@ -128,6 +172,7 @@ export function createLogList<T>(
     },
     dispose() {
       if (frame !== 0) cancel(frame);
+      el.removeEventListener("click", onClick);
       el.removeEventListener("scroll", onScroll);
       el.remove();
     },
