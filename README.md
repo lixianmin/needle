@@ -10,6 +10,8 @@ Web Shell 控制台，支持命令查看当前系统状态，如进程状态、�
 
 完整的 shell 功能需要先使用`auth`命令登录：
 
+账号在 `createShell({ auth: { users } })` 里配：用户名 → 口令，想开几个就写几项，登录时 `auth <用户名>`。
+
 ```
 $ auth username
 密码:            # 输密码时不回显、不进历史
@@ -95,8 +97,10 @@ export const shell = createShell({
   logger: logo,              // 命令里的 log 就是这个实例
   basePath: "/shell",
   auth: {
-    users: { admin: process.env.CONSOLE_PASSWORD! },   // 用户名 → 口令；可配多个账号，登录时用这个 key
-    secret: process.env.CONSOLE_SECRET!,               // 签 token 的密钥，不是口令；不传就每次启动随机生成
+    // 用户名 → 口令。想开几个账号就写几项，比如 { admin: "...", ops: "..." }
+    users: { admin: process.env.CONSOLE_PASSWORD! },
+    // 签 token 的密钥，不是口令；不传就每次启动随机生成
+    secret: process.env.CONSOLE_SECRET!,
   },
   timeoutMs: 10_000,         // 命令超时，超了返回 timeout；默认 10 秒
   commands: [ping, io, order],
@@ -206,8 +210,10 @@ const shell = createShell({
   basePath: "/shell",     // 必须与下面路由前缀一致：handler 内部按它剥前缀
   title: "order-service",
   auth: {
-    users: { admin: process.env.CONSOLE_PASSWORD! },   // 用户名 → 口令；可配多个账号，登录时用这个 key
-    secret: process.env.CONSOLE_SECRET!,               // 签 token 的密钥，不是口令；不传就每次启动随机生成
+    // 用户名 → 口令。想开几个账号就写几项，比如 { admin: "...", ops: "..." }
+    users: { admin: process.env.CONSOLE_PASSWORD! },
+    // 签 token 的密钥，不是口令；不传就每次启动随机生成
+    secret: process.env.CONSOLE_SECRET!,
   },
   logFiles: createLogFiles({ dir: "logs" }),   // 不给的话 log.list 用不了
 });
