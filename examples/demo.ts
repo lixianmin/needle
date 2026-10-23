@@ -25,6 +25,12 @@ logo.addSink(createFileSink({ dir: LOG_DIR, maxBytes: 5 * 1024 * 1024 }));
 
 const PORT = Number(process.env.PORT ?? 1234);
 
+/** 命令行参数转成条数：非法值退回 20，上限 10 万（再多页面也扛不住）。 */
+function clamp(value: number): number {
+  if (!Number.isFinite(value)) return 20;
+  return Math.min(Math.max(1, Math.trunc(value)), 100_000);
+}
+
 /** 假装是业务状态，用来演示"命令能读到进程内部"。 */
 const rooms = new Map<string, Record<string, unknown>>([
   ["101", { players: 3, owner: "alice", started: true }],
@@ -82,12 +88,18 @@ const shell = createShell({
     },
     {
       name: "burst",
-      note: "连写 n 条日志（看批量写入）",
+      note: "连写 n 条日志，每 7 条一个 warn、每 17 条一个 error",
       args: "[n]",
       run: ({ args }) => {
-        const count = Number(args[0] ?? 20);
-        for (let i = 1; i <= count; i += 1) logo.info("burst", { seq: i, total: count });
-        return { kind: "text", text: `已写 ${count} 条` };
+        const count = clamp(Number(args[0] ?? 20));
+        for (let i = 1; i <= count; i += 1) {
+          const line = `burst #${i}/${count}`;
+          // 三种级别混着写：右栏能看出着色，也能看出 warn / error 是立刻刷的。
+          if (i % 17 === 0) logo.error(line);
+          else if (i % 7 === 0) logo.warn(line);
+          else logo.info(line);
+        }
+        return { kind: "text", text: `已写 ${count} 条：${Math.floor(count / 7)} 条 warn、${Math.floor(count / 17)} 条 error` };
       },
     },
     {

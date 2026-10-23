@@ -1,6 +1,6 @@
 {
   "name": "@needle/shell",
-  "version": "0.2.17",
+  "version": "0.2.18",
   "description": "浏览器里的调试 shell：敲命令查进程状态、订阅指标",
   "type": "module",
   "sideEffects": false,
