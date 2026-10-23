@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
-import { newLogger } from "../../src/core/logo/logo.js";
-import type { LogRecord } from "../../src/core/logo/types.js";
+import { newLogger } from "../../packages/logo/src/logo/logo.js";
+import type { LogRecord } from "../../packages/logo/src/logo/types.js";
 
 /** 收集 sink 的调用，用来断言"调了几次""每次几条"。保留原始 batch 引用。 */
 function collector() {

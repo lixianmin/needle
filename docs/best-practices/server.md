@@ -17,8 +17,9 @@
 ```ts
 import { Hono } from "hono";
 import { serve } from "@hono/node-server";
-import { createShell, logo } from "@needle/logo";
+import { logo } from "@needle/logo";
 import { createLogFiles } from "@needle/logo/node";
+import { createShell } from "@needle/shell";
 
 const app = new Hono();
 
@@ -137,10 +138,10 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
 
 ## 别的 HTTP 框架
 
-`@needle/logo/node` 有两个函数，Express / Fastify / 裸 `node:http` 都能用（实现见 `src/node/serve.ts`）：
+`@needle/shell/node` 有两个函数，Express / Fastify / 裸 `node:http` 都能用（实现见 `packages/shell/src/node.ts`）：
 
 ```ts
-import { attach, serve } from "@needle/logo/node";
+import { attach, serve } from "@needle/shell/node";
 
 await serve(shell.handler, { port: 7701 });                  // 自己起端口
 attach(server, shell, { basePath: "/shell" });             // 挂到已有 http server

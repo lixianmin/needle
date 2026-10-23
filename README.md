@@ -36,7 +36,8 @@ $ auth username
 命令写在 `createShell({ commands: [...] })` 里，`run` 拿到的上下文是 `{ args, user, log }`，返回 `text` / `table` / `json` 三种形态之一。下面是装好三个命令的完整文件：
 
 ```ts
-import { createShell, logo, type Command } from "@needle/logo";
+import { logo } from "@needle/logo";
+import { createShell, type Command } from "@needle/shell";
 
 // 你的业务数据
 const orders = new Map<string, Record<string, unknown>>();
@@ -82,7 +83,7 @@ export const shell = createShell({
 
 细节：
 
-- **类型**：`Command` 从 `@needle/logo` 导出，给每个命令标注类型就能拿到补全和检查。
+- **类型**：`Command` 从 `@needle/shell` 导出，给每个命令标注类型就能拿到补全和检查。
 - **`args`**：按空白切开的数组，不做引号解析，`order 42` → `["42"]`；字段 `args: "<id>"` 只影响 `help` 里的用法显示。
 - **列语义**：`"bytes"` 走 `toHuman`（`36290560` → `34.61M`），`"duration"` 把数字当毫秒（`57720` → `57.7s`），`"number"` 不缩写，省略按 `auto`。点表头按原始数值排序。
 - **单元格**：`string | number | null | { text, href }`，带 `href` 的渲染成链接（`log.list` 就靠这个打开日志文件）。
@@ -152,7 +153,7 @@ process.on("SIGTERM", () => logo.dispose());                                    
 | Chrome 扩展（MV3） | DOM 面板 | 无 | [chrome-extension.md](docs/best-practices/chrome-extension.md) |
 | 浏览器纯前端页 | DOM 面板 | 无 | [browser-client.md](docs/best-practices/browser-client.md) |
 
-文件 sink 只在有 `node:fs` 的地方能用：`@needle/logo/node` 顶层 `import "node:fs"`，浏览器和 Workers 打包时不能碰它；core 的 `.` 入口是干净的。
+文件 sink 只在有 `node:fs` 的地方能用：`@needle/logo/node` 顶层 `import "node:fs"`，浏览器和 Workers 打包时不能碰它；`@needle/logo` 的 `.` 入口是干净的。
 
 三篇文档按平台各自写全（接线、鉴权、日志落点、坑），跨篇重复是故意的——你只需要读自己那篇。
 
@@ -160,10 +161,16 @@ process.on("SIGTERM", () => logo.dispose());                                    
 
 ### 装
 
+库拆成两个包，按你要的东西装：
+
 ```bash
-# 还没发到 npm，从仓库装。dist 随源码提交，所以不需要构建步骤。
-bun add git+https://github.com/lixianmin/needle.git
+bun add @needle/logo    # 只记日志
+bun add @needle/shell   # 浏览器里那个 shell，会自动带上 @needle/logo
 ```
+
+两个包都还没发到 npm。仓库内是 bun workspace（`packages/logo`、`packages/shell`），
+外部现在只能 `git clone` 后 `bun link`；发布后上面的 `bun add` 直接可用。`dist/` 随源码
+提交，所以不需要构建步骤。
 
 ### 接日志
 
@@ -174,8 +181,9 @@ bun add git+https://github.com/lixianmin/needle.git
 控制台对外只有一个接口 `(req: Request) => Promise<Response>`，挂载就是把它接到你的服务器上。Hono 是两条路由：
 
 ```ts
-import { createShell, logo } from "@needle/logo";
+import { logo } from "@needle/logo";
 import { createLogFiles } from "@needle/logo/node";
+import { createShell } from "@needle/shell";
 
 const shell = createShell({
   logger: logo,
@@ -192,7 +200,7 @@ app.all("/shell/*", (c) => shell.handler(c.req.raw));
 
 两条路由缺一不可：`/shell` 是页面，`/shell/*` 是 `/events`、`/exec`、`/log/:name`。只挂一条的话页面能打开，登录和命令全是 404。
 
-`auth.users` 非空即服务端模式；`user: "local"` 是「能看到页面的人本来就能碰这个进程」时才用的本机开关，绑 `0.0.0.0` 或公网时不能用。其它框架（Express / Fastify / 裸 `node:http`）用 `@needle/logo/node` 的 `attach(server, shell, { basePath: "/shell" })`；平台细节见「三、平台支持」指向的三篇。
+`auth.users` 非空即服务端模式；`user: "local"` 是「能看到页面的人本来就能碰这个进程」时才用的本机开关，绑 `0.0.0.0` 或公网时不能用。其它框架（Express / Fastify / 裸 `node:http`）用 `@needle/shell/node` 的 `attach(server, shell, { basePath: "/shell" })`；平台细节见「三、平台支持」指向的三篇。
 
 ### 跑一遍
 
@@ -211,7 +219,7 @@ bun examples/demo.ts    # http://127.0.0.1:1234/shell，账号 xmli / 123456
 - **`dispose()` 之后日志静默丢弃。** 退出前调一次，别在长生命周期进程里早调。
 - **库自己的字段不让业务改。** `level` / `time` / `msg` / `name` / `stack` 由库填：`info("x", { level: "error", msg: "fake" })` 仍记成 `level:"info", msg:"x"`。
 - **普通对象以外的值会整个进 `msg`。** 数组、`Date`、`Map`、类实例都序列化后拼进 `msg`，不会变成可查询的字段；要按字段过滤就传普通对象。
-- **从 git 装的是固定 commit。** lockfile 钉住 sha，`bun install` 不会把它推到最新；升级要重新 `bun add` 那个地址（或换成新的 sha）。两个依赖分别解析到不同 sha 时会有两份副本，`logo` 变成两个对象，各自的 sink 互不可见。
+- **`@needle/shell` 依赖 `@needle/logo`，版本要一致。** 两个包版本号同步递增；混用两个不同版本的 logo 会有两份副本，`logo` 变成两个对象，各自的 sink 互不可见。
 
 ## 开发
 

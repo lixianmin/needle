@@ -1,0 +1,24 @@
+{
+  "name": "@needle/shell",
+  "version": "0.2.15",
+  "description": "浏览器里的调试 shell：敲命令查进程状态、订阅指标",
+  "type": "module",
+  "sideEffects": false,
+  "license": "MIT",
+  "dependencies": {
+    "@needle/logo": "^0.2.15"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./node": {
+      "types": "./dist/node.d.ts",
+      "default": "./dist/node.js"
+    }
+  },
+  "files": [
+    "dist"
+  ]
+}

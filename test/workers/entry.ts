@@ -1,4 +1,5 @@
-import { createShell, logo } from "../../src/index.js";
+import { logo } from "../../packages/logo/src/index.js";
+import { createShell } from "../../packages/shell/src/index.js";
 import { TEST_VERSION } from "../fixtures.js";
 
 /**

@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
-import { createShell } from "../../src/shell/index.js";
-import { newLogger } from "../../src/core/logo/logo.js";
+import { createShell } from "../../packages/shell/src/index.js";
+import { newLogger } from "../../packages/logo/src/logo/logo.js";
 import { TEST_VERSION } from "../fixtures.js";
 
 function setup(basePath?: string) {

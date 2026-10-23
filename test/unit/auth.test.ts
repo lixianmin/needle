@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { createAuth } from "../../src/shell/auth.js";
+import { createAuth } from "../../packages/shell/src/auth.js";
 
 const options = { users: { admin: "secret" }, secret: "unit-test-secret" } as const;
 

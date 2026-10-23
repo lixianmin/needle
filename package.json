@@ -1,37 +1,16 @@
 {
-  "name": "@needle/logo",
-  "version": "0.2.14",
-  "description": "内置调试控制台的 TypeScript 日志库：浏览器里敲命令查状态、订阅指标",
+  "name": "needle",
+  "private": true,
   "type": "module",
-  "sideEffects": false,
-  "license": "MIT",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
-    },
-    "./shell": {
-      "types": "./dist/shell/index.d.ts",
-      "default": "./dist/shell/index.js"
-    },
-    "./node": {
-      "types": "./dist/node/index.d.ts",
-      "default": "./dist/node/index.js"
-    },
-    "./lark": {
-      "types": "./dist/core/logo/sinks/lark.d.ts",
-      "default": "./dist/core/logo/sinks/lark.js"
-    }
-  },
-  "files": [
-    "dist"
+  "workspaces": [
+    "packages/*"
   ],
   "scripts": {
     "build:ui": "bun scripts/build-ui.mjs",
-    "build": "bun run build:ui && rm -rf dist && tsc -p tsconfig.build.json",
+    "build": "tsc -p packages/logo/tsconfig.build.json && bun run build:ui && tsc -p packages/shell/tsconfig.build.json",
     "test": "bun test",
     "typecheck": "tsc --noEmit",
-    "size": "bun build scripts/size-log-only.ts --minify --target=browser | gzip -c | wc -c && bun build src/index.ts --minify --target=browser | gzip -c | wc -c"
+    "size": "bun build scripts/size-log-only.ts --minify --target=browser | gzip -c | wc -c && bun build packages/shell/src/index.ts --minify --target=browser | gzip -c | wc -c"
   },
   "devDependencies": {
     "@types/bun": "^1.4.3",
