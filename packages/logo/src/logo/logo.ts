@@ -59,7 +59,7 @@ export function newLogger(options: LoggerOptions = {}): Logger {
   const now = options.now ?? Date.now;
   const flushIntervalMs = options.flushIntervalMs ?? DEFAULT_FLUSH_INTERVAL_MS;
   const maxBuffer = options.maxBuffer ?? DEFAULT_MAX_BUFFER;
-  const stackLevel = options.stackLevel ?? "warn";
+  const stackLevel = options.stackLevel ?? "error";
   const batch = options.batch ?? hasStdout();
 
   let level: Level = options.level ?? "info";

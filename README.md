@@ -143,7 +143,7 @@ logo.error("paid failed", err, { userId: 7 });
 一条调用经过三步：
 
 1. **组记录**：字符串拼成 `msg`，对象合并进字段，`Error` 展开成 `message` + `stack`。
-2. **按级别决定节奏**：`warn` / `error` 立即写出并带调用栈；`info` 攒批 100ms，一个循环写 1000 条只产生一次 IO。默认级别是 `info`，`debug` 要 `setLevel("debug")` 才出来。
+2. **按级别决定节奏**：`warn` / `error` 立即写出（`error` 还带调用栈）；`info` 攒批 100ms，一个循环写 1000 条只产生一次 IO。默认级别是 `info`，`debug` 要 `setLevel("debug")` 才出来。
 3. **分发给所有 sink**：同一批记录给每一个挂上去的 sink，各自决定收哪些、写到哪。`logo` 默认挂了一个写 stdout 的。
 
 ```ts
@@ -239,7 +239,7 @@ bun examples/demo.ts    # http://127.0.0.1:1234/shell，账号 xmli / 123456
 - **正文在 `msg`，不是 `message`。** 只有传 `Error` 才会出现 `message`（+`stack`）。
 - **`time` / `level` 不在打印出的 JSON 里。** 落盘行是 `2026-10-23T10:50:43 [I] {…}`：时间与级别只在前缀，记录的 `time` 是 epoch 毫秒。时间固定东八区，与机器 `TZ` 无关；`parseLine()` 也只还原 JSON 那段。
 - **`info` 不会立刻到 sink。** 测试与脚本里断言前先 `flush()`；`warn` / `error` 立即写，并把积压一起带出去。
-- **只有 `warn` / `error` 默认带 `stack`。** `stackLevel` 默认 `warn`，要 info 也带用 `"info"`，关掉用 `"off"`。传 `Error` 时用的是它自己的栈（抛出点）。
+- **默认只有 `error` 带 `stack`**（和 Go 版一致，warn 只记消息）。`stackLevel` 默认 `"error"`，要 warn 也带设 `"warn"`，关掉用 `"off"`。传 `Error` 时用的是它自己的栈（抛出点）。
 - **`dispose()` 之后日志静默丢弃。** 退出前调一次，别在长生命周期进程里早调。
 - **库自己的字段不让业务改。** `level` / `time` / `msg` / `name` / `stack` 由库填：`info("x", { level: "error", msg: "fake" })` 仍记成 `level:"info", msg:"x"`。
 - **普通对象以外的值会整个进 `msg`。** 数组、`Date`、`Map`、类实例都序列化后拼进 `msg`，不会变成可查询的字段；要按字段过滤就传普通对象。
