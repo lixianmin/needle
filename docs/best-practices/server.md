@@ -1,6 +1,8 @@
-# Hono 服务端
+# 服务端
 
-控制台在 Hono 里就是两条路由，三种 runtime 挂法完全相同。真正不同的只有一件事：**日志能不能落盘**。
+控制台对外只有 `(req: Request) => Promise<Response>`，接到哪个框架都是同一个做法。下文以 Hono 为例。
+
+三种 runtime 挂法相同，真正不同的只有一件事：**日志能不能落盘**。
 
 | 跑在 | 文件 sink | 控制台日志视图 |
 |---|---|---|
@@ -10,7 +12,7 @@
 
 `createFileSink` 顶层 `import "node:fs"`，所以它只出现在 Node / Bun。跟 Hono 无关：Hono 跑在 Node 上就有文件，跑在 Workers 上就没有。
 
-## 接线
+## 接线（Hono）
 
 ```ts
 import { Hono } from "hono";
@@ -126,9 +128,9 @@ SSE 连接不用操心：浏览器断开时读端 `cancel` 会摘除订阅者并
 - **没有文件系统。** 不传 `logFiles`，`log.list` 不可用；日志视图只覆盖当前 isolate，跨 isolate 要 Durable Object 或 Logpush。
 - **批量刷新自动关闭。** 响应返回后未触发的定时器可能被取消，库探测不到可同步写的 stdout 时改为逐条立即写出（等价 `batch: false`），不用手配。
 
-## 不用 Hono 时
+## 别的 HTTP 框架
 
-`@needle/logo/node` 还有两个函数，Express / Fastify / 裸 `node:http` 都能用（没有专门的文档，实现见 `src/node/serve.ts`）：
+`@needle/logo/node` 还有两个函数，Express / Fastify / 裸 `node:http` 都能用（实现见 `src/node/serve.ts`）：
 
 ```ts
 import { attach, serve } from "@needle/logo/node";

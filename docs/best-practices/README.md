@@ -4,7 +4,7 @@
 
 | 你要开发 | 读这篇 | 一句话差异 |
 |---|---|---|
-| Hono 服务端（Node / Bun / Workers） | [hono-server.md](hono-server.md) | 有进程、有 token，Node/Bun 上还能落盘 |
+| 服务端（Node / Bun / Workers） | [server.md](server.md) | 有进程、有 token，Node/Bun 上还能落盘；以 Hono 为例 |
 | Chrome 扩展（MV3） | [chrome-extension.md](chrome-extension.md) | 无 fs、无 token，service worker 随时会被杀 |
 | 浏览器纯前端页 | [browser-client.md](browser-client.md) | 无服务器、无落盘，日志只活在这个标签页 |
 

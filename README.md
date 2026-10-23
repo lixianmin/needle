@@ -95,7 +95,7 @@ $ auth ops
 
 | 你要开发 | 读这篇 |
 |---|---|
-| Hono 服务端（Node / Bun / Workers） | [docs/best-practices/hono-server.md](docs/best-practices/hono-server.md) |
+| 服务端（Node / Bun / Workers） | [docs/best-practices/server.md](docs/best-practices/server.md) |
 | Chrome 扩展（MV3） | [docs/best-practices/chrome-extension.md](docs/best-practices/chrome-extension.md) |
 | 浏览器纯前端页 | [docs/best-practices/browser-client.md](docs/best-practices/browser-client.md) |
 
