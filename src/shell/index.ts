@@ -122,7 +122,7 @@ export function createShell(options: ShellOptions): Shell {
   return {
     source,
 
-    async handler(req) {
+    async handler(req): Promise<Response> {
       if (disposed) {
         return ResponseX.unavailable("shell disposed");
       }
@@ -133,10 +133,14 @@ export function createShell(options: ShellOptions): Shell {
         return ResponseX.notFound(`未匹配的路由：${req.method} ${new URL(req.url).pathname}`);
       }
 
+      // RouteHandler 可以同步返回 Response（页面、/health），也可以返回 Promise<Response>（要鉴权、
+      // 要读日志的那些）。这里写成 async 就是归一化点：async 函数把普通返回值装进 Promise、把返回的
+      // Promise 摊平，到出口一律是 Promise<Response>。Response 没丢，只是被装箱，调用方 await 即可；
+      // 换来的是 serve/attach 只认一种形状。
       return found.handler({ req, url: found.url, params: found.params });
     },
 
-    dispose() {
+    dispose(): void {
       disposed = true;
       source.dispose();
     },
