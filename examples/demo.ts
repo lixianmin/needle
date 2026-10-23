@@ -14,9 +14,10 @@ import { logo } from "../packages/logo/src/index.js";
 import { createFileSink, createLogFiles } from "../packages/logo/src/node/index.js";
 import { serve } from "../packages/shell/src/node.js";
 
-// 版本号的唯一来源是 package.json（AGENTS.md §14），别在这里硬编码。
+// 版本号的唯一来源是包的 package.json（AGENTS.md §14），别在这里硬编码。拆包后
+// 两个包版本同步，这里读 shell 的，因为头栏显示的就是它。
 const pkg = JSON.parse(
-  readFileSync(new URL("../package.json", import.meta.url), "utf8"),
+  readFileSync(new URL("../packages/shell/package.json", import.meta.url), "utf8"),
 ) as { version: string };
 
 const LOG_DIR = "logs";
