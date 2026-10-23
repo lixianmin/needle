@@ -198,6 +198,18 @@ describe("review 修复回归", () => {
   });
 });
 
+/** 造一个 v1 布局的库（keyPath "id"）并返回打开的连接。 */
+function openLegacyV1(name: string): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(name, 1);
+    request.onupgradeneeded = () => {
+      request.result.createObjectStore("records", { keyPath: "id", autoIncrement: true });
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
 /** 直接读原始库：绕过 store 自己的 close 守卫。 */
 function rawAll(dbName: string): Promise<Array<Record<string, unknown>>> {
   return new Promise((resolve, reject) => {
@@ -265,19 +277,9 @@ describe("复审修复", () => {
 
   test("旧版（inline keyPath）库升级后 id 字段不再撞车", async () => {
     const name = uniqueName();
-    // 造一个 v1 库：keyPath: "id" + autoIncrement（本次修复前的布局）
-    await new Promise<void>((resolve, reject) => {
-      const request = indexedDB.open(name, 1);
-      request.onupgradeneeded = () => {
-        const legacy = request.result.createObjectStore("records", { keyPath: "id", autoIncrement: true });
-        legacy.createIndex("by_time", "time");
-      };
-      request.onsuccess = () => {
-        request.result.close();
-        resolve();
-      };
-      request.onerror = () => reject(request.error);
-    });
+    // 造一个 v1 库（本次修复前的布局）
+    const legacy = await openLegacyV1(name);
+    legacy.close();
 
     const store = createIndexedDbStore({ name, now: () => BASE_TIME + DAY });
     store([
@@ -339,17 +341,6 @@ describe("升级被挡", () => {
     }
   }
 
-  function openLegacyV1(name: string): Promise<IDBDatabase> {
-    return new Promise((resolve, reject) => {
-      const request = indexedDB.open(name, 1);
-      request.onupgradeneeded = () => {
-        request.result.createObjectStore("records", { keyPath: "id", autoIncrement: true });
-      };
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
-    });
-  }
-
   test("blocked 解除后连接不残留，store 也不会永久降级", async () => {
     const name = uniqueName();
     const legacy = await openLegacyV1(name); // 旧标签页占着 v1 连接
@@ -397,6 +388,31 @@ describe("版本升级让路", () => {
       request.onerror = () => resolve(false);
     });
     expect(upgraded).toBe(true);
+  });
+});
+
+describe("版本变更让路", () => {
+  test("versionchange 让路时不吞掉已排队的批次", async () => {
+    const name = uniqueName();
+    const store = createIndexedDbStore({ name, now: () => BASE_TIME + DAY });
+    store([rec("info", "warmup", 0)]);
+    await store.list(); // 等连接建立
+
+    // 排一批在队列里，再立刻请求升级：versionchange 必然在队列还没跑完时到达
+    const BURST = 100;
+    for (let index = 0; index < BURST; index += 1) {
+      store([rec("info", `burst-${index}`, index + 1)]);
+    }
+
+    const upgraded = await waitFor(async () => ((await tryOpenVersion(name, 3)) ? true : null));
+    expect(upgraded).toBe(true);
+
+    const rows = await waitFor(async () => {
+      const all = await rawAll(name);
+      return all.length >= BURST ? all : null;
+    });
+    // 立刻 close 连接的实现会把队列后半截丢掉，这里只剩前面几条
+    expect(rows.map((row) => row.msg)).toContain(`burst-${BURST - 1}`);
   });
 });
 
