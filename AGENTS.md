@@ -308,3 +308,20 @@ e2e 验收禁止用 `lsof -ti:<端口> | xargs kill -9` 无条件杀掉端口占
 - +1 在 worktree 内做，随分支最后一个提交一起过 §13 的门禁；主目录不单独 bump，也不为 bump 单开一次合并。
 - minor / major 由人类决定，不自动递增。
 - 版本号只有 `package.json` 一个来源：示例从它读，不在别处硬编码当前版本。
+
+## 代码风格
+
+## 代码风格：强制花括号
+
+所有控制流语句（if / else / for / while / try）的语句体必须带花括号，
+且语句体独占多行。即使只有一条语句、即使能塞进一行，也要写成：
+
+✅ if (path === null) {
+    return null;
+  }
+
+❌ if (path === null) return null;
+❌ if (path === null) { return null; }
+
+理由：省略括号时后续追加第二条语句容易误读成同一分支；统一形态也便于 grep 和审查 diff。
+新写和改写的代码一律按此风格，不要为了"简洁"省略花括号。
