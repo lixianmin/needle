@@ -33,6 +33,8 @@ export function createShellSource(options) {
     const broadcast = createBroadcast();
     const metrics = createMetrics({ connections: () => broadcast.count() });
     const auth = createAuth(options.auth);
+    // 日志推给页面的日志栏；查历史仍然走 log.list。
+    options.logger.addSink(broadcast.sink);
     const basePath = options.basePath ?? "";
     const builtins = createBuiltinCommands({
         metrics,
@@ -133,6 +135,7 @@ export function createShellSource(options) {
                 return;
             disposed = true;
             broadcast.closeAll();
+            options.logger.removeSink(broadcast.sink);
         },
     };
 }

@@ -110,7 +110,7 @@ const persist: Sink = (batch) => {
 logo.addSink(persist);
 ```
 
-DOM 面板显示的是命令输出与订阅主题；日志本身不进面板，默认 sink 写 `console.log`，在扩展页面的 DevTools 里看。
+DOM 面板分左右两栏：左边是命令执行，右边「日志」「主题」各一个 tab。日志栏只显示面板打开期间的实时记录，不打开就不收、也不留历史。
 
 ### 坑
 

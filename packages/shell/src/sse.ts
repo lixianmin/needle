@@ -1,4 +1,5 @@
 import { safeStringify } from "@needle/logo";
+import type { LogRecord, Sink } from "@needle/logo";
 import type { Command, Topic } from "./types.js";
 
 /** 主题最短间隔。前端传什么都打不死进程。 */
@@ -8,12 +9,17 @@ const MAX_INTERVAL_MS = 60_000;
 /** 注释心跳。反向代理会切断长时间无数据的连接，注释行不影响事件流。 */
 const DEFAULT_HEARTBEAT_MS = 15_000;
 
+/** 单帧最多带多少条日志。一次 flush 可能上千条，切成小帧客户端才跟得上。 */
+const MAX_LOG_FRAME = 200;
+
 export interface Connection {
   send(event: string, data: unknown): void;
   close(): void;
 }
 
 export interface Broadcast {
+  /** 作为 sink 挂在 logger 上：把日志切成小帧推给每条连接。 */
+  sink: Sink;
   attach(connection: Connection): () => void;
   count(): number;
   closeAll(): void;
@@ -28,6 +34,24 @@ export function createBroadcast(): Broadcast {
   const connections = new Set<Connection>();
 
   return {
+    sink(batch) {
+      if (connections.size === 0) return;
+
+      // 不过滤级别：logger 已经按自己的 level 过滤过了，这里原样转发。
+      for (const connection of connections) {
+        for (let start = 0; start < batch.length; start += MAX_LOG_FRAME) {
+          const frame: LogRecord[] = batch.slice(start, start + MAX_LOG_FRAME);
+          try {
+            connection.send("log", frame);
+          } catch {
+            // 写不进去说明连接已经坏了，摘掉即可，不能让一条坏连接影响其他连接。
+            connections.delete(connection);
+            break;
+          }
+        }
+      }
+    },
+
     attach(connection) {
       connections.add(connection);
       return () => {

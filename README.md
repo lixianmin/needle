@@ -31,7 +31,7 @@ $ auth username
 | `top` | 打一份进程指标快照 |
 | `sub` / `unsub` | 订阅 / 取消订阅主题，如 `sub top 2000` |
 
-查日志用 `log.list`：它列出磁盘上的日志文件，点文件名看全文。
+查历史日志用 `log.list`：它列出磁盘上的日志文件，点文件名看全文。右栏还会实时显示日志，但只在 shell 打开时存在。
 
 ### 3. 自定义命令
 
@@ -94,7 +94,7 @@ const order: Command = {
   run: async ({ args, user, log }) => {
     // args 按空白切开、不解析引号：`order 42` → ["42"]
     // user 是跑这条命令的人；public 命令没登录时是 null
-    log.info("查看订单", { id: args[0], user });   // 写进业务日志的 sink，不显示在 shell 页面上
+    log.info("查看订单", { id: args[0], user });   // 写进业务日志；shell 开着时也会出现在右栏的日志 tab
 
     const found = orders.get(args[0]!);
     if (found === undefined) throw new Error(`没有订单 ${args[0]}`);   // 抛错会作为命令失败回显

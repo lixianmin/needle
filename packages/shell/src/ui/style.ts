@@ -62,4 +62,55 @@ export const STYLE = `
 .logo-shell table.grid tbody tr:nth-child(even) { background: rgba(147,161,161,0.04); }
 .logo-shell table.grid tbody tr:hover { background: rgba(38,139,210,0.12); }
 .logo-shell .raw { color: var(--text-strong); }
+/* 左右两栏：左栏执行区，右栏日志 / 主题 */
+.logo-shell { position: relative; }
+.logo-shell .body { display: flex; flex: 1; min-height: 0; }
+.logo-shell .main { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.logo-shell .side {
+  display: flex; flex-direction: column; width: 38%; min-width: 260px; min-height: 0;
+  border-left: 1px solid var(--line);
+}
+.logo-shell .tabs { display: flex; gap: 4px; padding: 6px 12px 0; border-bottom: 1px solid var(--line); }
+.logo-shell .tab {
+  background: transparent; border: 0; border-bottom: 2px solid transparent;
+  color: var(--dim); font: inherit; cursor: pointer; padding: 3px 10px;
+}
+.logo-shell .tab.active { color: var(--cyan); border-bottom-color: var(--cyan); }
+.logo-shell .panel { display: none; flex: 1; min-height: 0; flex-direction: column; }
+.logo-shell .panel.active { display: flex; }
+.logo-shell .tools {
+  display: flex; gap: 8px; align-items: center;
+  padding: 5px 12px; border-bottom: 1px solid var(--line); color: var(--dim);
+}
+.logo-shell .tool {
+  background: transparent; border: 1px solid var(--line); color: var(--text);
+  font: inherit; cursor: pointer; padding: 0 8px;
+}
+.logo-shell .tool.on { color: var(--yellow); border-color: var(--yellow); }
+.logo-shell .dropped { margin-left: auto; color: var(--yellow); }
+
+/* 定高虚拟列表：行高与 loglist.ts 的 ROW_HEIGHT 必须一致 */
+.logo-shell .list { position: relative; flex: 1; min-height: 0; overflow: auto; }
+.logo-shell .spacer { position: relative; }
+.logo-shell .row {
+  position: absolute; left: 0; right: 0; height: 18px; line-height: 18px;
+  padding: 0 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.logo-shell .row .t { color: var(--dim); margin-right: 8px; }
+.logo-shell .row .lv-debug { color: var(--dim); }
+.logo-shell .row .lv-info { color: var(--text); }
+.logo-shell .row .lv-warn { color: var(--yellow); }
+.logo-shell .row .lv-error { color: var(--red); }
+
+.logo-shell .toggle {
+  display: none; margin-left: auto; background: transparent; border: 1px solid var(--line);
+  color: var(--text); font: inherit; cursor: pointer; padding: 0 8px;
+}
+
+/* 窄屏：右栏收起来，按钮把它盖满整个面板 */
+@media (max-width: 720px) {
+  .logo-shell .side { display: none; }
+  .logo-shell .side.open { display: flex; position: absolute; inset: 0; width: 100%; min-width: 0; background: var(--bg); border-left: 0; }
+  .logo-shell .toggle { display: inline-block; }
+}
 `;

@@ -6,7 +6,10 @@ import {
   parseTopicSpecs,
 } from "../../packages/shell/src/sse.js";
 import type { Command, Topic } from "../../packages/shell/src/types.js";
+import type { LogRecord } from "../../packages/logo/src/index.js";
 import { TEST_VERSION } from "../fixtures.js";
+
+const record = (msg: string): LogRecord => ({ time: 1, level: "info", msg });
 
 const commands: Command[] = [
   { name: "help", note: "列出命令", public: true, run: () => ({ kind: "text", text: "" }) },
@@ -103,21 +106,24 @@ describe("createSseResponse", () => {
     expect(text).toContain('"name":"help"');
   });
 
-  test("控制台不再把日志推到流里", async () => {
+  test("日志帧按批推到流里", async () => {
+    const broadcast = createBroadcast();
     const response = createSseResponse({
       user: "admin",
       title: "node",
       version: TEST_VERSION,
       commands,
       topics: [],
-      broadcast: createBroadcast(),
+      broadcast,
       heartbeatMs: 60_000,
     });
 
+    broadcast.sink([record("live")]);
     const text = await readFor(response, 100);
 
     expect(text.startsWith("event: handshake")).toBe(true);
-    expect(text).not.toContain("event: log");
+    expect(text).toContain("event: log");
+    expect(text).toContain('"msg":"live"');
   });
 
   test("订阅的主题按间隔推送", async () => {
@@ -171,5 +177,19 @@ describe("createSseResponse", () => {
     const text = await readFor(response, 200);
     const pings = text.split("\n").filter((line) => line.startsWith(":"));
     expect(pings.length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe("广播日志帧", () => {
+  test("一批日志按 200 条切帧，级别不在这里过滤", () => {
+    const broadcast = createBroadcast();
+    const received: Array<{ event: string; data: unknown }> = [];
+    broadcast.attach({ send: (event, data) => received.push({ event, data }), close: () => {} });
+
+    // debug 也转发：日志级别由 logger 自己决定，控制台不再二次过滤。
+    broadcast.sink(Array.from({ length: 450 }, (_, index) => ({ time: 1, level: "debug" as const, msg: `d${index}` })));
+    expect(received.map((item) => item.event)).toEqual(["log", "log", "log"]);
+    expect((received[0]?.data as unknown[]).length).toBe(200);
+    expect((received[2]?.data as unknown[]).length).toBe(50);
   });
 });

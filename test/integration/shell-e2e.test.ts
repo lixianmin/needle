@@ -12,7 +12,7 @@ import { TEST_VERSION } from "../fixtures.js";
  * 这个用例证明"装进一个真服务里能用"。
  */
 describe("控制台端到端", () => {
-  test("登录后能通过 SSE 收到握手，日志不上行", async () => {
+  test("登录后能通过 SSE 收到握手与日志帧", async () => {
     const logger = newLogger({ flushIntervalMs: 0, batch: false });
     const shell = createShell({
       logger,
@@ -45,16 +45,18 @@ describe("控制台端到端", () => {
       logger.info("live-line");
       logger.flush();
 
-      // 日志不再走事件流：等 200ms 后主动断开，这段时间里只可能读到心跳注释。
-      setTimeout(() => controller.abort(), 200);
-      try {
-        text += decoder.decode((await reader?.read())?.value);
-      } catch {
-        // abort 会让挂起的 read 抛错，正好说明这期间没有新帧。
+      // 读后续帧，直到看到那条日志（最多 50 帧）。
+      for (let i = 0; i < 50 && !text.includes("live-line"); i += 1) {
+        const chunk = await reader?.read();
+        if (chunk?.done === true) break;
+        text += decoder.decode(chunk?.value);
       }
 
-      expect(text).not.toContain("event: log");
-      expect(text).not.toContain("live-line");
+      expect(text).toContain("event: log");
+      expect(text).toContain("live-line");
+
+      // 不断开的话 server.close() 会等着这条长连接。
+      controller.abort();
     } finally {
       await server.close();
       shell.dispose();

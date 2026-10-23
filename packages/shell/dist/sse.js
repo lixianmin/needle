@@ -4,6 +4,8 @@ const MIN_INTERVAL_MS = 1000;
 const MAX_INTERVAL_MS = 60_000;
 /** 注释心跳。反向代理会切断长时间无数据的连接，注释行不影响事件流。 */
 const DEFAULT_HEARTBEAT_MS = 15_000;
+/** 单帧最多带多少条日志。一次 flush 可能上千条，切成小帧客户端才跟得上。 */
+const MAX_LOG_FRAME = 200;
 function encodeEvent(event, data) {
     // JSON 里不会有裸换行，所以一条消息正好一行 data。
     return `event: ${event}\ndata: ${safeStringify(data)}\n\n`;
@@ -11,6 +13,24 @@ function encodeEvent(event, data) {
 export function createBroadcast() {
     const connections = new Set();
     return {
+        sink(batch) {
+            if (connections.size === 0)
+                return;
+            // 不过滤级别：logger 已经按自己的 level 过滤过了，这里原样转发。
+            for (const connection of connections) {
+                for (let start = 0; start < batch.length; start += MAX_LOG_FRAME) {
+                    const frame = batch.slice(start, start + MAX_LOG_FRAME);
+                    try {
+                        connection.send("log", frame);
+                    }
+                    catch {
+                        // 写不进去说明连接已经坏了，摘掉即可，不能让一条坏连接影响其他连接。
+                        connections.delete(connection);
+                        break;
+                    }
+                }
+            }
+        },
         attach(connection) {
             connections.add(connection);
             return () => {

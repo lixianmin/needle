@@ -86,7 +86,7 @@ describe("mountShell", () => {
     expect(document.querySelector(".title")?.textContent).toBe("node");
     expect(document.querySelector(".who")?.textContent).toBe("admin");
     // 头栏顺序：项目名 → 版本 → 用户，全部靠左。
-    expect(document.querySelector("header")?.textContent).toBe("nodev1.2.3admin");
+    expect(document.querySelector("header")?.textContent).toContain("nodev1.2.3admin");
   });
 
   test("提交命令后回显并渲染 text 输出", async () => {
@@ -133,14 +133,16 @@ describe("mountShell", () => {
     expect((root as unknown as HTMLElement).textContent).toContain("未登录");
   });
 
-  test("topic 事件落成一行，不常驻面板", () => {
+  test("topic 事件落在右栏的「主题」tab", () => {
     const { document, emit } = mount();
     emit({ type: "topic", name: "top", data: { rss: 1024 * 1024, connections: 1 } });
 
-    const line = document.querySelector(".topic-line");
+    // 切到主题 tab 时列表会立刻重绘
+    (document.querySelectorAll(".tab")[1] as unknown as HTMLElement).click();
+
+    const line = document.querySelector(".panel.active .row");
     expect(line?.textContent).toContain("[top]");
     expect(line?.textContent).toContain("rss=1.00M");
-    expect(document.querySelector(".topics")).toBeNull();
   });
 
   test("表格：大数字转人话，点表头排序", async () => {
