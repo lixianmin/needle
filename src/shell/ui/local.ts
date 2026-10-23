@@ -4,12 +4,6 @@ import { parseTopicSpecs } from "../sse.js";
 import type { AuthResult, ShellAdapter, ShellEvent, ExecResult, FileResult } from "./adapter.js";
 
 /**
- * 进程内适配器：浏览器页面、Chrome 扩展里用这个。
- *
- * 没有 HTTP，没有 token —— 代码本来就跑在你的应用里，能看到 Shell 就等于
- * 能看到这个进程。鉴权在这一层没有意义，所以 source 用本地用户模式创建。
- */
-/**
  * 从 href 里解出 /log/:name 的文件名：query / hash 不算，名字要解码。
  * 解码失败按没匹配处理（恶意构造的百分号序列不值得报错）。
  */
@@ -28,6 +22,12 @@ function logNameFromHref(href: string): string | null {
   }
 }
 
+/**
+ * 进程内适配器：浏览器页面、Chrome 扩展里用这个。
+ *
+ * 没有 HTTP，没有 token —— 代码本来就跑在你的应用里，能看到 Shell 就等于
+ * 能看到这个进程。鉴权在这一层没有意义，所以 source 用本地用户模式创建。
+ */
 export function createLocalAdapter(source:ShellSource):ShellAdapter {
   const listeners = new Set<(event:ShellEvent) => void>();
   let attached = false;

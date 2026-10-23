@@ -45,9 +45,10 @@ async function readTailSample(path: string, size: number): Promise<string> {
     for (;;) {
       const start = Math.max(0, size - windowBytes);
       const buffer = Buffer.alloc(size - start);
-      await handle.read(buffer, 0, buffer.length, start);
+      // 按实际读到的字节截断：read 允许部分读，剩下的零字节会变成 \0 混进预览。
+      const { bytesRead } = await handle.read(buffer, 0, buffer.length, start);
 
-      let lines = buffer.toString("utf8").split("\n");
+      let lines = buffer.subarray(0, bytesRead).toString("utf8").split("\n");
       if (start > 0) {
         lines = lines.slice(1);
       }
