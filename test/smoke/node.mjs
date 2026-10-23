@@ -3,11 +3,11 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 import { newLogger } from "../../dist/index.js";
-import { createShell } from "../../dist/shell/index.js";
+import { createServerShell } from "../../dist/shell/index.js";
 import { serve } from "../../dist/node.js";
 
 // 冒烟测试跑 dist，直接读 package.json 里的真版本号：这里不断言它的值，只是
-// createShell 要求传一个。单测用的固定常量见 test/fixtures.ts。
+// createServerShell 要求传一个。单测用的固定常量见 test/fixtures.ts。
 const { version } = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8"));
 
 // 1. 批量 + 立即刷：error 应该把积压的 info 一起带出去
@@ -27,7 +27,7 @@ assert.deepEqual(
 assert.ok(typeof batches[0][2].stack === "string", "error 应带调用栈");
 
 // 2. 控制台能在 node 上跑起来
-const shell = createShell({
+const shell = createServerShell({
   logger,
   auth: { users: { admin: "secret" }, secret: "smoke-secret" },
   version,

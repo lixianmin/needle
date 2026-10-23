@@ -8,7 +8,7 @@
  */
 import { readFileSync } from "node:fs";
 
-import { createShell, table } from "../src/shell/index.js";
+import { createServerShell, table } from "../src/shell/index.js";
 import { CommandError } from "../src/shell/commands.js";
 import { logo } from "../src/index.js";
 import { createFileSink, createLogFiles, serve } from "../src/node.js";
@@ -47,7 +47,7 @@ const ioTable = table<{ path: string; reads: number; bytes: number; hitRate: num
   hitRate: { format: "number" },
 });
 
-const shell = createShell({
+const shell = createServerShell({
   logger: logo,
   basePath: "/shell",
   title: "Needle",

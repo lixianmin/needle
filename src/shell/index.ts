@@ -8,16 +8,28 @@ import { createSseResponse } from "./sse.js";
 import { createLocalAdapter } from "./ui/local.js";
 import { mountShell, type ShellView } from "./ui/view.js";
 
-export interface ShellOptions extends ShellSourceOptions {
+export interface ServerShellOptions extends ShellSourceOptions {
   /** 挂载前缀，如 "/shell"。默认挂在根路径。 */
   basePath?: string;
   /** 页面默认订阅的主题，如 "top:5000"。 */
   topicSpec?: string;
 }
 
-export interface Shell {
+export interface ServerShell {
   handler(req: Request): Promise<Response>;
   source: ShellSource;
+  dispose(): void;
+}
+
+/** 浏览器页面 / 扩展里的面板：挂到哪个 DOM 节点上。 */
+export interface BrowserShellOptions extends ShellSourceOptions {
+  /** 面板挂载的 DOM 节点。 */
+  element: HTMLElement;
+}
+
+export interface BrowserShell {
+  source: ShellSource;
+  view: ShellView;
   dispose(): void;
 }
 
@@ -36,7 +48,7 @@ function bearer(header: string | null): string | null {
  * 只做三件事：剥掉 basePath、按路径分派、把 token 换成用户身份。命令怎么执行、
  * 日志怎么推，全在 source 里——同一段逻辑浏览器里也在用。
  */
-export function createShell(options: ShellOptions): Shell {
+export function createServerShell(options: ServerShellOptions): ServerShell {
   const source = createShellSource(options);
   const basePath = normalizeBasePath(options.basePath ?? "");
   const exec = createExecHandler({ source });
@@ -150,12 +162,10 @@ export function createShell(options: ShellOptions): Shell {
 /**
  * 浏览器页面 / 扩展里的控制台：把面板挂到一个 DOM 节点上。
  *
- * 与 createShell 用同一个 source，区别只是没有 HTTP：命令直调，
+ * 与 createServerShell 用同一个 source，区别只是没有 HTTP：命令直调，
  * 日志通过 broadcast 直接流到面板。
  */
-export function createBrowserShell(
-  options: ShellSourceOptions & { element: HTMLElement },
-): { source: ShellSource; view: ShellView; dispose(): void } {
+export function createBrowserShell(options: BrowserShellOptions): BrowserShell {
   const { element, ...rest } = options;
   const source = createShellSource(rest);
   const view = mountShell(element, createLocalAdapter(source));

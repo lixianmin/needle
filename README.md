@@ -9,7 +9,7 @@ Web Shell 控制台，支持命令查看当前系统状态，如进程状态、�
 | 你要什么 | 从哪 import | 能跑在哪 |
 |---|---|---|
 | 日志：`logo` / `newLogger` / `createLarkSink` / `formatTime` / `toHuman` | `@needle/needle` | 任何地方（含浏览器、Workers） |
-| 控制台：`createShell` / `createBrowserShell` / `mountShell` / `createFetchAdapter` | `@needle/needle/shell` | 任何地方（含浏览器、Chrome 扩展） |
+| 控制台：`createServerShell` / `createBrowserShell` / `mountShell` / `createFetchAdapter` | `@needle/needle/shell` | 任何地方（含浏览器、Chrome 扩展） |
 | Node 专属：`createFileSink` / `createLogFiles` / `serve` / `attach` | `@needle/needle/node` | 仅 Node / Bun（`node:fs`、`node:http`） |
 
 根入口与 `./shell` 都不 import 任何 `node:` 模块，所以浏览器和 Workers 打包时不会把 Node 代码带进来。
@@ -20,7 +20,7 @@ Web Shell 控制台，支持命令查看当前系统状态，如进程状态、�
 
 配了 `auth.users` 之后，命令要先 `auth <用户名>` 登录；**未登录只有 `auth` 和 `help` 可用**，`help` 也只列这两条（没配 users 时是匿名放开的）：
 
-账号在 `createShell({ auth: { users } })` 里配：用户名 → 口令，想开几个就写几项，登录时 `auth <用户名>`。
+账号在 `createServerShell({ auth: { users } })` 里配：用户名 → 口令，想开几个就写几项，登录时 `auth <用户名>`。
 
 ```
 $ auth username
@@ -45,11 +45,11 @@ $ auth username
 
 ### 3. 自定义命令
 
-命令写在 `createShell({ commands: [...] })` 里，`run` 拿到的上下文是 `{ args, user, log }`，返回 `text` / `table` / `json` 三种形态之一。下面是装好三个命令的完整文件：
+命令写在 `createServerShell({ commands: [...] })` 里，`run` 拿到的上下文是 `{ args, user, log }`，返回 `text` / `table` / `json` 三种形态之一。下面是装好三个命令的完整文件：
 
 ```ts
 import { createLogFiles } from "@needle/needle/node";
-import { createShell, table, type Command } from "@needle/needle/shell";
+import { createServerShell, table, type Command } from "@needle/needle/shell";
 import { serve } from "@needle/needle/node";
 
 // 命令在进程内执行，直接读它就行，不用先把状态打进日志
@@ -112,7 +112,7 @@ const order: Command = {
   },
 };
 
-export const shell = createShell({
+export const shell = createServerShell({
   basePath: "/shell",
   auth: {
     // 用户名 → 口令。想开几个账号就写几项，比如 { alice: "...", bob: "..." }
@@ -164,22 +164,7 @@ logo.addSink(createLarkSink({ webhook: process.env.LARK_HOOK!, minLevel: "error"
 process.on("SIGTERM", () => logo.dispose());                                         // 退出前冲缓冲区
 ```
 
-### 3. 常见坑
-
-以下都在 0.2.34 的 dist 上实测过，按「现象 → 怎么办」写。
-
-- **记录里没有 `message`，字段叫 `msg`。** 只有传 `Error` 时才会出现 `message`（展开成 `message` + `stack`）；普通日志判正文用 `msg`。
-- **`time` / `level` 不在打印出来的 JSON 里。** 落盘行是 `2026-10-23T10:50:43 [I] {…}`：时间与级别只在前缀；记录的 `time` 是 **epoch 毫秒数字**。时间固定 `+08:00`，与机器 `TZ` 无关。
-- **默认只有 `error` 带 `stack`。** `stackLevel` 默认 `"error"`（0.2.2x 起；更早版本是 `"warn"`）：`warn` 记录没有 stack，要就给 `newLogger({ stackLevel: "warn" })`。传 `Error` 时用的是 Error 自己的栈（抛出点）。
-- **`info` 默认攒批（100ms）。** 测试里断言 sink 之前先 `flush()`；`warn` / `error` 立即写出并把积压一起带出去。`batch: false`（Workers 默认）时每条立即写，没有定时器兜底。
-- **Node 里 spy `console.log` 抓不到日志。** 有 `process.stdout.write` 时 stdout sink 直接写 stdout。要断言就 `addSink` 自己的函数。
-- **`logo` 没有 `name`。** 记录里就没有 `name` 字段；`newLogger({ name })` 与 `child({ name })` 才有。想按来源过滤就自己加业务字段。
-- **信封字段会被丢弃。** `info("x", { level: "error", time: 1, msg: "fake", name: "y" })` 记成 `{level:"info", msg:"x", time:<now>}`——业务对象伪造不了 `time` / `level` / `msg` / `name`。
-- **非纯对象进 `msg`，不进字段。** 数组、`Date`、`Map`、类实例都会序列化后拼进 `msg`；要可查询的字段就传纯对象。
-- **`child()` 会快照 sink。** 建 child 之后再给父级 `addSink`，子实例收不到。要统一落点就在启动早期建 child，或直接给 child 挂。
-- **`dispose()` 之后日志静默丢弃。** 父级 dispose 连子级一起停（共用状态）；退出前调一次即可，别在长生命周期进程里早调。
-- **`./node` 不能进浏览器 / Workers 打包。** 它专放 `node:` 能力（文件 sink、日志目录、HTTP 服务），根入口 `.` 与 `./shell` 不碰 `node:`。
-- **git 依赖不会自己跟 main。** lockfile 钉住 sha 后 `bun install` 不会动，升级要 `bun update @needle/needle`。两方 spec 不同但解析到同一 sha 时只装一份（bun 按解析结果去重）；不同 sha 才是两份副本——那时 `logo` 会变成两个对象，各自的 sink 互不可见。
+`info` 默认攒批 100ms 才写出去，`warn` / `error` 立即写出并把积压一起带出去。测试里断言 sink 收到的记录之前，先 `logo.flush()`。
 
 
 
@@ -189,9 +174,9 @@ process.on("SIGTERM", () => logo.dispose());                                    
 
 | 平台 | 控制台形态 | 文件 sink | 细节 |
 |---|---|---|---|
-| 服务端 Node / Bun | HTTP + SSE | 有 | [server.md](docs/best-practices/server.md) |
-| Cloudflare Workers | HTTP + SSE | 无 | [workers.md](docs/deploy/workers.md) |
-| Chrome 扩展（MV3） | DOM 面板 | 无 | [chrome-extension.md](docs/best-practices/chrome-extension.md) |
+| 服务端 Node / Bun | HTTP + SSE | 有 | [node-server.md](docs/best-practices/node-server.md) |
+| Cloudflare Workers | HTTP + SSE | 无 | [node-server.md 四、Cloudflare Workers](docs/best-practices/node-server.md#四cloudflare-workers) |
+| Chrome 扩展 | DOM 面板 | 无 | [chrome-extension.md](docs/best-practices/chrome-extension.md) |
 | 浏览器纯前端页 | DOM 面板 | 无 | [browser-client.md](docs/best-practices/browser-client.md) |
 
 文件 sink 只在有 `node:fs` 的地方能用：`@needle/needle/node` 顶层 `import "node:fs"`，浏览器和 Workers 打包时不能碰它；`.` 与 `./shell` 两个入口是干净的（`test/unit/browser-safety.test.ts` 对打包产物做内容断言）。
@@ -216,12 +201,12 @@ bun link @needle/needle
 
 # ── 3. 写入口：控制台挂在 /shell，业务日志自动进右栏 ──
 cat > server.ts <<'TS'
-import { createShell } from "@needle/needle/shell";
+import { createServerShell } from "@needle/needle/shell";
 import { serve } from "@needle/needle/node";
 import { logo } from "@needle/needle";
 
 // 不传 logger 时用根入口的全局实例：业务里 logo.info(...) 都会出现在右栏
-const shell = createShell({
+const shell = createServerShell({
   basePath: "/shell",                                         // 控制台路径；不写就挂在站点根目录
   auth: { users: { admin: "admin" }, secret: "change-me" },    // 用户名→口令；secret 是签 token 的密钥
   commands: [
@@ -252,6 +237,10 @@ bun server.ts
 
 `bun link` 只是在项目里写一条 `"@needle/needle": "link:@needle/needle"` 指向 `~/needle`，
 拉取新代码后不用重新 link；只有把 `~/needle` 挪走或删掉时才需要重来一次。
+
+改用 git 依赖（`"@needle/needle": "github:lixianmin/needle"`）时，bun 的 lockfile 会钉住具体 sha，
+`bun install` 不会自动跟 `main` 走，升级要显式 `bun update @needle/needle`。两个项目解析到不同 sha
+时会各装一份——那时的 `logo` 是两个对象，sink 互不可见。
 
 
 ### 2. 测试

@@ -56,9 +56,9 @@
 shell 分两层，因为它的宿主不止服务器：
 
 ```
-createShellSource(options)   → 纯逻辑：命令注册、exec、主题订阅、鉴权，不认识 HTTP
+createShellSource(options)     → 纯逻辑：命令注册、exec、主题订阅、鉴权，不认识 HTTP
       ↓ 同一个 source
-createShell(options)         → (Request) => Response，给 Node / Bun / Workers
+createServerShell(options)     → (Request) => Response，给 Node / Bun / Workers
 createBrowserShell({ element }) → DOM 面板：source + 本地适配器，给浏览器与扩展
 ```
 
@@ -92,7 +92,9 @@ logo.dispose()          // flush + 关掉定时器 + 调用 sink 的 close（如
 
 字符串、数字、布尔、`undefined`、`null` 拼接成 `msg`，用单个空格分隔，与 `console.info` 一致。
 
-对象（含数组、`Error`）不拼进 `msg`，而是合并进记录的顶层字段。`Error` 展开成 `{ message, stack }`。多个对象按顺序合并，后者覆盖前者的同名键。
+**只有纯对象**（原型是 `Object.prototype` 或 `null`）才合并进记录的顶层字段；多个纯对象按顺序合并，后者覆盖前者的同名键。`Error` 展开成 `{ message, stack }` 两个字段。
+
+其余一切（数组、`Date`、`Map`、类实例）序列化后拼进 `msg`——它们不是「一批键值」，塞进顶层会得到 `{"0":"a","1":"b"}` 这种没法读的形状。要可查询的字段，就传纯对象。
 
 ```ts
 logo.info("order created", { orderId: 42, amount: 99 })
@@ -109,9 +111,9 @@ logo.error("paid failed", err, { userId: 7 })
 
 **这是与 Go 版 logo 的有意偏离**：Go 的 `Info` 会在格式串里自动补 `%v`、`JsonI` 收交替的 key-value。JS 没有 printf 传统，一个对象就是一份数据，所以只有一套方法。
 
-`time`、`level`、`msg` 是保留字段，用户数据与之同名时保留信封值。`name` 只能通过 `logo.child({ name })` 设置——那是 logger 的名字，不是业务数据。
+`time`、`level`、`msg`、`name` 是保留字段：用户数据里的同名键直接丢弃，信封值永远赢。`name` 只能通过 `logo.child({ name })` 设置——那是 logger 的名字，不是业务数据。
 
-`error` 默认附带 `stack`（调用点栈帧，已剪掉 logger 内部帧）；`info`/`warn`/`debug` 不采集，因为采集栈比拼字符串慢两个数量级。由 `stackLevel` 控制：默认 `"error"`（与 Go 版 `stackLevel: LevelError` 对齐），要 warn 也带就设 `"warn"`，关掉用 `"off"`。
+只有 `error` 采集 `stack`（调用点栈帧，已剪掉 logger 内部帧）；`info`/`warn`/`debug` 不采集，因为采集栈比拼字符串慢两个数量级。`stackLevel` 决定从哪一级开始采集，默认 `"error"`（与 Go 版 `stackLevel: LevelError` 对齐），要 warn 也带就设 `"warn"`，关掉用 `"off"`。
 
 ### 6.3 落盘格式
 
@@ -131,11 +133,11 @@ logo.error("paid failed", err, { userId: 7 })
 
 ```ts
 interface LogRecord {
-  time: number            // epoch 毫秒，UTC 存储，展示时按浏览器本地时区
+  time: number            // epoch 毫秒；展示固定按 +08:00 格式化，不跟机器时区走（§6.6）
   level: "debug" | "info" | "warn" | "error"
   name?: string           // child 的标识，默认不出现
   msg?: string
-  stack?: string          // 默认仅 error（由 stackLevel 控制）
+  stack?: string          // 仅 error（由 stackLevel 控制）
   [field: string]: unknown
 }
 ```
@@ -196,10 +198,10 @@ sink 是同步函数。抛错被捕获并忽略（一条坏 sink 不能拖垮业
 
 ### 8.1 挂载
 
-`createShell()` 返回一个 `(Request) => Response` 的 handler、内部 source 和 `dispose()`。
+`createServerShell()` 返回一个 `(Request) => Response` 的 handler、内部 source 和 `dispose()`。
 
 ```ts
-const shell = createShell({
+const shell = createServerShell({
   logger: logo,
   auth: { users: { admin: "secret" }, secret: process.env.DBG_SECRET! },
   commands: [myCommand],
@@ -370,7 +372,7 @@ interface Topic {
 }
 ```
 
-内置 `top`（1000ms）与 `mem`（5000ms）。它们由 `createShell` 默认创建（数据源就是 §9 的指标对象），调用方传的 `topics` 追加在后面，同名时调用方优先。
+内置 `top`（1000ms）与 `mem`（5000ms）。它们由 `createServerShell` 默认创建（数据源就是 §9 的指标对象），调用方传的 `topics` 追加在后面，同名时调用方优先。
 
 间隔的两处来源有明确优先级：`Topic.intervalMs` 是默认值；客户端可以用 `?topics=top:5000` 覆盖，覆盖值钳到 `[1000, 60000]`；只写 `topics=top` 表示用默认值。钳位在服务端做，前端传什么都打不死进程。
 
@@ -382,7 +384,7 @@ interface Topic {
 
 | 场景 | 入口 | 传输 |
 |---|---|---|
-| Node / Bun 服务 | `createShell(options).handler` | HTTP + SSE |
+| Node / Bun 服务 | `createServerShell(options).handler` | HTTP + SSE |
 | Cloudflare Workers | 同上，直接挂到 `export default { fetch }` | HTTP + SSE |
 | 浏览器页面 / Chrome 扩展 | `createBrowserShell({ element, ... })` | 进程内直调 |
 
@@ -496,7 +498,7 @@ token   = payload + "." + base64url(HMAC-SHA256(secret, payload))
 ```
 @needle/needle
   "."        → dist/index.js          // 日志门面、sink、SortedTable
-  "./shell"  → dist/shell/index.js    // createShell / createBrowserShell / mountShell
+  "./shell"  → dist/shell/index.js    // createServerShell / createBrowserShell / mountShell
   "./node"   → dist/node.js           // 文件 sink、createLogFiles、serve / attach
 ```
 
@@ -534,7 +536,7 @@ src/
       body.ts           # 有上限地读请求体
       responsex.ts      # 错误响应出口（spec §8.2）
   shell/
-    index.ts            # createShell / createBrowserShell：装配
+    index.ts            # createServerShell / createBrowserShell：装配
     source.ts           # 纯逻辑：命令、主题、鉴权
     router.ts           # 路由表与分派
     sse.ts              # SSE 编码、广播、连接生命周期
@@ -561,7 +563,7 @@ dist/                   # 提交进仓库
 test/
   unit/  integration/  smoke/  workers/
 examples/demo.ts
-docs/best-practices/  docs/deploy/
+docs/best-practices/  # node-server.md（Node / Workers）、chrome-extension.md、browser-client.md
 ```
 
 依赖方向（合并成一个包之后靠源码约束，不靠包依赖声明）：
@@ -577,7 +579,7 @@ docs/best-practices/  docs/deploy/
 代码是给人读的教材，不是给编译器看的。
 
 - 纯函数优先。类只在需要持有生命周期时用（SSE 连接、文件 sink、限流器）。
-- 依赖从参数进来，不在函数体里 `import` 具体实现。`createShell({ records, auth, commands })` 就是装配点。
+- 依赖从参数进来，不在函数体里 `import` 具体实现。`createServerShell({ records, auth, commands })` 就是装配点。
 - 每个文件一件事，超过 150 行就拆。函数超过 50 行就拆（AGENTS.md §12）。
 - 命名用完整单词，不用缩写。`createRingSink` 不叫 `mkRing`。
 - 注释写"为什么"，不写"做什么"。凡是看似可以更简单的写法，注释解释为什么没采用。

@@ -1,12 +1,12 @@
 import { describe, expect, test } from "bun:test";
 
-import { createShell } from "../../src/shell/index.js";
+import { createServerShell } from "../../src/shell/index.js";
 import { newLogger } from "../../src/logo/logo.js";
 import { TEST_VERSION } from "../fixtures.js";
 
 function setup(basePath?: string) {
   const logger = newLogger({ flushIntervalMs: 0, batch: false });
-  const shell_ = createShell({
+  const shell_ = createServerShell({
     logger,
     auth: { users: { admin: "secret" }, secret: "unit-test-secret" },
     version: TEST_VERSION,
@@ -30,7 +30,7 @@ const post = (path: string, body: unknown, token?: string): Request =>
     body: JSON.stringify(body),
   });
 
-describe("createShell", () => {
+describe("createServerShell", () => {
   test("根路径返回页面", async () => {
     const { shell: api } = setup();
     const res = await api.handler(get("/"));
@@ -102,7 +102,7 @@ describe("createShell", () => {
   test("log.list 列出日志文件，/log 路由能取全文", async () => {
     const logger = newLogger({ flushIntervalMs: 0, batch: false });
     const files: Record<string, string> = { "info.log": '{"msg":"line1"}\n' };
-    const api = createShell({
+    const api = createServerShell({
       logger,
       auth: { users: { admin: "secret" }, secret: "unit-test-secret" },
       basePath: "/shell",

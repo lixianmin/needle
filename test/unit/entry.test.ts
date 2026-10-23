@@ -17,7 +17,7 @@ describe("三个入口的边界", () => {
     expect(typeof rootEntry.newLogger).toBe("function");
     expect(typeof rootEntry.createLarkSink).toBe("function");
 
-    expect("createShell" in rootEntry).toBe(false);
+    expect("createServerShell" in rootEntry).toBe(false);
     expect("mountShell" in rootEntry).toBe(false);
     expect("createFileSink" in rootEntry).toBe(false);
     expect("createLogFiles" in rootEntry).toBe(false);
@@ -26,7 +26,7 @@ describe("三个入口的边界", () => {
   });
 
   test("./shell 出控制台 API，但不转手导出 logo，也不出 Node 专属能力", () => {
-    expect(typeof shellEntry.createShell).toBe("function");
+    expect(typeof shellEntry.createServerShell).toBe("function");
     expect(typeof shellEntry.createBrowserShell).toBe("function");
     expect(typeof shellEntry.mountShell).toBe("function");
     expect(typeof shellEntry.createFetchAdapter).toBe("function");
