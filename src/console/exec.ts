@@ -1,4 +1,5 @@
-import type { ConsoleSource } from "./source.js";
+import { fail } from "./fail.js";
+import type { ConsoleSource, ExecFailureCode } from "./source.js";
 
 const DEFAULT_MAX_BODY_BYTES = 4096;
 
@@ -7,14 +8,15 @@ export interface ExecHttpOptions {
   maxBodyBytes?: number;
 }
 
-type Body =
-  | { ok: true; output: unknown }
-  | { ok: false; error: string };
-
-/** `Body` 在编译期锁住响应形状；序列化交给平台内置的 `Response.json`。 */
-function reply(body: Body, status = 200): Response {
-  return Response.json(body, { status });
-}
+/** 失败原因 → 状态码。`code` 由 source 给，适配器只做映射。 */
+const FAILURE_STATUS: Record<ExecFailureCode, number> = {
+  disposed: 503,
+  bad_request: 400,
+  unknown_command: 400,
+  unauthorized: 401,
+  timeout: 504,
+  command_failed: 500,
+};
 
 function bearerToken(header: string | null): string | null {
   if (header === null) return null;
@@ -35,32 +37,30 @@ export function createExecHandler(options: ExecHttpOptions): (req: Request) => P
     // 先看声明长度，避免为一个 100MB 的恶意请求把内存读爆。
     const declared = Number(req.headers.get("content-length") ?? "0");
     if (Number.isFinite(declared) && declared > maxBodyBytes) {
-      return reply({ ok: false, error: "payload too large" }, 413);
+      return fail(413, "payload_too_large", "payload too large");
     }
 
     const body = await req.text();
     if (new TextEncoder().encode(body).length > maxBodyBytes) {
-      return reply({ ok: false, error: "payload too large" }, 413);
+      return fail(413, "payload_too_large", "payload too large");
     }
 
     let parsed: unknown;
     try {
       parsed = JSON.parse(body);
     } catch {
-      return reply({ ok: false, error: "body 必须是 JSON" }, 400);
+      return fail(400, "bad_request", "body 必须是 JSON");
     }
 
     const line = (parsed as { line?: unknown } | null)?.line;
     if (typeof line !== "string") {
-      return reply({ ok: false, error: "line 必须是字符串" }, 400);
+      return fail(400, "bad_request", "line 必须是字符串");
     }
-    // 空命令是畸形请求，不是业务结果，走 400 而不是 200。
-    if (line.trim() === "") return reply({ ok: false, error: "空命令" }, 400);
+    // 空命令是畸形请求，不是业务结果，走 400。
+    if (line.trim() === "") return fail(400, "bad_request", "空命令");
 
     const result = await options.source.exec(line, bearerToken(req.headers.get("authorization")));
-    if (result.ok) return reply({ ok: true, output: result.output });
-    return result.unauthorized === true
-      ? reply({ ok: false, error: result.error }, 401)
-      : reply({ ok: false, error: result.error });
+    if (result.ok) return Response.json({ output: result.output });
+    return fail(FAILURE_STATUS[result.code], result.code, result.error);
   };
 }

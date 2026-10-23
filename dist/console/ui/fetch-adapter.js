@@ -7,6 +7,18 @@ function readToken() {
         return null;
     }
 }
+/** 失败体固定是 `{ code, message }`（spec §8.2）；解析不了就退回状态码。 */
+async function errorMessage(response) {
+    try {
+        const body = (await response.json());
+        if (typeof body.message === "string" && body.message !== "")
+            return body.message;
+    }
+    catch {
+        // 网关/代理插进来的非 JSON 错误页，不猜内容
+    }
+    return `请求失败（HTTP ${response.status}）`;
+}
 function writeToken(token) {
     try {
         if (token === null)
@@ -138,7 +150,11 @@ export function createFetchAdapter(options) {
                 status("未登录：执行 login <user> <password>", "warn");
                 return { ok: false, error: "unauthorized", unauthorized: true };
             }
-            return (await response.json());
+            if (!response.ok)
+                return { ok: false, error: await errorMessage(response) };
+            // 成功响应不加壳：命令输出直接在 body.output 里。
+            const body = (await response.json());
+            return { ok: true, output: body.output };
         },
         async fetchFile(href) {
             const token = readToken();
@@ -150,7 +166,7 @@ export function createFetchAdapter(options) {
                 if (response.status === 401)
                     return { ok: false, error: "未登录：先执行 auth <user>" };
                 if (!response.ok)
-                    return { ok: false, error: `读取失败（HTTP ${response.status}）` };
+                    return { ok: false, error: await errorMessage(response) };
                 return { ok: true, text: await response.text() };
             }
             catch (error) {
@@ -164,8 +180,8 @@ export function createFetchAdapter(options) {
                 body: JSON.stringify({ user, password }),
             });
             const body = (await response.json());
-            if (body.ok !== true || typeof body.token !== "string") {
-                return { ok: false, error: body.error ?? `登录失败（HTTP ${response.status}）` };
+            if (!response.ok || typeof body.token !== "string") {
+                return { ok: false, error: body.message ?? `登录失败（HTTP ${response.status}）` };
             }
             writeToken(body.token);
             // 日志流是鉴权的：拿到 token 立刻重连。

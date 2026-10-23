@@ -9,14 +9,25 @@ import type { AuthOptions, Command, CommandOutput, LogFiles, Topic } from "./typ
 const DEFAULT_TIMEOUT_MS = 10_000;
 
 /**
+ * 命令失败的原因。HTTP 适配器拿它选状态码；浏览器适配器只关心 unauthorized。
+ */
+export type ExecFailureCode =
+  | "disposed"
+  | "bad_request"
+  | "unknown_command"
+  | "unauthorized"
+  | "timeout"
+  | "command_failed";
+
+/**
  * 命令执行结果。
  *
- * `unauthorized` 单独标出来，是为了让 HTTP 适配器能把它映射成 401——
- * 纯逻辑层不该知道状态码，但调用方需要区分"没登录"和"命令报错"。
+ * 纯逻辑层不碰状态码（浏览器里没有状态码），所以失败带的是 `code`，由适配器
+ * 自己映射：HTTP 适配器转成状态码 + `{code, message}`，浏览器适配器转成提示。
  */
 export type ExecResult =
   | { ok: true; output: CommandOutput }
-  | { ok: false; error: string; unauthorized?: true };
+  | { ok: false; code: ExecFailureCode; error: string };
 
 export interface ConsoleSourceOptions {
   logger: Logger;
@@ -135,18 +146,20 @@ export function createConsoleSource(options: ConsoleSourceOptions): ConsoleSourc
   let disposed = false;
 
   async function exec(line: string, token: string | null): Promise<ExecResult> {
-    if (disposed) return { ok: false, error: "console disposed" };
+    if (disposed) return { ok: false, code: "disposed", error: "console disposed" };
 
     const [name, ...args] = splitArgs(line);
-    if (name === undefined) return { ok: false, error: "空命令" };
+    if (name === undefined) return { ok: false, code: "bad_request", error: "空命令" };
 
     const command = findCommand(commands, name);
-    if (command === undefined) return { ok: false, error: `unknown command: ${name}` };
+    if (command === undefined) {
+      return { ok: false, code: "unknown_command", error: `unknown command: ${name}` };
+    }
 
     let user: string | null = localUser;
     if (localUser === null && command.public !== true) {
       const verified = await auth.verify(token);
-      if (verified === null) return { ok: false, error: "unauthorized", unauthorized: true };
+      if (verified === null) return { ok: false, code: "unauthorized", error: "unauthorized" };
       user = verified.sub;
     }
 
@@ -175,10 +188,10 @@ export function createConsoleSource(options: ConsoleSourceOptions): ConsoleSourc
       ]);
       return { ok: true, output };
     } catch (error) {
-      if (timedOut) return { ok: false, error: "timeout" };
+      if (timedOut) return { ok: false, code: "timeout", error: "timeout" };
       // 只回 message：堆栈里有文件路径，是给本地排错用的，不该顺 HTTP 跑出去。
       const message = error instanceof CommandError ? error.message : String(error);
-      return { ok: false, error: message };
+      return { ok: false, code: "command_failed", error: message };
     } finally {
       if (timer !== undefined) clearTimeout(timer);
     }

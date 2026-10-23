@@ -50,7 +50,7 @@ describe("Cloudflare Workers 兼容性", () => {
       body: JSON.stringify({ line: "help" }),
     });
     expect(res.status).toBe(200);
-    expect(((await res.json()) as { ok: boolean }).ok).toBe(true);
+    expect(((await res.json()) as { output?: unknown }).output).toBeDefined();
   });
 
   test("登录后 ps 报 workers 运行时（没有 perf_hooks）", async () => {

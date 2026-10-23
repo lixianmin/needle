@@ -48,7 +48,20 @@ try {
     body: JSON.stringify({ line: "help" }),
   });
   assert.equal(exec.status, 200);
-  assert.equal((await exec.json()).ok, true);
+  assert.ok((await exec.json()).output, "成功响应直接返回 output，不加壳");
+
+  // 失败响应固定是 { code, message }，状态码如实（spec §8.2）。
+  const bad = await fetch(`http://127.0.0.1:${server.port}/exec`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ line: "no-such-command" }),
+  });
+  assert.equal(bad.status, 400);
+  assert.equal(bad.headers.get("content-type")?.includes("application/json"), true);
+  assert.deepEqual(await bad.json(), {
+    code: "unknown_command",
+    message: "unknown command: no-such-command",
+  });
 } finally {
   await server.close();
   debug.dispose();

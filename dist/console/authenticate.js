@@ -1,3 +1,4 @@
+import { fail } from "./fail.js";
 const DEFAULT_MAX_BODY_BYTES = 512;
 /**
  * `POST /auth`：控制台拿到密码的唯一入口。
@@ -11,26 +12,26 @@ export function createAuthRoute(options) {
     return async (req) => {
         const declared = Number(req.headers.get("content-length") ?? "0");
         if (Number.isFinite(declared) && declared > maxBodyBytes) {
-            return Response.json({ ok: false, error: "payload too large" }, { status: 413 });
+            return fail(413, "payload_too_large", "payload too large");
         }
         const body = await req.text();
         if (new TextEncoder().encode(body).length > maxBodyBytes) {
-            return Response.json({ ok: false, error: "payload too large" }, { status: 413 });
+            return fail(413, "payload_too_large", "payload too large");
         }
         let parsed;
         try {
             parsed = JSON.parse(body);
         }
         catch {
-            return Response.json({ ok: false, error: "body 必须是 JSON" }, { status: 400 });
+            return fail(400, "bad_request", "body 必须是 JSON");
         }
         const { user, password } = (parsed ?? {});
         if (typeof user !== "string" || typeof password !== "string") {
-            return Response.json({ ok: false, error: "user 与 password 都必须是字符串" }, { status: 400 });
+            return fail(400, "bad_request", "user 与 password 都必须是字符串");
         }
         const result = await options.source.authenticate(user, password);
         if (!result.ok)
-            return Response.json({ ok: false, error: result.error }, { status: 401 });
-        return Response.json({ ok: true, user: result.user, token: result.token });
+            return fail(401, "bad_credentials", result.error);
+        return Response.json({ user: result.user, token: result.token });
     };
 }

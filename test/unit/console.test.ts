@@ -48,8 +48,7 @@ describe("createConsole", () => {
     expect(bad.status).toBe(401);
 
     const good = await api.handler(post("/auth", { user: "admin", password: "secret" }));
-    const body = (await good.json()) as { ok: boolean; token?: string };
-    expect(body.ok).toBe(true);
+    const body = (await good.json()) as { token?: string };
     expect(typeof body.token).toBe("string");
   });
 
@@ -80,7 +79,7 @@ describe("createConsole", () => {
     expect(res.status).toBe(200);
     // 序列化走平台内置的 Response.json；Bun 会额外带 charset，只断言主类型。
     expect(res.headers.get("content-type")).toContain("application/json");
-    expect(((await res.json()) as { ok: boolean }).ok).toBe(true);
+    expect(((await res.json()) as { output?: unknown }).output).toBeDefined();
   });
 
   test("exec 受限命令需要 token", async () => {
