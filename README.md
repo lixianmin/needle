@@ -14,9 +14,10 @@
 import { logo } from "@needle/logo";
 
 logo.info("order created", { orderId: 42 });
-// {"time":1758991234567,"level":"info","msg":"order created","orderId":42}
+// sink 收到的记录：{"orderId":42,"time":1758991234567,"level":"info","msg":"order created"}
+// stdout 实际写的一行：2026-10-23T10:50:43 [I] {"orderId":42,"msg":"order created"}
 
-logo.error("paid failed", err, { userId: 7 });   // 自动带调用栈
+logo.error("paid failed", err, { userId: 7 });   // Error 展开成 message + stack
 ```
 
 字符串拼成 `msg`，对象合并进字段，`Error` 展开成 `message` + `stack`。`warn`/`error` 立即落盘，`info` 攒批（默认 100ms），一个循环写 1000 条也只产生一次 IO。
@@ -252,6 +253,23 @@ export default { fetch: createConsole({ logger: logo, auth }).handler };
 | `./console`（控制台，含内联页面脚本） | 9.2 KB |
 
 `bun run size` 可复现。运行时依赖为零。
+
+## 常见坑
+
+踩过的，按「现象 → 原因 → 怎么办」写。
+
+- **记录里没有 `message`，字段叫 `msg`。** 只有传 `Error` 时才会出现 `message`（展开成 `message` + `stack`）；普通日志判正文用 `msg`，别读 `record.message`。
+- **`time` / `level` 不在打印出来的 JSON 里。** 落盘行是 `2026-10-23T10:50:43 [I] {…}`：时间与级别只在前缀，JSON 里只有业务字段与 `msg`；记录的 `time` 是 **epoch 毫秒数字**。`parseLine()` 也只还原 JSON 那段。时间固定 `+08:00`，与机器 `TZ` 无关。
+- **只有 `warn` / `error` 默认带 `stack`。** `stackLevel` 默认 `warn`；要 info 也带用 `newLogger({ stackLevel: "info" })`，关掉用 `"off"`。传 `Error` 时用的是 Error 自己的栈（抛出点），不是调用点。
+- **`info` 不会立刻到 sink。** 默认 100ms 攒批：测试/脚本里断言 sink 之前先 `flush()`。`warn` / `error` 立即写出，并把积压一起带出去。
+- **Node 里 spy `console.log` 抓不到日志。** 有 `process.stdout.write` 时 stdout sink 直接写 stdout。要断言就 `addSink` 自己的函数，别 spy `console`。
+- **`logo` 没有 `name`。** 记录里就没有 `name` 字段；`newLogger({ name })` 与 `child({ name })` 才有。想按来源过滤就自己加业务字段。
+- **信封字段会被丢弃。** `info("x", { level: "error", time: 1, msg: "fake", name: "y" })` 记成 `{level:"info", msg:"x", time:<now>}`——业务对象不能伪造 `time` / `level` / `msg` / `name` / `stack`。
+- **非纯对象进 `msg`，不进字段。** 数组、`Date`、`Map`、类实例都会序列化后拼进 `msg`；要可查询的字段就传纯对象。
+- **`child()` 会快照 sink。** 建 child 之后再给父级 `addSink`，子实例收不到。要统一落点就在启动早期建 child，或直接给 child 挂。
+- **`dispose()` 之后日志静默丢弃。** 它先 `flush()` 再 `close()` 各 sink（`FileSink` 关闭后写不进）；退出前调一次即可，别在长生命周期进程里早调。
+- **`@needle/logo/node` 不能进浏览器 / Workers 打包。** 它顶层 `import "node:fs"`；core 的 `.` 入口是干净的，文件 sink 只能在 Node 侧挂。
+- **git 依赖不会自己跟 main。** lockfile 钉住 sha 后 `bun install` 不会动，升级要 `bun update @needle/logo`。两方 spec 不同但解析到同一 sha 时只装一份（bun 按解析结果去重）；不同 sha 才是两份副本——那时 `logo` 会变成两个对象，各自的 sink 互不可见。
 
 ## 设计取舍
 
