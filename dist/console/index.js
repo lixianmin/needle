@@ -1,5 +1,6 @@
 import { createAuthRoute } from "./authenticate.js";
 import { createExecHandler } from "./exec.js";
+import { fail } from "./fail.js";
 import { renderPage } from "./page.js";
 import { createRouter, normalizeBasePath } from "./router.js";
 import { createConsoleSource } from "./source.js";
@@ -45,10 +46,10 @@ export function createConsole(options) {
     }
     async function logRoute({ req, params }) {
         if ((await resolveUser(req)) === null)
-            return new Response("unauthorized", { status: 401 });
+            return fail(401, "unauthorized", "未登录或 token 无效");
         const body = await source.logFiles?.read(params.name ?? "");
         if (body === null || body === undefined)
-            return new Response("not found", { status: 404 });
+            return fail(404, "log_not_found", "日志文件不存在");
         return new Response(body, {
             headers: {
                 "content-type": "text/plain; charset=utf-8",
@@ -60,7 +61,7 @@ export function createConsole(options) {
         // 事件流必须鉴权：日志里什么都有，匿名不该看到。本地模式是唯一的例外，理由同 /log/。
         const user = await resolveUser(req);
         if (user === null)
-            return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
+            return fail(401, "unauthorized", "未登录或 token 无效");
         return createSseResponse({
             user,
             title: source.title,
@@ -88,10 +89,10 @@ export function createConsole(options) {
         source,
         async handler(req) {
             if (disposed)
-                return Response.json({ ok: false, error: "console disposed" }, { status: 503 });
+                return fail(503, "disposed", "console disposed");
             const found = router.match(req);
             if (found === null)
-                return new Response("not found", { status: 404 });
+                return fail(404, "not_found", "not found");
             return found.handler({ req, url: found.url, params: found.params });
         },
         dispose() {

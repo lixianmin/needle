@@ -28,7 +28,7 @@ describe("createConsoleSource", () => {
   test("受限命令需要 token", async () => {
     const { source } = setup();
     const denied = await source.exec("top", null);
-    expect(denied).toEqual({ ok: false, error: "unauthorized", unauthorized: true });
+    expect(denied).toEqual({ ok: false, code: "unauthorized", error: "unauthorized" });
 
     const token = (await source.auth.login("admin", "secret")) as string;
     const allowed = await source.exec("top", token);
@@ -91,7 +91,7 @@ describe("createConsoleSource", () => {
     const { source } = setup({
       commands: [{ name: "hang", note: "", public: true, run: () => new Promise<never>(() => {}) }],
     });
-    expect(await source.exec("hang", null)).toEqual({ ok: false, error: "timeout" });
+    expect(await source.exec("hang", null)).toEqual({ ok: false, code: "timeout", error: "timeout" });
   });
 
   test("命令抛错只回 message", async () => {
@@ -107,7 +107,11 @@ describe("createConsoleSource", () => {
         },
       ],
     });
-    expect(await source.exec("boom", null)).toEqual({ ok: false, error: "Error: detail" });
+    expect(await source.exec("boom", null)).toEqual({
+      ok: false,
+      code: "command_failed",
+      error: "Error: detail",
+    });
   });
 
   test("dispose 摘掉 sink 并让后续命令失败", async () => {
@@ -118,6 +122,10 @@ describe("createConsoleSource", () => {
     logger.flush();
     expect(source.broadcast.count()).toBe(0);
 
-    expect(await source.exec("help", null)).toEqual({ ok: false, error: "console disposed" });
+    expect(await source.exec("help", null)).toEqual({
+      ok: false,
+      code: "disposed",
+      error: "console disposed",
+    });
   });
 });

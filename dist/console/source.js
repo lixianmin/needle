@@ -69,18 +69,19 @@ export function createConsoleSource(options) {
     let disposed = false;
     async function exec(line, token) {
         if (disposed)
-            return { ok: false, error: "console disposed" };
+            return { ok: false, code: "disposed", error: "console disposed" };
         const [name, ...args] = splitArgs(line);
         if (name === undefined)
-            return { ok: false, error: "空命令" };
+            return { ok: false, code: "bad_request", error: "空命令" };
         const command = findCommand(commands, name);
-        if (command === undefined)
-            return { ok: false, error: `unknown command: ${name}` };
+        if (command === undefined) {
+            return { ok: false, code: "unknown_command", error: `unknown command: ${name}` };
+        }
         let user = localUser;
         if (localUser === null && command.public !== true) {
             const verified = await auth.verify(token);
             if (verified === null)
-                return { ok: false, error: "unauthorized", unauthorized: true };
+                return { ok: false, code: "unauthorized", error: "unauthorized" };
             user = verified.sub;
         }
         return runCommand(command, args, user);
@@ -103,10 +104,10 @@ export function createConsoleSource(options) {
         }
         catch (error) {
             if (timedOut)
-                return { ok: false, error: "timeout" };
+                return { ok: false, code: "timeout", error: "timeout" };
             // 只回 message：堆栈里有文件路径，是给本地排错用的，不该顺 HTTP 跑出去。
             const message = error instanceof CommandError ? error.message : String(error);
-            return { ok: false, error: message };
+            return { ok: false, code: "command_failed", error: message };
         }
         finally {
             if (timer !== undefined)

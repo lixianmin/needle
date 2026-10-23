@@ -1,4 +1,5 @@
 import type { LogRecord } from "../../core/logo/types.js";
+import type { CommandOutput } from "../types.js";
 import type { AuthResult, ConsoleAdapter, ConsoleEvent, ExecResult, FileResult, HandshakeInfo } from "./adapter.js";
 
 const TOKEN_KEY = "logo.console.token";
@@ -16,6 +17,17 @@ function readToken(): string | null {
   } catch {
     return null;
   }
+}
+
+/** 失败体固定是 `{ code, message }`（spec §8.2）；解析不了就退回状态码。 */
+async function errorMessage(response: Response): Promise<string> {
+  try {
+    const body = (await response.json()) as { message?: unknown };
+    if (typeof body.message === "string" && body.message !== "") return body.message;
+  } catch {
+    // 网关/代理插进来的非 JSON 错误页，不猜内容
+  }
+  return `请求失败（HTTP ${response.status}）`;
 }
 
 function writeToken(token: string | null): void {
@@ -149,7 +161,11 @@ export function createFetchAdapter(options: FetchAdapterOptions): ConsoleAdapter
         return { ok: false, error: "unauthorized", unauthorized: true };
       }
 
-      return (await response.json()) as ExecResult;
+      if (!response.ok) return { ok: false, error: await errorMessage(response) };
+
+      // 成功响应不加壳：命令输出直接在 body.output 里。
+      const body = (await response.json()) as { output: CommandOutput };
+      return { ok: true, output: body.output };
     },
 
     async fetchFile(href: string): Promise<FileResult> {
@@ -160,7 +176,7 @@ export function createFetchAdapter(options: FetchAdapterOptions): ConsoleAdapter
       try {
         const response = await fetch(href, { headers });
         if (response.status === 401) return { ok: false, error: "未登录：先执行 auth <user>" };
-        if (!response.ok) return { ok: false, error: `读取失败（HTTP ${response.status}）` };
+        if (!response.ok) return { ok: false, error: await errorMessage(response) };
         return { ok: true, text: await response.text() };
       } catch (error) {
         return { ok: false, error: String(error) };
@@ -175,14 +191,13 @@ export function createFetchAdapter(options: FetchAdapterOptions): ConsoleAdapter
       });
 
       const body = (await response.json()) as {
-        ok?: boolean;
         user?: string;
         token?: string;
-        error?: string;
+        message?: string;
       };
 
-      if (body.ok !== true || typeof body.token !== "string") {
-        return { ok: false, error: body.error ?? `登录失败（HTTP ${response.status}）` };
+      if (!response.ok || typeof body.token !== "string") {
+        return { ok: false, error: body.message ?? `登录失败（HTTP ${response.status}）` };
       }
 
       writeToken(body.token);

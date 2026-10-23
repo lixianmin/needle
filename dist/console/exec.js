@@ -1,8 +1,14 @@
+import { fail } from "./fail.js";
 const DEFAULT_MAX_BODY_BYTES = 4096;
-/** `Body` 在编译期锁住响应形状；序列化交给平台内置的 `Response.json`。 */
-function reply(body, status = 200) {
-    return Response.json(body, { status });
-}
+/** 失败原因 → 状态码。`code` 由 source 给，适配器只做映射。 */
+const FAILURE_STATUS = {
+    disposed: 503,
+    bad_request: 400,
+    unknown_command: 400,
+    unauthorized: 401,
+    timeout: 504,
+    command_failed: 500,
+};
 function bearerToken(header) {
     if (header === null)
         return null;
@@ -21,31 +27,29 @@ export function createExecHandler(options) {
         // 先看声明长度，避免为一个 100MB 的恶意请求把内存读爆。
         const declared = Number(req.headers.get("content-length") ?? "0");
         if (Number.isFinite(declared) && declared > maxBodyBytes) {
-            return reply({ ok: false, error: "payload too large" }, 413);
+            return fail(413, "payload_too_large", "payload too large");
         }
         const body = await req.text();
         if (new TextEncoder().encode(body).length > maxBodyBytes) {
-            return reply({ ok: false, error: "payload too large" }, 413);
+            return fail(413, "payload_too_large", "payload too large");
         }
         let parsed;
         try {
             parsed = JSON.parse(body);
         }
         catch {
-            return reply({ ok: false, error: "body 必须是 JSON" }, 400);
+            return fail(400, "bad_request", "body 必须是 JSON");
         }
         const line = parsed?.line;
         if (typeof line !== "string") {
-            return reply({ ok: false, error: "line 必须是字符串" }, 400);
+            return fail(400, "bad_request", "line 必须是字符串");
         }
-        // 空命令是畸形请求，不是业务结果，走 400 而不是 200。
+        // 空命令是畸形请求，不是业务结果，走 400。
         if (line.trim() === "")
-            return reply({ ok: false, error: "空命令" }, 400);
+            return fail(400, "bad_request", "空命令");
         const result = await options.source.exec(line, bearerToken(req.headers.get("authorization")));
         if (result.ok)
-            return reply({ ok: true, output: result.output });
-        return result.unauthorized === true
-            ? reply({ ok: false, error: result.error }, 401)
-            : reply({ ok: false, error: result.error });
+            return Response.json({ output: result.output });
+        return fail(FAILURE_STATUS[result.code], result.code, result.error);
     };
 }

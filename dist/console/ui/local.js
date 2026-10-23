@@ -31,9 +31,17 @@ export function createLocalAdapter(source) {
         });
     }
     return {
-        exec(line) {
+        async exec(line) {
             // 本地模式没有 token：source 里配了 user，鉴权直接放行。
-            return source.exec(line, null);
+            const result = await source.exec(line, null);
+            if (result.ok)
+                return result;
+            // 适配器不知道 code 的各种取值，只关心"是不是没登录"，这一层转成布尔。
+            return {
+                ok: false,
+                error: result.error,
+                ...(result.code === "unauthorized" ? { unauthorized: true } : {}),
+            };
         },
         fetchFile() {
             return Promise.resolve({ ok: false, error: "浏览器里没有日志文件可读，用 log.list 看不到内容" });

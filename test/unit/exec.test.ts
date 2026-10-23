@@ -38,13 +38,13 @@ describe("/exec 适配器", () => {
   test("公开命令无需 token", async () => {
     const res = await setup()(post(JSON.stringify({ line: "hi" })));
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ ok: true, output: { kind: "text", text: "hello" } });
+    expect(await res.json()).toEqual({ output: { kind: "text", text: "hello" } });
   });
 
   test("受限命令无 token 返回 401", async () => {
     const res = await setup()(post(JSON.stringify({ line: "top" })));
     expect(res.status).toBe(401);
-    expect(await res.json()).toEqual({ ok: false, error: "unauthorized" });
+    expect(await res.json()).toEqual({ code: "unauthorized", message: "unauthorized" });
   });
 
   test("垃圾 token 返回 401 而不是 500", async () => {
@@ -58,16 +58,16 @@ describe("/exec 适配器", () => {
     expect(res.status).toBe(401);
   });
 
-  test("未知命令返回 200 + 错误文本", async () => {
+  test("未知命令返回 400 + unknown_command", async () => {
     const res = await setup()(post(JSON.stringify({ line: "nope" })));
-    expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ ok: false, error: "unknown command: nope" });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ code: "unknown_command", message: "unknown command: nope" });
   });
 
   test("普通异常只回 message", async () => {
     const res = await setup()(post(JSON.stringify({ line: "fail" })));
-    const body = (await res.json()) as { error: string };
-    expect(body.error).toBe("Error: detail");
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ code: "command_failed", message: "Error: detail" });
   });
 
   test("非 JSON body 返回 400", async () => {
@@ -98,8 +98,9 @@ describe("/exec 适配器", () => {
     expect((await setup()(post(JSON.stringify({ line: "  " })))).status).toBe(400);
   });
 
-  test("超时返回 timeout", async () => {
+  test("超时返回 504 + timeout", async () => {
     const res = await setup()(post(JSON.stringify({ line: "hang" })));
-    expect(await res.json()).toEqual({ ok: false, error: "timeout" });
+    expect(res.status).toBe(504);
+    expect(await res.json()).toEqual({ code: "timeout", message: "timeout" });
   });
 });
