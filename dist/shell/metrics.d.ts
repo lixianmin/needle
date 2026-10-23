@@ -1,6 +1,6 @@
 export interface MetricsOptions {
     now?: () => number;
-    /** SSE 连接数，由 createShell 注入。 */
+    /** SSE 连接数，由 createServerShell 注入。 */
     connections?: () => number;
 }
 export interface Metrics {

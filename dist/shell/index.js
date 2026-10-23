@@ -20,7 +20,7 @@ function bearer(header) {
  * 只做三件事：剥掉 basePath、按路径分派、把 token 换成用户身份。命令怎么执行、
  * 日志怎么推，全在 source 里——同一段逻辑浏览器里也在用。
  */
-export function createShell(options) {
+export function createServerShell(options) {
     const source = createShellSource(options);
     const basePath = normalizeBasePath(options.basePath ?? "");
     const exec = createExecHandler({ source });
@@ -117,7 +117,7 @@ export function createShell(options) {
 /**
  * 浏览器页面 / 扩展里的控制台：把面板挂到一个 DOM 节点上。
  *
- * 与 createShell 用同一个 source，区别只是没有 HTTP：命令直调，
+ * 与 createServerShell 用同一个 source，区别只是没有 HTTP：命令直调，
  * 日志通过 broadcast 直接流到面板。
  */
 export function createBrowserShell(options) {

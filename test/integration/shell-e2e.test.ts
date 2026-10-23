@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { createShell } from "../../src/shell/index.js";
+import { createServerShell } from "../../src/shell/index.js";
 import { newLogger } from "../../src/logo/logo.js";
 import { serve } from "../../src/node.js";
 import { TEST_VERSION } from "../fixtures.js";
@@ -14,7 +14,7 @@ import { TEST_VERSION } from "../fixtures.js";
 describe("控制台端到端", () => {
   test("登录后能通过 SSE 收到握手与日志帧", async () => {
     const logger = newLogger({ flushIntervalMs: 0, batch: false });
-    const shell = createShell({
+    const shell = createServerShell({
       logger,
       auth: { users: { admin: "secret" }, secret: "e2e-secret" },
       version: TEST_VERSION,
@@ -67,7 +67,7 @@ describe("控制台端到端", () => {
 
   test("密码错误时 /auth 返回 401", async () => {
     const logger = newLogger({ flushIntervalMs: 0, batch: false });
-    const shell = createShell({
+    const shell = createServerShell({
       logger,
       auth: { users: { admin: "secret" }, secret: "e2e-secret" },
     });
@@ -88,7 +88,7 @@ describe("控制台端到端", () => {
 
   test("未登录拉事件流被拒", async () => {
     const logger = newLogger({ flushIntervalMs: 0, batch: false });
-    const shell = createShell({
+    const shell = createServerShell({
       logger,
       auth: { users: { admin: "secret" }, secret: "e2e-secret" },
     });
@@ -109,7 +109,7 @@ describe("SSE 断开", () => {
     const http = await import("node:http");
     let reads = 0;
     const logger = newLogger({ flushIntervalMs: 0, batch: false });
-    const shell = createShell({
+    const shell = createServerShell({
       logger,
       auth: { users: { admin: "secret" }, secret: "e2e-secret" },
       topics: [
@@ -172,7 +172,7 @@ describe("停机", () => {
   test("有活跃 SSE 连接时 close() 也能返回", async () => {
     const http = await import("node:http");
     const logger = newLogger({ flushIntervalMs: 0, batch: false });
-    const shell = createShell({
+    const shell = createServerShell({
       logger,
       auth: { users: { admin: "secret" }, secret: "e2e-secret" },
     });
