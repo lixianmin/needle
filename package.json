@@ -1,6 +1,6 @@
 {
   "name": "@needle/needle",
-  "version": "0.2.37",
+  "version": "0.2.38",
   "description": "结构化日志 + 浏览器里的调试 shell：一个包，三个入口",
   "type": "module",
   "sideEffects": false,
