@@ -1,14 +1,14 @@
 # Needle
 
-Web 控制台（shell），可输入命令查看当前系统状态，如进程状态、业务数据等。
+Web Shell，支持命令查看当前系统状态，如进程状态、业务数据等。
 
-零运行时依赖：只导入日志 1.6 KB，连控制台 16.4 KB（min+gzip，`bun run size` 可复现）。
+零运行时依赖：只导入日志 1.6 KB，连 shell 15.7 KB（min+gzip，`bun run size` 可复现）。
 
 ## 一、控制台（shell）
 
 ### 1. 登录（auth）
 
-完整的控制台功能需要先使用`auth`命令登录：
+完整的 shell 功能需要先使用`auth`命令登录：
 
 ```
 $ auth username
