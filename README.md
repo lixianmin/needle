@@ -157,10 +157,7 @@ process.on("SIGTERM", () => logo.dispose());                                    
 
 要另起一个实例（换级别、换名字）用 `newLogger()`；`newLogger({ sinks: [...] })` 可以在创建时就把 sink 配好。
 
-两个设计取舍：
-
-- **批量写而不是逐条**：1000 条日志 = 1 次 IO，`warn` / `error` 例外。
-- **shell 与日志内核拆开**：同一套命令走 HTTP/SSE 或直接挂 DOM，不会有两份实现。
+日志是批量写出去的：一个循环写 1000 条只产生 1 次 IO，`warn` / `error` 例外。
 
 设计文档见 `docs/superpowers/specs/2026-10-22-logo-design.md`。
 
