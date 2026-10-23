@@ -60,7 +60,7 @@ import { newLogger } from "@needle/logo";
 const log = newLogger({
   name: "web",
   level: "info",
-  stackLevel: "error",        // 默认 warn：每条 warn 都要造一次 Error，页面上能省则省
+  stackLevel: "error",        // 默认值，和 Go 版一致：只有 error 才造一次 Error 抓栈
   batch: true,                // 页面里定时器可靠，可以攒一帧再写 console
   flushIntervalMs: 16,
 });

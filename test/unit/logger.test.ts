@@ -167,18 +167,33 @@ describe("newLogger", () => {
     expect(calls.flat()).toHaveLength(10);
   });
 
-  test("栈：warn 带调用点，info 不带", () => {
+  // 与 Go 版对齐：那边 stackLevel 默认 LevelError，warn 不抓完整栈。
+  // （Go 每个级别都留 1 帧调用点，JS 这边省掉那次采集，只有 error 才有栈。）
+  test("栈：默认只有 error 带，info / warn 不带", () => {
     const { calls, sink } = collector();
     const logger = newLogger({ ...base, sinks: [sink] });
 
     logger.info("i");
     logger.warn("w");
+    logger.error("e");
     logger.flush();
 
-    const [infoRecord, warnRecord] = calls.flat();
-    expect(infoRecord?.stack).toBeUndefined();
-    expect(warnRecord?.stack).toContain("logger.test.ts");
-    expect(warnRecord?.stack).not.toContain("core/logo.ts");
+    const records = calls.flat();
+    const find = (msg: string) => records.find((record) => record.msg === msg);
+    expect(find("i")?.stack).toBeUndefined();
+    expect(find("w")?.stack).toBeUndefined();
+    expect(find("e")?.stack).toContain("logger.test.ts");
+    expect(find("e")?.stack).not.toContain("core/logo.ts");
+  });
+
+  test("stackLevel 可显式设成 warn", () => {
+    const { calls, sink } = collector();
+    const logger = newLogger({ ...base, stackLevel: "warn", sinks: [sink] });
+
+    logger.warn("w");
+    logger.flush();
+
+    expect(calls.flat()[0]?.stack).toContain("logger.test.ts");
   });
 
   test("stackLevel 可关闭", () => {
