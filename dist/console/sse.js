@@ -11,21 +11,6 @@ function encodeEvent(event, data) {
 export function createBroadcast() {
     const connections = new Set();
     return {
-        sink(batch) {
-            if (connections.size === 0)
-                return;
-            for (const record of batch) {
-                for (const connection of connections) {
-                    try {
-                        connection.send("log", record);
-                    }
-                    catch {
-                        // 写不进去说明连接已经坏了，摘掉即可，不能让一条坏连接影响其他连接。
-                        connections.delete(connection);
-                    }
-                }
-            }
-        },
         attach(connection) {
             connections.add(connection);
             return () => {

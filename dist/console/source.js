@@ -33,8 +33,6 @@ export function createConsoleSource(options) {
     const broadcast = createBroadcast();
     const metrics = createMetrics({ connections: () => broadcast.count() });
     const auth = createAuth(options.auth);
-    // 实时日志推给 SSE；历史在磁盘上，用 log.list 列文件、点开看全文。
-    options.logger.addSink(broadcast.sink);
     const basePath = options.basePath ?? "";
     const builtins = createBuiltinCommands({
         metrics,
@@ -135,7 +133,6 @@ export function createConsoleSource(options) {
                 return;
             disposed = true;
             broadcast.closeAll();
-            options.logger.removeSink(broadcast.sink);
         },
     };
 }

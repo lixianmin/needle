@@ -35,7 +35,7 @@ describe("createLocalAdapter", () => {
     expect(result.ok).toBe(true);
   });
 
-  test("日志通过 broadcast 流到订阅者", () => {
+  test("日志不会自动流进控制台", () => {
     const { logger, adapter } = setup();
     const events: ConsoleEvent[] = [];
     adapter.subscribe((event) => events.push(event));
@@ -43,9 +43,8 @@ describe("createLocalAdapter", () => {
     logger.info("hi");
     logger.flush();
 
-    const logs = events.filter((event) => event.type === "log");
-    expect(logs).toHaveLength(1);
-    expect((logs[0] as Extract<ConsoleEvent, { type: "log" }>).record.msg).toBe("hi");
+    // 控制台只收命令结果与订阅主题；日志量一大就会把页面淹掉，不自动推。
+    expect(events.map((event) => event.type)).toEqual(["handshake"]);
   });
 
   test("退订后不再收到事件", () => {

@@ -18,8 +18,6 @@ export function createLocalAdapter(source) {
         attached = true;
         source.broadcast.attach({
             send(event, data) {
-                if (event === "log")
-                    emit({ type: "log", record: data });
                 if (event === "topic") {
                     const payload = data;
                     emit({ type: "topic", name: payload.name, data: payload.data });

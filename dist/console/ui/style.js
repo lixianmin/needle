@@ -24,14 +24,6 @@ export const STYLE = `
 .logo-console header .version { color: var(--dim); }
 .logo-console header .who { color: var(--cyan); }
 .logo-console .output { flex: 1; overflow-y: auto; padding: 8px 12px; white-space: pre-wrap; }
-.logo-console .line { display: flex; gap: 8px; }
-.logo-console .line .t { color: var(--dim); flex: none; }
-.logo-console .line .lv { flex: none; }
-.logo-console .lv-debug { color: var(--dim); }
-.logo-console .lv-info { color: var(--cyan); }
-.logo-console .lv-warn { color: var(--yellow); }
-.logo-console .lv-error { color: var(--red); }
-.logo-console .msg { word-break: break-word; }
 .logo-console .echo { color: var(--blue); }
 .logo-console .status { color: var(--yellow); }
 .logo-console .topic-line { color: var(--dim); }

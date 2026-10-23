@@ -1,6 +1,4 @@
 import { displayNumber, formatDuration, toHuman } from "../../core/logo/human.js";
-import { LEVEL_HINTS } from "../../core/logo/line.js";
-import { formatTime } from "../../core/logo/line.js";
 import { STYLE, STYLE_ID } from "./style.js";
 /** 输出区保留的最大行数。再多浏览器会开始卡，而且人也不会往回翻那么远。 */
 const MAX_LINES = 500;
@@ -110,17 +108,6 @@ export function mountConsole(root, adapter) {
         page.open(url, "_blank", "noopener");
         // 新窗口已经把内容读进内存，稍后回收即可，立刻 revoke 会让空白页。
         setTimeout(() => URL.revokeObjectURL(url), 60_000);
-    }
-    function renderLog(record) {
-        const line = el(doc, "div", "line");
-        const time = el(doc, "span", "t");
-        time.textContent = formatTime(record.time);
-        const level = el(doc, "span", `lv lv-${record.level}`);
-        level.textContent = LEVEL_HINTS[record.level] ?? "[I]";
-        const msg = el(doc, "span", "msg");
-        msg.textContent = record.msg ?? "";
-        line.append(time, level, msg);
-        push(line);
     }
     function table(columns, rows, formats = []) {
         const grid = el(doc, "table", "grid");
@@ -276,9 +263,6 @@ export function mountConsole(root, adapter) {
                 user.textContent = event.info.user ?? "未登录";
                 availableTopics = event.info.topics;
                 availableCommands = event.info.commands;
-                break;
-            case "log":
-                renderLog(event.record);
                 break;
             case "topic":
                 renderTopic(event.name, event.data);

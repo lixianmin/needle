@@ -72,7 +72,7 @@ const debug = createConsole({
     },
     {
       name: "burst",
-      note: "连写 n 条日志（看批量与实时推送）",
+      note: "连写 n 条日志（看批量写入）",
       args: "[n]",
       run: ({ args }) => {
         const count = Number(args[0] ?? 20);

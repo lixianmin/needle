@@ -1,4 +1,3 @@
-import type { LogRecord } from "../../core/logo/types.js";
 import type { CommandOutput } from "../types.js";
 import type { AuthResult, ConsoleAdapter, ConsoleEvent, ExecResult, FileResult, HandshakeInfo } from "./adapter.js";
 
@@ -115,7 +114,6 @@ export function createFetchAdapter(options: FetchAdapterOptions): ConsoleAdapter
       const parse = createFrameParser((event, data) => {
         try {
           if (event === "handshake") emit({ type: "handshake", info: JSON.parse(data) as HandshakeInfo });
-          else if (event === "log") emit({ type: "log", record: JSON.parse(data) as LogRecord });
           else if (event === "topic") {
             const payload = JSON.parse(data) as { name: string; data: unknown };
             emit({ type: "topic", name: payload.name, data: payload.data });
