@@ -22,7 +22,7 @@ import { createLogFiles } from "@needle/logo/node";
 
 const app = new Hono();
 
-const debug = createShell({
+const shell = createShell({
   logger: logo,
   basePath: "/shell",
   title: "order-service",
@@ -32,8 +32,8 @@ const debug = createShell({
 });
 
 // 先注册控制台，再注册业务中间件 —— app.use 只作用于它之后注册的路由。
-app.all("/shell", (c) => debug.handler(c.req.raw));
-app.all("/shell/*", (c) => debug.handler(c.req.raw));
+app.all("/shell", (c) => shell.handler(c.req.raw));
+app.all("/shell/*", (c) => shell.handler(c.req.raw));
 
 app.use("*", async (c, next) => { /* traceId、业务鉴权…… */ });
 app.get("/orders/:id", (c) => c.json({ id: c.req.param("id") }));
@@ -142,8 +142,8 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
 ```ts
 import { attach, serve } from "@needle/logo/node";
 
-await serve(debug.handler, { port: 7701 });                  // 自己起端口
-attach(server, debug, { basePath: "/shell" });             // 挂到已有 http server
+await serve(shell.handler, { port: 7701 });                  // 自己起端口
+attach(server, shell, { basePath: "/shell" });             // 挂到已有 http server
 ```
 
 `attach` 接管 `request` 事件：前缀内交给控制台，前缀外按原顺序交回原 listener，已有 app 一行都不用改。

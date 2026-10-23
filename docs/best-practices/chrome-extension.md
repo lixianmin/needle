@@ -4,9 +4,9 @@
 
 | 位置 | 有 DOM | 控制台 | 日志去哪 |
 |---|---|---|---|
-| service worker | 无 | 不能（没有 `document`） | `shell` → `chrome://extensions` 的检查视图 |
-| 扩展页面（side panel / popup / options / devtools） | 有 | DOM 面板 | `shell` + 面板 |
-| content script（注入宿主页面） | 有（宿主页） | 不推荐，见下文 | 宿主 shell + 扩展自己的 shell |
+| service worker | 无 | 不能（没有 `document`） | `console` → `chrome://extensions` 的检查视图 |
+| 扩展页面（side panel / popup / options / devtools） | 有 | DOM 面板 | `console` → 页面的 DevTools |
+| content script（注入宿主页面） | 有（宿主页） | 不推荐，见下文 | 宿主 console + 扩展自己的 console |
 
 ## 控制台
 
@@ -51,7 +51,7 @@ const view = mountShell(
 
 - `manifest.json` 要给这个源 `host_permissions`，否则跨域请求被拦。
 - `auth ops` 走 token，存在 `localStorage` 的 `logo.shell.token`，随 `Authorization` 头发出去（不用 `EventSource`，正是因为它带不了头）。
-- `log.list` 的链接是服务端按自己的 `basePath` 生成的相对路径，跨域点开会 404；远程面板适合看实时日志和敲命令。
+- `log.list` 的链接是服务端按自己的 `basePath` 生成的相对路径，跨域点开会 404；远程面板适合敲命令、看订阅主题。
 
 ### MV3 的 CSP 挡不住它
 
@@ -109,11 +109,11 @@ const persist: Sink = (batch) => {
 logo.addSink(persist);
 ```
 
-排障期也可以直接看 DOM 面板（上一节），它显示的是同一个实例的实时日志。
+DOM 面板显示的是命令输出与订阅主题；日志本身不进面板，默认 sink 写 `console.log`，在扩展页面的 DevTools 里看。
 
 ### 坑
 
-- **`info` 不会攒批。** 批量刷新依赖能同步写 stdout，扩展里探测不到（没有 `process.stdout`），库自动改成逐条立即写出。所以「等 100ms 再看 shell」在这里不成立。
+- **`info` 不会攒批。** 批量刷新依赖能同步写 stdout，扩展里探测不到（没有 `process.stdout`），库自动改成逐条立即写出。所以「等 100ms 再看 console」在这里不成立。
 - **面板要显式 `dispose()`。** 被用户关掉时把 `panel.dispose()` 挂到 `unload`，否则订阅和定时器跟着页面一起泄漏。
 - **命令历史存在 `localStorage`，写不进去会被静默忽略。** 隐私模式、沙箱页面都可能抛错，功能不该依赖它。
 - **`version` 从 `chrome.runtime.getManifest()` 读。** 扩展版本只在 `manifest.json` 一处维护，别在代码里再硬编码一份。

@@ -26,13 +26,13 @@ assert.deepEqual(
 assert.ok(typeof batches[0][2].stack === "string", "error 应带调用栈");
 
 // 2. 控制台能在 node 上跑起来
-const debug = createShell({
+const shell = createShell({
   logger,
   auth: { users: { admin: "secret" }, secret: "smoke-secret" },
   version,
 });
 
-const server = await serve(debug.handler, { port: 0 });
+const server = await serve(shell.handler, { port: 0 });
 try {
   const health = await fetch(`http://127.0.0.1:${server.port}/health`);
   assert.equal(health.status, 200);
@@ -63,7 +63,7 @@ try {
   });
 } finally {
   await server.close();
-  debug.dispose();
+  shell.dispose();
 }
 
 console.log("node smoke ok");
