@@ -59,10 +59,12 @@ attach(server, shell, { basePath: "/shell" });         // 挂到已有 http serv
 - **绑 `0.0.0.0` / 局域网 / 公网时不能用 `user`。** 那个开关的前提是「能打开页面的人本来就能碰这个进程」，绑非回环地址时前提不成立。
 - **`users` 留空不等于免登录，等于谁都登不进去。** 页面能开，但非 public 命令全是 401。
 - token 是 HMAC-SHA256，默认 12 小时（`auth.ttlMs`）；口令走独立的 `POST /auth`，所以密码不进命令行、不进历史。
+- **`/auth` 没有内置失败次数限制。** 公网部署时在前面挂一层限流，否则口令可被爆破。
 
 ## 三、日志与 `log.list`
 
 - **`createLogFiles({ dir })` 的目录必须与 file sink 的 `dir` 相同**，否则 `log.list` 列的是另一个空目录。
+- 控制台只暴露 `.log`、拒绝符号链接、单文件超过 8MB 不读；但目录里的硬链接没法与真实日志区分，日志目录不要放别的东西。
 - `createFileSink` 默认 `maxBytes` 10MB、`keepDays` 7 天、`minLevel` `info`，于是只有 `info.log` / `warn.log` / `error.log`，级联收录（`error.log` 只收 error）。要 `debug.log` 传 `minLevel: "debug"`。
 - 退出时顺序不能反：
 
