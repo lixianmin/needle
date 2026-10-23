@@ -96,6 +96,13 @@ export function newLogger(options = {}) {
             flush();
             return;
         }
+        // bugfix：batch:false 时 schedule() 什么都不做，原来的代码让 info 永远留在
+        // 缓冲里，只有 warn / error 才顺带冲出去（Workers 默认走这条路，等于丢日志）。
+        // 没有定时器兜底就得每条立刻写出。
+        if (!batch) {
+            flush();
+            return;
+        }
         schedule();
     }
     return {

@@ -12,7 +12,8 @@ function collector() {
   return { calls, sink };
 }
 
-const base = { flushIntervalMs: 0, batch: false } as const;
+// batch:true + flushIntervalMs:0 = 只手动 flush，不装定时器；其余用例靠它测缓冲语义。
+const base = { flushIntervalMs: 0, batch: true } as const;
 
 describe("newLogger", () => {
   test("记录先进缓冲，flush 后才交给 sink", () => {
@@ -197,5 +198,20 @@ describe("newLogger", () => {
 
     expect(calls[0]?.[0]?.msg).toBe("last");
     expect(() => logger.info("after")).not.toThrow();
+  });
+});
+
+describe("batch:false", () => {
+  // 关掉批量就没有定时器兜底，必须每条立刻写出；否则 info 会永远留在缓冲里，
+  // 只有 warn / error 能把它们顺带冲出去。Workers 上默认就是这条路径。
+  test("每条记录立刻写出，不等定时器", () => {
+    const { calls, sink } = collector();
+    const logger = newLogger({ ...base, batch: false, sinks: [sink] });
+
+    logger.info("a");
+    logger.info("b");
+
+    expect(calls.map((batch) => batch.map((record) => record.msg))).toEqual([["a"], ["b"]]);
+    logger.dispose();
   });
 });
