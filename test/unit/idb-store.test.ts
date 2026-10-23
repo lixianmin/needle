@@ -196,3 +196,97 @@ describe("review 修复回归", () => {
     expect(entries[0]?.modified).toBe(BASE_TIME + 900);
   });
 });
+
+describe("复审修复", () => {
+  /** 直接读原始库：绕过 store 自己的 close 守卫。 */
+  function rawAll(dbName: string): Promise<Array<Record<string, unknown>>> {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open(dbName);
+      request.onsuccess = () => {
+        const database = request.result;
+        const tx = database.transaction("records", "readonly");
+        const getAll = tx.objectStore("records").getAll();
+        getAll.onsuccess = () => {
+          database.close();
+          resolve(getAll.result as Array<Record<string, unknown>>);
+        };
+        getAll.onerror = () => reject(getAll.error);
+      };
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  test("业务字段 id 不与存储主键撞车，也不被吞掉", async () => {
+    const store = makeStore();
+    // 订单号是最常见的 id：同一条日志里出现两次不能互相覆盖
+    store([
+      { time: BASE_TIME, level: "info", msg: "order-a", id: "A-1" },
+      { time: BASE_TIME, level: "info", msg: "order-b", id: "A-1" },
+      { time: BASE_TIME, level: "info", msg: "order-c", id: "A-2" },
+    ]);
+
+    const lines = (await store.read("info.log"))?.split("\n") ?? [];
+    expect(lines.map(msgOf)).toEqual(["order-a", "order-b", "order-c"]);
+    const payload = JSON.parse(lines[0]?.slice((lines[0] ?? "").indexOf("] ") + 2) as string) as {
+      id: string;
+    };
+    expect(payload.id).toBe("A-1");
+  });
+
+  test("旧版（inline keyPath）库升级后 id 字段不再撞车", async () => {
+    const name = uniqueName();
+    // 造一个 v1 库：keyPath: "id" + autoIncrement（本次修复前的布局）
+    await new Promise<void>((resolve, reject) => {
+      const request = indexedDB.open(name, 1);
+      request.onupgradeneeded = () => {
+        const legacy = request.result.createObjectStore("records", { keyPath: "id", autoIncrement: true });
+        legacy.createIndex("by_time", "time");
+      };
+      request.onsuccess = () => {
+        request.result.close();
+        resolve();
+      };
+      request.onerror = () => reject(request.error);
+    });
+
+    const store = createIndexedDbStore({ name, now: () => BASE_TIME + DAY });
+    store([
+      { time: BASE_TIME, level: "info", msg: "a", id: "X" },
+      { time: BASE_TIME, level: "info", msg: "b", id: "X" },
+    ]);
+
+    const lines = (await store.read("info.log"))?.split("\n") ?? [];
+    expect(lines.map(msgOf)).toEqual(["a", "b"]);
+  });
+
+  test("close 之前排队的批次仍然落库（logger.dispose 的顺序）", async () => {
+    const name = uniqueName();
+    const store = createIndexedDbStore({ name, now: () => BASE_TIME + DAY });
+    // 模拟 logger.dispose：先 flush（sink 入队），紧接着 close
+    store([rec("info", "final")]);
+    store.close();
+
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const rows = await rawAll(name);
+    expect(rows.map((row) => row.msg)).toEqual(["final"]);
+  });
+
+  test("open 完成前 close 不会留下占着版本的连接", async () => {
+    const name = uniqueName();
+    const store = createIndexedDbStore({ name });
+    store.close(); // 此刻 open 还没完成
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    const upgraded = await new Promise<boolean>((resolve) => {
+      const request = indexedDB.open(name, 3);
+      request.onupgradeneeded = () => {};
+      request.onsuccess = () => {
+        request.result.close();
+        resolve(true);
+      };
+      request.onblocked = () => resolve(false);
+      request.onerror = () => resolve(false);
+    });
+    expect(upgraded).toBe(true);
+  });
+});

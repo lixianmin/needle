@@ -107,7 +107,8 @@ logger 的 `dispose()` 会调用 sink 的 `close()`（既有机制），store �
 
 ### 5.2 存储模型
 
-- 数据库：`needle-logs`（版本 1）。object store `records`：`keyPath: "id"`、`autoIncrement: true`；索引 `by_time` on `time`。
+- 数据库：`needle-logs`（**版本 2**）。object store `records`：**out-of-line 自增键**（不传 `keyPath`）、`autoIncrement: true`；索引 `by_time` on `time`。
+  - v1 曾用 `keyPath: "id"`，2026-10-23 复审发现 `id` 是最常见的业务字段，记录里的 `id` 会变成主键——同一订单 id 的两条日志互相覆盖、静默丢日志。v2 升级时删掉旧 store 重建（日志是易失数据，不写迁移）。
 - 记录存**原始 `LogRecord` 对象**（已是 JSON-safe，见 `src/logo/types.ts` 的记录契约），序列化成文本只在 `read` / sample 时做。
 - **写**：低于 `minLevel`（默认 "info"）的记录写入时丢弃——与 file sink 一致：低于级别的记录不落任何文件。其余收进单个 `readwrite` 事务连续 `put`、一次 commit。绝不逐条开事务。
 - **级联虚拟文件**：`info.log` / `warn.log` / `error.log`，语义与 file sink 一致——`warn.log` 含 warn+error，`error.log` 只含 error。写时不分桶（IDB 是一份流），读时按级别过滤。

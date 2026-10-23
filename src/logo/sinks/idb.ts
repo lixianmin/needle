@@ -19,6 +19,15 @@ const SAMPLE_LINE_MAX_CHARS = 200;
 const STORE_NAME = "records";
 const TIME_INDEX = "by_time";
 
+/**
+ * 库结构版本。
+ *
+ * v2 的起因：v1 用 `keyPath: "id"`（inline 键），而 `id` 是最常见的业务字段，
+ * 记录里的 `id` 会被当成主键——同一个订单 id 的两条日志互相覆盖，静默丢日志。
+ * 改成 out-of-line 键（不占用记录里的任何字段）。
+ */
+const DB_VERSION = 2;
+
 /** 级联虚拟文件候选（低 → 高），语义与 createFileSink 一致。 */
 const CASCADE_LEVELS: readonly Level[] = ["debug", "info", "warn", "error"];
 
@@ -102,6 +111,8 @@ export function createIndexedDbStore(options: IndexedDbStoreOptions = {}): LogSt
   let failed = false;
   let failureReported = false;
   let db: IDBDatabase | null = null;
+  /** 已入队、尚未执行完的写操作数：决定 open 完成时能不能立刻关连接。 */
+  let pending = 0;
 
   // 对齐 logo.ts 的 reportSinkError：只提示一次，刷屏比沉默更糟。
   function reportOnce(error: unknown): void {
@@ -120,12 +131,26 @@ export function createIndexedDbStore(options: IndexedDbStoreOptions = {}): LogSt
       resolve();
       return;
     }
-    const request = factory.open(name, 1);
+    const request = factory.open(name, DB_VERSION);
     request.onupgradeneeded = () => {
-      const store = request.result.createObjectStore(STORE_NAME, { keyPath: "id", autoIncrement: true });
+      const database = request.result;
+      // v1 的布局是 inline keyPath: "id"，重建掉——日志是易失数据，
+      // 为它写迁移拷贝不值当，而且旧数据正是可能有丢失的那批。
+      if (database.objectStoreNames.contains(STORE_NAME)) {
+        database.deleteObjectStore(STORE_NAME);
+      }
+      // 不传 keyPath：键与记录内容彻底分开，业务字段叫什么都不会撞车。
+      const store = database.createObjectStore(STORE_NAME, { autoIncrement: true });
       store.createIndex(TIME_INDEX, "time");
     };
     request.onsuccess = () => {
+      // 已经 close 且没排队工作：立刻关掉，别把连接留在手里——它会挡住
+      // 其它上下文的版本升级。还有排队工作就先留着，关连接排在队尾。
+      if (closed && pending === 0) {
+        request.result.close();
+        resolve();
+        return;
+      }
       db = request.result;
       resolve();
     };
@@ -144,15 +169,25 @@ export function createIndexedDbStore(options: IndexedDbStoreOptions = {}): LogSt
   let tail: Promise<void> = ready;
 
   function enqueue(op: (database: IDBDatabase) => Promise<void>): void {
+    // 关闭之后新来的批次丢弃；但**已排队**的必须写下去——logger.dispose 是
+    // 「先 flush（此时入队）再 close」，在这里判 closed 会把最后一批静默吞掉。
+    // 所以 closed 只在入队时刻检查一次，不在出队时再查。
+    if (closed) {
+      return;
+    }
+    pending += 1;
     tail = tail
       .then(() => {
-        if (closed || failed || db === null) {
+        if (failed || db === null) {
           return;
         }
         return op(db);
       })
       .catch((error: unknown) => {
         reportOnce(error);
+      })
+      .finally(() => {
+        pending -= 1;
       });
   }
 
@@ -170,8 +205,8 @@ export function createIndexedDbStore(options: IndexedDbStoreOptions = {}): LogSt
   async function readAll(database: IDBDatabase): Promise<LogRecord[]> {
     const tx = database.transaction(STORE_NAME, "readonly");
     const all = await awaitRequest(tx.objectStore(STORE_NAME).getAll() as IDBRequest<unknown[]>);
-    // keyPath+autoIncrement 会把生成的 id 注入存储值：剥掉，别让它漏进日志行
-    return (all as LogRecord[]).map(({ id, ...record }) => record);
+    // 键是 out-of-line 的，记录原样就是调用方给的那条，不需要剥任何字段。
+    return all as LogRecord[];
   }
 
   /** 与写同一事务的清理：过期按时间索引删，超限按主键（入库顺序）删最旧。 */
@@ -213,12 +248,17 @@ export function createIndexedDbStore(options: IndexedDbStoreOptions = {}): LogSt
     }
     enqueue(async (database) => {
       const tx = database.transaction(STORE_NAME, "readwrite");
+      // 完成监听要在事务还没提交时就挂上：事务一旦没有待处理请求就会提交，
+      // 干完活再挂可能错过 oncomplete，promise 永不落地会把整条 tail 链卡死。
+      const done = awaitTransaction(tx);
+      // 失败路径上不再 await done，先接住拒绝，免得变成 unhandled rejection。
+      done.catch(() => {});
       const store = tx.objectStore(STORE_NAME);
       for (const record of records) {
         store.put(record);
       }
       await prune(store);
-      await awaitTransaction(tx);
+      await done;
     });
   }) as LogStore;
 
@@ -266,9 +306,18 @@ export function createIndexedDbStore(options: IndexedDbStoreOptions = {}): LogSt
   }
 
   sink.close = (): void => {
+    if (closed) {
+      return;
+    }
     closed = true;
-    db?.close();
-    db = null;
+    // 关连接排在队列末尾：已入队的批次先落库。close() 是同步签名，
+    // 所以关连接顺着链走，不阻塞调用方。
+    tail = tail
+      .then(() => {
+        db?.close();
+        db = null;
+      })
+      .catch(() => {});
   };
 
   return sink;
