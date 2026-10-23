@@ -163,9 +163,9 @@ export function createFetchAdapter(options) {
             }
             if (!response.ok)
                 return { ok: false, error: await errorMessage(response) };
-            // 成功响应不加壳：命令输出直接在 body.output 里。
+            // 成功响应不加壳：命令输出直接在 body.data 里。
             const body = (await response.json());
-            return { ok: true, output: body.output };
+            return { ok: true, output: body.data };
         },
         async fetchFile(href) {
             const token = readToken();

@@ -40,11 +40,11 @@ describe("/exec 适配器", () => {
     const res = await handler(post(JSON.stringify({ line: "help" })));
 
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { output: { text: string } };
-    expect(body.output.text).toContain("auth");
-    expect(body.output.text).toContain("help");
-    expect(body.output.text).not.toContain("log.list");
-    expect(body.output.text).not.toContain("top");
+    const body = (await res.json()) as { data: { text: string } };
+    expect(body.data.text).toContain("auth");
+    expect(body.data.text).toContain("help");
+    expect(body.data.text).not.toContain("log.list");
+    expect(body.data.text).not.toContain("top");
   });
 
   test("未登录时自定义命令也是 401", async () => {
@@ -59,7 +59,7 @@ describe("/exec 适配器", () => {
     const res = await handler(post(JSON.stringify({ line: "hi" }), token));
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ output: { kind: "text", text: "hello" } });
+    expect(await res.json()).toEqual({ data: { kind: "text", text: "hello" } });
   });
 
   test("受限命令无 token 返回 401", async () => {

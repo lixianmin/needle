@@ -250,7 +250,7 @@ shell 把日志推到页面的**日志分栏**（§11），不进命令输出区
 POST /exec   { "line": "log.list" }
              + Authorization: Bearer <token>
 
-200  { "output": CommandOutput }
+200  { "data": CommandOutput }
 400  { "code": "bad_request", "message": "unknown command: foo" }
 401  { "code": "unauthorized", "message": "unauthorized" }
 ```

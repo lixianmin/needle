@@ -50,7 +50,7 @@ describe("Cloudflare Workers 兼容性", () => {
       body: JSON.stringify({ line: "help" }),
     });
     expect(res.status).toBe(200);
-    expect(((await res.json()) as { output?: unknown }).output).toBeDefined();
+    expect(((await res.json()) as { data?: unknown }).data).toBeDefined();
   });
 
   test("登录后 ps 报 workers 运行时（没有 perf_hooks）", async () => {
@@ -66,8 +66,8 @@ describe("Cloudflare Workers 兼容性", () => {
       headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
       body: JSON.stringify({ line: "top" }),
     });
-    const body = (await res.json()) as { output: { rows: Array<[string, string]> } };
-    const runtime = body.output.rows.find(([key]) => key === "runtime");
+    const body = (await res.json()) as { data: { rows: Array<[string, string]> } };
+    const runtime = body.data.rows.find(([key]) => key === "runtime");
     expect(runtime?.[1]).toBe("workers");
   });
 
