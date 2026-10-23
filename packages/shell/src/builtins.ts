@@ -4,7 +4,8 @@ import { CommandError } from "./commands.js";
 import type { Metrics } from "./metrics.js";
 import type { Auth } from "./auth.js";
 import type { LogFiles } from "@needle/logo";
-import type { Command, CommandContext, CommandOutput } from "./types.js";
+import type { Command, CommandContext, CommandOutput, LinkedCell } from "./types.js";
+import { table } from "./table.js";
 
 export interface BuiltinDeps {
   metrics: Metrics;
@@ -65,6 +66,12 @@ export function createHelpCommand(list: () => readonly Command[]): Command {
 }
 
 function createLogListCommand(deps: { logFiles?: LogFiles; basePath: string }): Command {
+  const filesTable = table<{ file: LinkedCell; size: number; modified: string }>({
+    file: {},
+    size: { format: "bytes" },
+    modified: {},
+  });
+
   return {
     name: "log.list",
     note: "列出日志文件（点文件名看全文）",
@@ -76,34 +83,28 @@ function createLogListCommand(deps: { logFiles?: LogFiles; basePath: string }): 
       const files = await deps.logFiles.list();
       if (files.length === 0) return { kind: "text", text: "日志目录里还没有文件" };
 
-      return {
-        kind: "table",
-        columns: ["file", "size", "modified"],
-        formats: ["auto", "bytes", "auto"],
-        rows: files.map((file) => [
-          {
-            text: file.name,
-            href: `${deps.basePath}/log/${encodeURIComponent(file.name)}`,
-          },
-          file.size,
-          formatTime(file.modified),
-        ]),
-      };
+      return filesTable.output(
+        files.map((file) => ({
+          file: { text: file.name, href: `${deps.basePath}/log/${encodeURIComponent(file.name)}` },
+          size: file.size,
+          modified: formatTime(file.modified),
+        })),
+      );
     },
   };
 }
 
 function createTopCommand(metrics: Metrics): Command {
+  const topTable = table<{ metric: string; value: string | number }>({ metric: {}, value: {} });
+
   return {
     name: "top",
     note: "看一眼进程指标（要持续刷就 sub top）",
     async run(): Promise<CommandOutput> {
       const snapshot = await metrics.read();
-      return {
-        kind: "table",
-        columns: ["metric", "value"],
-        rows: Object.entries(snapshot).map(([key, value]) => [key, formatMetric(key, value)]),
-      };
+      return topTable.output(
+        Object.entries(snapshot).map(([key, value]) => ({ metric: key, value: formatMetric(key, value) })),
+      );
     },
   };
 }

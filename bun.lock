@@ -5,6 +5,8 @@
     "": {
       "name": "@needle/logo",
       "devDependencies": {
+        "@needle/logo": "workspace:*",
+        "@needle/shell": "workspace:*",
         "@types/bun": "^1.4.3",
         "happy-dom": "^21.0.4",
         "miniflare": "^4.20260730.0",
@@ -13,13 +15,13 @@
     },
     "packages/logo": {
       "name": "@needle/logo",
-      "version": "0.2.15",
+      "version": "0.2.16",
     },
     "packages/shell": {
       "name": "@needle/shell",
-      "version": "0.2.15",
+      "version": "0.2.16",
       "dependencies": {
-        "@needle/logo": "workspace:*",
+        "@needle/logo": "^0.2.15",
       },
     },
   },

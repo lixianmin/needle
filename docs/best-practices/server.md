@@ -75,7 +75,7 @@ commands: [{
 
 - 查日志用 `log.list`（读 `logFiles` 指向的目录）：列出文件，点文件名看全文。
 - 输出只有 `text` / `table` / `json`。要人读的排成 `table`，要贴给别人的用 `json`。
-- 表格列可声明语义：`bytes` 走 `toHuman`（`36290560` → `34.61M`），`duration` 走 `formatDuration`（`57720` → `57.7s`），点表头按原始数值排序。
+- 表格用 `table<Row>({ col: { format } })` 定义：列顺序与显示语义写一次，之后每行一个对象，字段漏写/多写 `tsc` 会报错。`bytes` 走 `toHuman`（`36290560` → `34.61M`），`duration` 走 `formatDuration`（`57720` → `57.7s`），点表头按原始数值排序。
 - 超时默认 10 秒（`timeoutMs`），超了返回 `timeout`，不会把请求挂住。
 - 出错直接抛，适配器把消息回给控制台；想让服务端 stderr 也留一条，抛之前先 `logo.error`。
 - `topics` 供 `sub <name>` 订阅，默认有 `top`（进程指标）与 `mem`。给业务加一个 `queue` 主题，比让人反复敲命令省事。

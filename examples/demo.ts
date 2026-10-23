@@ -8,7 +8,7 @@
  */
 import { readFileSync } from "node:fs";
 
-import { createShell } from "../packages/shell/src/index.js";
+import { createShell, table } from "../packages/shell/src/index.js";
 import { CommandError } from "../packages/shell/src/commands.js";
 import { logo } from "../packages/logo/src/index.js";
 import { createFileSink, createLogFiles } from "../packages/logo/src/node/index.js";
@@ -30,6 +30,16 @@ const rooms = new Map<string, Record<string, unknown>>([
   ["102", { players: 0, owner: "bob", started: false }],
 ]);
 
+const roomsTable = table<{ id: string; state: string }>({ id: {}, state: {} });
+
+// formats 声明列语义：bytes 走 toHuman，number 不缩写
+const ioTable = table<{ path: string; reads: number; bytes: number; hitRate: number }>({
+  path: {},
+  reads: { format: "number" },
+  bytes: { format: "bytes" },
+  hitRate: { format: "number" },
+});
+
 const shell = createShell({
   logger: logo,
   basePath: "/shell",
@@ -44,10 +54,11 @@ const shell = createShell({
       args: "[id]",
       run: ({ args }) => {
         const id = args[0];
-        const rows = [...rooms.entries()]
-          .filter(([key]) => id === undefined || key === id)
-          .map(([key, value]) => [key, JSON.stringify(value)]);
-        return { kind: "table", columns: ["id", "state"], rows };
+        return roomsTable.output(
+          [...rooms.entries()]
+            .filter(([key]) => id === undefined || key === id)
+            .map(([key, value]) => ({ id: key, state: JSON.stringify(value) })),
+        );
       },
     },
     {
@@ -61,15 +72,12 @@ const shell = createShell({
     {
       name: "io",
       note: "演示表格排序与人话数字（点表头可排序）",
-      run: () => ({
-        kind: "table",
-        columns: ["path", "reads", "bytes", "hitRate"],
-        rows: [
-          ["/api/user", 1520, 3_600_000, 0.982],
-          ["/api/room", 84231, 128 * 1024 * 1024, 0.913],
-          ["/health", 12, 512, 1],
-        ],
-      }),
+      run: () =>
+        ioTable.output([
+          { path: "/api/user", reads: 1520, bytes: 3_600_000, hitRate: 0.982 },
+          { path: "/api/room", reads: 84231, bytes: 128 * 1024 * 1024, hitRate: 0.913 },
+          { path: "/health", reads: 12, bytes: 512, hitRate: 1 },
+        ]),
     },
     {
       name: "burst",
