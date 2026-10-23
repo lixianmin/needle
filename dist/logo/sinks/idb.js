@@ -81,12 +81,13 @@ export function createIndexedDbStore(options = {}) {
     /** 已入队、尚未执行完的写操作数：决定 open 完成时能不能立刻关连接。 */
     let pending = 0;
     // 对齐 logo.ts 的 reportSinkError：只提示一次，刷屏比沉默更糟。
+    // 文案不写死「日志不再落本机」：读失败、升级被挡也走这里，不一定意味着写不进去。
     function reportOnce(error) {
         if (failureReported) {
             return;
         }
         failureReported = true;
-        console.error("[logo] IndexedDB store 不可用，日志不再落本机:", error);
+        console.error("[logo] IndexedDB 日志存储出错（同类错误不再提示）:", error);
     }
     const ready = new Promise((resolve) => {
         const factory = globalThis.indexedDB;
