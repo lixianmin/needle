@@ -1,4 +1,4 @@
-import type { Logger } from "@needle/logo";
+import { type Logger } from "@needle/logo";
 import { type Auth } from "./auth.js";
 import { type Broadcast } from "./sse.js";
 import type { LogFiles } from "@needle/logo";
@@ -22,7 +22,11 @@ export type ExecResult = {
     error: string;
 };
 export interface ShellSourceOptions {
-    logger: Logger;
+    /**
+     * 日志来源。默认用 `@needle/logo` 的全局实例——全项目写同一个 logger 时，
+     * 右栏自然接管所有日志，不用一层层往下传。测试或需要独立配置时传自己的实例。
+     */
+    logger?: Logger;
     auth: AuthOptions;
     commands?: Command[];
     topics?: Topic[];
