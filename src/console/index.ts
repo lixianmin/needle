@@ -115,7 +115,8 @@ export function createConsole(options: ConsoleOptions): Console {
       if (disposed) return ResponseX.unavailable("console disposed");
 
       const found = router.match(req);
-      if (found === null) return ResponseX.notFound("not found");
+      // 消息里必须带方法与路径：只回 "not found" 等于没回，调用方无法判断是路径写错还是方法不对
+      if (found === null) return ResponseX.notFound(`未匹配的路由：${req.method} ${new URL(req.url).pathname}`);
 
       return found.handler({ req, url: found.url, params: found.params });
     },
