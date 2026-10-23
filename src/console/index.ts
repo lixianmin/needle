@@ -1,6 +1,6 @@
 import { createAuthRoute } from "./authenticate.js";
 import { createExecHandler } from "./exec.js";
-import { ResponseX } from "../core/web/response.js";
+import { ResponseX } from "../core/web/responsex.js";
 import { renderPage } from "./page.js";
 import { createRouter, normalizeBasePath, type Route, type RouteContext } from "./router.js";
 import { createConsoleSource, type ConsoleSource, type ConsoleSourceOptions } from "./source.js";

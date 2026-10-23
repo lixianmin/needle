@@ -1,4 +1,4 @@
-import { ResponseX } from "../core/web/response.js";
+import { ResponseX } from "../core/web/responsex.js";
 import type { ConsoleSource } from "./source.js";
 
 const DEFAULT_MAX_BODY_BYTES = 512;
