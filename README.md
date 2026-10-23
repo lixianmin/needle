@@ -2,7 +2,7 @@
 
 Web Shell，支持命令查看当前系统状态，如进程状态、业务数据等。
 
-零运行时依赖：只导入日志 1.6 KB，连 shell 15.7 KB（min+gzip，`bun run size` 可复现）。
+零运行时依赖：只导入日志 1.6 KB，连 shell 15.8 KB（min+gzip，`bun run size` 可复现）。
 
 ## 一、控制台（shell）
 
@@ -37,7 +37,7 @@ $ auth username
 
 ```ts
 import { logo } from "@needle/logo";
-import { createShell, type Command } from "@needle/shell";
+import { createShell, table, type Command } from "@needle/shell";
 
 // 你的业务数据
 const orders = new Map<string, Record<string, unknown>>();
@@ -49,16 +49,22 @@ const ping: Command = {
   run: () => ({ kind: "text", text: `pong ${new Date().toISOString()}` }),
 };
 
-// 2. 表格：列名 + 行数组；formats 与 columns 等长，声明每列的显示语义
+// 2. 表格：列定义一次（顺序、表头、显示语义），行对象按字段名填
+const ioTable = table<{ path: string; reads: number; bytes: number; hitRate: number }>({
+  path: {},
+  reads: { format: "number" },
+  bytes: { format: "bytes" },
+  hitRate: { format: "number" },
+});
+
 const io: Command = {
   name: "io",
   note: "按接口看流量",
-  run: () => ({
-    kind: "table",
-    columns: ["path", "reads", "bytes", "hitRate"],
-    rows: [["/api/user", 1520, 3_600_000, 0.982]],
-    formats: ["auto", "number", "bytes", "number"],
-  }),
+  run: () =>
+    ioTable.output([
+      { path: "/api/user", reads: 1520, bytes: 3_600_000, hitRate: 0.982 },
+      { path: "/health", reads: 12, bytes: 512, hitRate: 1 },
+    ]),
 };
 
 // 3. JSON：任意可序列化的值，适合嵌套结构或要贴给别人的结果

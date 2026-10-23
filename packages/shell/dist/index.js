@@ -122,6 +122,7 @@ export function createBrowserShell(options) {
     };
 }
 export { createShellSource } from "./source.js";
+export { table } from "./table.js";
 export { mountShell } from "./ui/view.js";
 export { createLocalAdapter } from "./ui/local.js";
 export { createFetchAdapter } from "./ui/fetch-adapter.js";

@@ -32,6 +32,8 @@ export declare function createBrowserShell(options: ShellSourceOptions & {
     dispose(): void;
 };
 export { createShellSource } from "./source.js";
+export { table } from "./table.js";
+export type { Column, TableOutput } from "./table.js";
 export { mountShell } from "./ui/view.js";
 export { createLocalAdapter } from "./ui/local.js";
 export { createFetchAdapter } from "./ui/fetch-adapter.js";
