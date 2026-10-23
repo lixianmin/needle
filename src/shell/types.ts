@@ -28,6 +28,8 @@ export type ColumnFormat = "auto" | "bytes" | "duration" | "number";
 export interface LinkedCell {
   text: string;
   href: string;
+  /** hover 提示：文件末尾几行的样本，纯文本（\n 换行）。缺省不渲染 tips。 */
+  tip?: string;
 }
 
 export type Cell = string | number | null | LinkedCell;

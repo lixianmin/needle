@@ -58,7 +58,17 @@ function tableCell(doc, value, index, formats, openFile) {
             event.preventDefault();
             openFile(value.href);
         });
-        cell.append(link);
+        if (value.tip === undefined) {
+            cell.append(link);
+        }
+        else {
+            // 样本只能走 textContent：日志内容里的 <script> 变成元素就是 XSS（GONSOLE 踩过）。
+            const wrap = el(doc, "span", "tips");
+            const tip = el(doc, "span", "tips_text");
+            tip.textContent = value.tip;
+            wrap.append(link, tip);
+            cell.append(wrap);
+        }
     }
     else {
         cell.textContent = renderValue(formats[index] ?? "auto", value);

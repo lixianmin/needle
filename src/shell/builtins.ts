@@ -98,7 +98,11 @@ function createLogListCommand(deps: { logFiles?: LogFiles; basePath: string }): 
 
       return filesTable.output(
         files.map((file) => ({
-          file: { text: file.name, href: `${deps.basePath}/log/${encodeURIComponent(file.name)}` },
+          file: {
+            text: file.name,
+            href: `${deps.basePath}/log/${encodeURIComponent(file.name)}`,
+            ...(file.sample ? { tip: file.sample } : {}),
+          },
           size: file.size,
           modified: formatTime(file.modified),
         })),
