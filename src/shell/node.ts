@@ -32,8 +32,7 @@ function toHeaders(req: IncomingMessage): Headers {
       for (const item of value) {
 headers.append(key, item);
 }
-    }
-    else {
+    } else {
       headers.set(key, value);
     }
   }

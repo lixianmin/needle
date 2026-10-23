@@ -62,11 +62,9 @@ export class SortedTable<K, V> implements Iterable<[K, V]> {
       const order = this.comparer(this.keys[mid] as K, key);
       if (order < 0) {
         low = mid + 1;
-      }
-      else if (order > 0) {
+      } else if (order > 0) {
         high = mid - 1;
-      }
-      else {
+      } else {
         return mid;
       }
     }

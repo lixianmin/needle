@@ -699,8 +699,7 @@ describe("焦点丢失时", () => {
     // 先恢复真实实现，再看 focus() 有没有生效（桩会一直返回 null）。
     if (original !== undefined) {
       Object.defineProperty(document, "activeElement", original);
-    }
-    else {
+    } else {
       delete (document as unknown as Record<string, unknown>).activeElement;
     }
 
