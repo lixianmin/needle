@@ -5,6 +5,13 @@ import { CommandError, findCommand, splitArgs } from "./commands.js";
 import { createMetrics } from "./metrics.js";
 import { createBroadcast } from "./sse.js";
 const DEFAULT_TIMEOUT_MS = 10_000;
+/**
+ * 未登录时只允许这两条：登录本身，和看用法。
+ *
+ * 其它命令一律 401——包括宿主注册的命令。日志、指标、业务状态都只该给
+ * 登录后的人看；「不登录也能跑」的开关（旧的 `public`）已经删掉。
+ */
+const ANONYMOUS_COMMANDS = new Set(["auth", "help"]);
 /** 指标命令与主题共用一次读取，避免同一秒内重复探测运行时。 */
 function createDefaultTopics(metrics) {
     return [
@@ -80,11 +87,16 @@ export function createShellSource(options) {
             return { ok: false, code: "unknown_command", error: `unknown command: ${name}` };
         }
         let user = localUser;
-        if (localUser === null && command.public !== true) {
+        if (localUser === null) {
             const verified = await auth.verify(token);
-            if (verified === null)
-                return { ok: false, code: "unauthorized", error: "unauthorized" };
-            user = verified.sub;
+            if (verified === null) {
+                if (!ANONYMOUS_COMMANDS.has(command.name)) {
+                    return { ok: false, code: "unauthorized", error: "unauthorized" };
+                }
+            }
+            else {
+                user = verified.sub;
+            }
         }
         return runCommand(command, args, user);
     }

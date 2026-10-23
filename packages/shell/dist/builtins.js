@@ -27,9 +27,9 @@ export function createHelpCommand(list) {
         note: "列出所有命令",
         // 由库提供，归到内置组。调用方自定义的 help 不会有这个标记。
         builtin: true,
-        public: true,
-        run() {
-            const all = list();
+        run(ctx) {
+            // 未登录只该看到能用的两条；登录后才是全量。
+            const all = ctx.user === null ? list().filter((command) => command.name === "auth" || command.name === "help") : list();
             const width = Math.max(...all.map((command) => command.name.length));
             const render = (command) => {
                 const signature = command.args ? `${command.name} ${command.args}` : command.name;
@@ -91,7 +91,6 @@ function createAuthCommand() {
         name: "auth",
         note: "登录：输入用户名后，下一步会提示输入密码",
         args: "<user>",
-        public: true,
         run(ctx) {
             const user = ctx.args[0];
             if (user === undefined) {
@@ -116,7 +115,6 @@ function createSubCommand(name) {
             ? "订阅主题（如 sub top 2000）"
             : "取消订阅（如 unsub top，留空取消全部）",
         args: name === "sub" ? "<topic> [interval-ms]" : "[topic]",
-        public: true,
         run() {
             throw new CommandError(`${name} 在控制台里用：订阅属于浏览器那条流，/exec 拿不到它`);
         },

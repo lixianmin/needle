@@ -19,16 +19,20 @@ export function createBroadcast() {
             if (connections.size === 0)
                 return;
             // 不过滤级别：logger 已经按自己的 level 过滤过了，这里原样转发。
-            for (const connection of connections) {
-                for (let start = 0; start < batch.length; start += MAX_LOG_FRAME) {
-                    const frame = batch.slice(start, start + MAX_LOG_FRAME);
+            for (let start = 0; start < batch.length; start += MAX_LOG_FRAME) {
+                const frame = batch.slice(start, start + MAX_LOG_FRAME);
+                // 编码一次、所有连接共用；连接多时这一条决定 CPU 是 O(1) 还是 O(N)。
+                const text = encodeEvent("log", frame);
+                for (const connection of connections) {
                     try {
-                        connection.send("log", frame);
+                        if (connection.sendText === undefined)
+                            connection.send("log", frame);
+                        else
+                            connection.sendText(text);
                     }
                     catch {
                         // 写不进去说明连接已经坏了，摘掉即可，不能让一条坏连接影响其他连接。
                         connections.delete(connection);
-                        break;
                     }
                 }
             }
@@ -117,6 +121,9 @@ export function createSseResponse(init) {
             const connection = {
                 send(event, data) {
                     write(encodeEvent(event, data));
+                },
+                sendText(text) {
+                    write(text);
                 },
                 close() {
                     if (closed)

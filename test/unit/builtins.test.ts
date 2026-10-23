@@ -79,10 +79,4 @@ describe("内置命令", () => {
     expect(findCommand(commands, "logout")).toBeUndefined();
   });
 
-  test("只有 auth/sub/unsub 可以匿名执行", () => {
-    const { commands } = setup();
-    const publicNames = commands.filter((command) => command.public).map((command) => command.name);
-    expect(publicNames.sort()).toEqual(["auth", "sub", "unsub"]);
-  });
-
 });

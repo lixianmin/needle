@@ -104,7 +104,7 @@ export function createFetchAdapter(options: FetchAdapterOptions): ShellAdapter {
       });
 
       if (response.status === 401) {
-        status("未登录：执行 auth <user> 登录后自动重连", "warn");
+        status("未登录：执行 auth <user> 登录；help 查看命令", "warn");
         return;
       }
       if (response.body === null) {

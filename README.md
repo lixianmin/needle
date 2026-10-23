@@ -8,7 +8,7 @@ Web Shell 控制台，支持命令查看当前系统状态，如进程状态、�
 
 ### 1. 登录（auth）
 
-配了 `auth.users` 之后，受限命令要先 `auth <用户名>` 登录（没配 users 时是匿名放开的）：
+配了 `auth.users` 之后，命令要先 `auth <用户名>` 登录；**未登录只有 `auth` 和 `help` 可用**，`help` 也只列这两条（没配 users 时是匿名放开的）：
 
 账号在 `createShell({ auth: { users } })` 里配：用户名 → 口令，想开几个就写几项，登录时 `auth <用户名>`。
 
@@ -49,7 +49,6 @@ const orders = new Map<string, Record<string, unknown>>();
 const ping: Command = {
   name: "ping",              // help 里显示的名字
   note: "确认 shell 还活着",  // help 里显示的说明
-  public: true,              // 不登录也能跑，留给 help 这类无副作用的命令
   run: () => ({ kind: "text", text: `pong ${new Date().toISOString()}` }),
 };
 
@@ -94,7 +93,7 @@ const order: Command = {
   args: "<id>",              // 只影响 help 里的用法提示；真实参数在 run 的 args 里
   run: async ({ args, user, log }) => {
     // args 按空白切开、不解析引号：`order 42` → ["42"]
-    // user 是跑这条命令的人；public 命令没登录时是 null
+    // user 是跑这条命令的人；未登录时只有 help 能跑，那时它是 null
     log.info("查看订单", { id: args[0], user });   // 写进业务日志；shell 开着时也会出现在右栏的日志 tab
 
     const found = orders.get(args[0]!);

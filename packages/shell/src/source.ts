@@ -10,6 +10,14 @@ import type { AuthOptions, Command, CommandOutput, Topic } from "./types.js";
 const DEFAULT_TIMEOUT_MS = 10_000;
 
 /**
+ * 未登录时只允许这两条：登录本身，和看用法。
+ *
+ * 其它命令一律 401——包括宿主注册的命令。日志、指标、业务状态都只该给
+ * 登录后的人看；「不登录也能跑」的开关（旧的 `public`）已经删掉。
+ */
+const ANONYMOUS_COMMANDS = new Set(["auth", "help"]);
+
+/**
  * 命令失败的原因。HTTP 适配器拿它选状态码；浏览器适配器只关心 unauthorized。
  */
 export type ExecFailureCode =
@@ -163,10 +171,15 @@ export function createShellSource(options: ShellSourceOptions): ShellSource {
     }
 
     let user: string | null = localUser;
-    if (localUser === null && command.public !== true) {
+    if (localUser === null) {
       const verified = await auth.verify(token);
-      if (verified === null) return { ok: false, code: "unauthorized", error: "unauthorized" };
-      user = verified.sub;
+      if (verified === null) {
+        if (!ANONYMOUS_COMMANDS.has(command.name)) {
+          return { ok: false, code: "unauthorized", error: "unauthorized" };
+        }
+      } else {
+        user = verified.sub;
+      }
     }
 
     return runCommand(command, args, user);
