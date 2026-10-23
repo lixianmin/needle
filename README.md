@@ -2,13 +2,13 @@
 
 Web Shell 控制台，支持命令查看当前系统状态，如进程状态、业务数据等。
 
-零运行时依赖：只导入日志 1.6 KB，连 shell 15.8 KB（min+gzip，`bun run size` 可复现）。
+零运行时依赖：只导入日志 1.6 KB，连 shell 20.4 KB（min+gzip，`bun run size` 可复现）。
 
 ## 一、控制台（shell）
 
 ### 1. 登录（auth）
 
-完整的 shell 功能需要先使用`auth`命令登录：
+配了 `auth.users` 之后，受限命令要先 `auth <用户名>` 登录（没配 users 时是匿名放开的）：
 
 账号在 `createShell({ auth: { users } })` 里配：用户名 → 口令，想开几个就写几项，登录时 `auth <用户名>`。
 
@@ -31,15 +31,16 @@ $ auth username
 | `top` | 打一份进程指标快照 |
 | `sub` / `unsub` | 订阅 / 取消订阅主题，如 `sub top 2000` |
 
-查历史日志用 `log.list`：它列出磁盘上的日志文件，点文件名看全文。右栏还会实时显示日志，但只在 shell 打开时存在。
+`log.list` 读的是磁盘文件（Node 侧要传 `logFiles`），看的是历史；右栏是实时日志，只在 shell 打开时存在，刷新即空。
 
 ### 3. 自定义命令
 
 命令写在 `createShell({ commands: [...] })` 里，`run` 拿到的上下文是 `{ args, user, log }`，返回 `text` / `table` / `json` 三种形态之一。下面是装好三个命令的完整文件：
 
 ```ts
-import { logo } from "@needle/logo";
+import { createLogFiles } from "@needle/logo/node";
 import { createShell, table, type Command } from "@needle/shell";
+import { serve } from "@needle/shell/node";
 
 // 命令在进程内执行，直接读它就行，不用先把状态打进日志
 const orders = new Map<string, Record<string, unknown>>();
@@ -103,7 +104,6 @@ const order: Command = {
 };
 
 export const shell = createShell({
-  logger: logo,              // 命令里的 log 就是这个实例
   basePath: "/shell",
   auth: {
     // 用户名 → 口令。想开几个账号就写几项，比如 { alice: "...", bob: "..." }
@@ -112,8 +112,13 @@ export const shell = createShell({
     secret: process.env.CONSOLE_SECRET!,
   },
   timeoutMs: 10_000,         // 命令超时，超了返回 timeout；默认 10 秒
+  logFiles: createLogFiles({ dir: "logs" }),   // 不传的话 log.list 会报"没有配置日志目录"
   commands: [ping, routes, order],
+  // 不传 logger 时，命令里的 log 就是 @needle/logo 的全局 logo 实例
 });
+
+const server = await serve(shell.handler, { port: 3000 });
+// 控制台: http://127.0.0.1:3000/shell
 ```
 
 ## 二、日志（logo）
@@ -134,6 +139,7 @@ logo.info("order created", { orderId: 42 });
 // 打印：2026-10-23T10:50:43 [I] {"orderId":42,"msg":"order created"}
 // sink 收到：{"orderId":42,"time":1758991234567,"level":"info","msg":"order created"}
 
+const err = new Error("card declined");
 logo.error("paid failed", err, { userId: 7 });
 // Error 展开成 message + stack
 ```
@@ -158,7 +164,7 @@ process.on("SIGTERM", () => logo.dispose());                                    
 | 平台 | 控制台形态 | 文件 sink | 细节 |
 |---|---|---|---|
 | 服务端 Node / Bun | HTTP + SSE | 有 | [server.md](docs/best-practices/server.md) |
-| Cloudflare Workers | HTTP + SSE | 无 | [server.md](docs/best-practices/server.md) |
+| Cloudflare Workers | HTTP + SSE | 无 | [workers.md](docs/deploy/workers.md) |
 | Chrome 扩展（MV3） | DOM 面板 | 无 | [chrome-extension.md](docs/best-practices/chrome-extension.md) |
 | 浏览器纯前端页 | DOM 面板 | 无 | [browser-client.md](docs/best-practices/browser-client.md) |
 
@@ -225,7 +231,7 @@ bun server.ts
 ### 2. 测试
 
 ```bash
-# 运行以下命令
+cd ~/needle                 # demo 在仓库里
 # 打开 http://127.0.0.1:1234/shell
 # 使用 auth xmli 登录，密码 123456
 # 使用 help 查看命令列表
@@ -237,7 +243,10 @@ bun examples/demo.ts
 ### 3. 开发
 
 ```bash
-git clone https://github.com/lixianmin/needle.git
+cd ~/needle                 # 已经在 §四.1 克隆过
+bun install
+bun test                    # 全部用例
+bunx tsc --noEmit           # 类型检查
 
 # `dist/` 随源码一起提交，这样 git 依赖不需要构建步骤就能用。
 # 每次提交都会自动重建 `dist/` 并 stage 进同一个 commit。
