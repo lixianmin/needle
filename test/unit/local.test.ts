@@ -142,3 +142,19 @@ describe("fetchFile 读取本机日志", () => {
     expect(result).toEqual({ ok: true, text: "内容" });
   });
 });
+
+describe("fetchFile 与 basePath 同口径", () => {
+  test("带 basePath 前缀的 /log/ 链接也能读", async () => {
+    const logger = newLogger({ flushIntervalMs: 0, batch: false });
+    const source = createShellSource({
+      logger,
+      auth: { users: {} },
+      user: "local-dev",
+      basePath: "/shell",
+      logFiles: { list: async () => [], read: async (name: string) => (name === "info.log" ? "内容" : null) },
+    });
+    const adapter = createLocalAdapter(source);
+    const result = await adapter.fetchFile("/shell/log/info.log");
+    expect(result).toEqual({ ok: true, text: "内容" });
+  });
+});
