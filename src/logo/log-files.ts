@@ -2,7 +2,7 @@ import { constants } from "node:fs";
 import { lstat, open, readdir } from "node:fs/promises";
 import { join, resolve, sep } from "node:path";
 
-import type { LogFileEntry, LogFiles } from "../logo/types.js";
+import type { LogFileEntry, LogFiles } from "./types.js";
 
 export interface LogFilesOptions {
   /** 日志目录，相对路径按进程 cwd 解析。 */

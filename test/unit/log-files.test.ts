@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { createLogFiles } from "../../src/node/log-files.js";
+import { createLogFiles } from "../../src/logo/log-files.js";
 
 const dirs: string[] = [];
 
