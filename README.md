@@ -164,6 +164,23 @@ logo.addSink(createLarkSink({ webhook: process.env.LARK_HOOK!, minLevel: "error"
 process.on("SIGTERM", () => logo.dispose());                                         // 退出前冲缓冲区
 ```
 
+### 3. 常见坑
+
+以下都在 0.2.34 的 dist 上实测过，按「现象 → 怎么办」写。
+
+- **记录里没有 `message`，字段叫 `msg`。** 只有传 `Error` 时才会出现 `message`（展开成 `message` + `stack`）；普通日志判正文用 `msg`。
+- **`time` / `level` 不在打印出来的 JSON 里。** 落盘行是 `2026-10-23T10:50:43 [I] {…}`：时间与级别只在前缀；记录的 `time` 是 **epoch 毫秒数字**。时间固定 `+08:00`，与机器 `TZ` 无关。
+- **默认只有 `error` 带 `stack`。** `stackLevel` 默认 `"error"`（0.2.2x 起；更早版本是 `"warn"`）：`warn` 记录没有 stack，要就给 `newLogger({ stackLevel: "warn" })`。传 `Error` 时用的是 Error 自己的栈（抛出点）。
+- **`info` 默认攒批（100ms）。** 测试里断言 sink 之前先 `flush()`；`warn` / `error` 立即写出并把积压一起带出去。`batch: false`（Workers 默认）时每条立即写，没有定时器兜底。
+- **Node 里 spy `console.log` 抓不到日志。** 有 `process.stdout.write` 时 stdout sink 直接写 stdout。要断言就 `addSink` 自己的函数。
+- **`logo` 没有 `name`。** 记录里就没有 `name` 字段；`newLogger({ name })` 与 `child({ name })` 才有。想按来源过滤就自己加业务字段。
+- **信封字段会被丢弃。** `info("x", { level: "error", time: 1, msg: "fake", name: "y" })` 记成 `{level:"info", msg:"x", time:<now>}`——业务对象伪造不了 `time` / `level` / `msg` / `name`。
+- **非纯对象进 `msg`，不进字段。** 数组、`Date`、`Map`、类实例都会序列化后拼进 `msg`；要可查询的字段就传纯对象。
+- **`child()` 会快照 sink。** 建 child 之后再给父级 `addSink`，子实例收不到。要统一落点就在启动早期建 child，或直接给 child 挂。
+- **`dispose()` 之后日志静默丢弃。** 父级 dispose 连子级一起停（共用状态）；退出前调一次即可，别在长生命周期进程里早调。
+- **`./node` 不能进浏览器 / Workers 打包。** 它专放 `node:` 能力（文件 sink、日志目录、HTTP 服务），根入口 `.` 与 `./shell` 不碰 `node:`。
+- **git 依赖不会自己跟 main。** lockfile 钉住 sha 后 `bun install` 不会动，升级要 `bun update @needle/needle`。两方 spec 不同但解析到同一 sha 时只装一份（bun 按解析结果去重）；不同 sha 才是两份副本——那时 `logo` 会变成两个对象，各自的 sink 互不可见。
+
 
 
 ## 三、平台支持
