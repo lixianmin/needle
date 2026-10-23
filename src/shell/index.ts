@@ -64,7 +64,8 @@ export function createShell(options: ShellOptions): Shell {
   }
 
   async function logRoute({ req, params }: RouteContext): Promise<Response> {
-    if ((await resolveUser(req)) === null) return ResponseX.unauthorized("未登录或 token 无效");
+    const user = await resolveUser(req);
+    if (user === null) return ResponseX.unauthorized("未登录或 token 无效");
 
     const body = await source.logFiles?.read(params.name ?? "");
     if (body === null || body === undefined) return ResponseX.notFound("日志文件不存在");
