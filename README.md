@@ -6,7 +6,7 @@ Web 控制台（console/shell），可输入命令查看当前系统状态，如
 
 ## 一、控制台（console）
 
-### 先登录
+### 1. 登录（auth）
 
 完整的控制台功能需要先使用`auth`命令登录：
 
@@ -17,7 +17,7 @@ $ auth username
 
 
 
-### 能敲哪些命令
+### 2. 命令列表（help）
 
 `help` 列出全部命令——包括你自己注册的，Tab 补全的候选也来自同一张表。内置的几条：
 
@@ -33,17 +33,61 @@ $ auth username
 
 ### 你自己的命令
 
-命令就是一个注册进去的函数，返回值决定渲染方式：
+命令写在 `createConsole({ commands: [...] })` 里，`run` 拿到的上下文是 `{ args, user, log }`，返回三种形态之一。
 
-| 返回 | 渲染成 |
-|---|---|
-| `{ kind: "text", text }` | 一段纯文本 |
-| `{ kind: "table", columns, rows }` | 表格，点表头按原始数值排序 |
-| `{ kind: "json", value }` | 格式化 JSON |
+**纯文本**：返回一段字符串。
 
-表格列可以声明语义：`bytes` 走 `toHuman`（`36290560` → `34.61M`），`duration` 走 `formatDuration`（`57720` → `57.7s`），`number` 不缩写。
+```ts
+{
+  name: "ping",
+  note: "确认控制台还活着",
+  run: () => ({ kind: "text", text: `pong ${new Date().toISOString()}` }),
+}
+```
 
-命令在进程内执行，所以能直接读内存里的状态——订单表、连接池、队列长度，不用先为它打一条日志。默认超时 10 秒，超了返回 `timeout`，不会把请求挂住。
+**表格**：列名 + 行数组。每行是 `Cell[]`，即 `string | number | null | { text, href }`；带 `href` 的单元格渲染成链接，`log.list` 就是这么做的。
+
+```ts
+{
+  name: "order",
+  note: "按 id 看订单",
+  args: "<id>",
+  run: async ({ args }) => {
+    const order = await orders.get(args[0]!);
+    if (order === undefined) throw new Error(`没有订单 ${args[0]}`);
+    return {
+      kind: "table",
+      columns: ["field", "value"],
+      rows: Object.entries(order).map(([field, value]) => [field, JSON.stringify(value) ?? ""]),
+    };
+  },
+}
+```
+
+列可以声明语义，`formats` 与 `columns` 等长：`"bytes"` 走 `toHuman`（`36290560` → `34.61M`），`"duration"` 把数字当毫秒（`57720` → `57.7s`），`"number"` 不缩写，省略按 `auto`。点表头按原始数值排序。
+
+```ts
+{ kind: "table", columns: ["path", "reads", "bytes", "hitRate"], rows, formats: ["auto", "number", "bytes", "number"] }
+```
+
+**JSON**：返回任意可序列化的值，适合嵌套结构，或要贴给别人的结果。
+
+```ts
+{
+  name: "config",
+  note: "当前生效的配置（已脱敏）",
+  run: () => ({ kind: "json", value: redact(config) }),
+}
+```
+
+细节：
+
+- `args` 是按空白切开的数组，不做引号解析：`order 42` → `["42"]`。字段 `args: "<id>"` 只影响 `help` 里的用法显示。
+- `user` 是当前登录名（本地模式是配置里的 `user`），可以按人返回不同结果。
+- `log` 是控制台用的那个 logger，命令里要留痕就用它。
+- 命令在进程内执行，能直接读内存状态——订单表、连接池、队列长度，不用先为它打一条日志。
+- 抛错会作为命令失败回显给控制台；默认 10 秒超时（`timeoutMs`），超了返回 `timeout`，不会把请求挂住。
+- `public: true` 让命令不登录也能跑，留给 `help` 这类无副作用的；默认 false。
 
 ## 二、日志模块
 
