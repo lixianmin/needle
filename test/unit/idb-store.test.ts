@@ -359,3 +359,18 @@ describe("版本升级让路", () => {
     expect(lines.map(msgOf)).toEqual(["guest", "after-null"]);
   });
 });
+
+describe("脏记录隔离", () => {
+  test("单条不可克隆的记录不会拖累同批其它记录", async () => {
+    const store = makeStore();
+    store([
+      { time: BASE_TIME, level: "info", msg: "before" },
+      // 函数值不可结构化克隆：put 会同步抛 DataCloneError
+      { time: BASE_TIME, level: "info", msg: "poison", bad: () => {} },
+      { time: BASE_TIME, level: "info", msg: "after" },
+    ]);
+
+    const lines = (await store.read("info.log"))?.split("\n") ?? [];
+    expect(lines.map(msgOf)).toEqual(["before", "after"]);
+  });
+});
