@@ -1,6 +1,18 @@
 # Chrome 扩展
 
-能用。扩展页面（side panel / devtools / options）里可以挂一块 DOM 面板：命令在你自己的扩展代码里执行，日志进该页面的 DevTools。也可以让面板连另一台机器上的控制台，那边的命令在远端跑。
+能用。扩展自己的页面里可以挂一块 DOM 面板：命令在你自己的扩展代码里执行，日志进该页面的 DevTools。也可以让面板连另一台机器上的控制台，那边的命令在远端跑。
+
+## 术语
+
+Chrome 扩展的代码跑在几个互不相同的上下文里，先把名字对上：
+
+| 术语 | 是什么 |
+|---|---|
+| manifest v3（MV3） | 扩展清单的格式版本，Chrome 商店现在只收 v3 |
+| 扩展页面 | 扩展自己的 HTML 页面：side panel（浏览器侧边栏）、devtools（开发者工具里的面板）、options（扩展设置页） |
+| service worker | 扩展的后台脚本，没有界面，空闲约 30 秒会被回收 |
+| content script | 注入到普通网页里跑的脚本，和宿主页共用一个 DOM |
+| popup | 点扩展图标弹出的小窗，一失焦就销毁 |
 
 | 用法 | 入口 | 命令在哪跑 | 日志去哪 |
 |---|---|---|---|
@@ -42,9 +54,9 @@ const panel = createBrowserShell({
 
 popup 别用——popup 一失焦就销毁，面板和历史一起没了。
 
-### MV3 的 CSP 挡不住它
+### 扩展页面的 CSP 挡不住它
 
-MV3 扩展页面默认 CSP 只限制 `script-src` 与 `object-src`。面板 UI 全程 `document.createElement`，样式是往 `head` 塞一个 `<style>` 元素，没有内联 `onclick`、没有 `eval`、没有远程脚本，所以 side panel / devtools / options 直接能用。
+扩展页面的默认 CSP 只限制 `script-src` 与 `object-src`（manifest v3 起收紧的）。面板 UI 全程 `document.createElement`，样式是往 `head` 塞一个 `<style>` 元素，没有内联 `onclick`、没有 `eval`、没有远程脚本，所以 side panel / devtools / options 直接能用。
 
 反过来说：**不要为了挂面板去改 `content_security_policy`**。真要放宽，说明代码里用了 `eval` 或内联脚本，那是修代码。
 
