@@ -1,16 +1,16 @@
 # 服务端
 
-控制台和日志在这里都是全功能。唯一的差别是 runtime 有没有文件系统：
+控制台和日志在这里都能用，区别只有一件事：runtime 有没有文件系统。
 
-| 跑在 | 控制台 | 文件 sink | 日志视图 |
-|---|---|---|---|
-| Node（`@hono/node-server`） | HTTP + SSE | 有 | 全进程 |
-| Bun（`Bun.serve({ fetch: app.fetch })`） | HTTP + SSE | 有 | 全进程 |
-| Cloudflare Workers | HTTP + SSE | 无 | 仅当前 isolate |
+| runtime | 文件 sink |
+|---|---|
+| Node（`@hono/node-server`） | 有 |
+| Bun（`Bun.serve({ fetch: app.fetch })`） | 有 |
+| Cloudflare Workers | 无 |
 
-下文以 Hono 为例；Express / Fastify / 裸 `node:http` 见最后一节。
+三种 runtime 的控制台挂法相同，都是两条 `app.all`。下文以 Hono 为例；Express / Fastify / 裸 `node:http` 见最后一节。
 
-## 控制台
+## 一、控制台
 
 ### 接线
 
@@ -55,7 +55,7 @@ const server = serve({ fetch: app.fetch, port: 3000 });
 | `auth: { users: {} }, user: "local"` | 跳过 token，谁打开页面就是谁 | 只绑 `127.0.0.1` 的本机进程 |
 
 - **`secret` 必须显式传且来自环境变量。** 不传就随机生成，重启后所有已签发 token 失效；多进程共享登录态也要求同一个 secret。
-- **绑 `0.0.0.0` / 局域网 / 公网时不能用 `user` 开关。** 那个开关的前提是「能打开页面的人本来就能碰这个进程」；绑非回环地址时前提不成立，同网段任何设备都能读全部日志、执行命令。
+- **绑 `0.0.0.0` / 局域网 / 公网时不能用 `user` 开关。** 那个开关的前提是「能打开页面的人本来就能碰这个进程」；绑非回环地址时前提不成立，同网段任何设备都能执行命令、读日志文件。
 - **`users` 留空不等于免登录，等于谁都登不进去。** `login()` 恒返回 null，页面能开，但非 public 命令全是 401。
 - token 是 HMAC-SHA256，默认 12 小时（`auth.ttlMs`）。口令走独立的 `POST /auth`（请求体上限 512 字节），所以密码不进命令行、不进历史；绕过 UI 直接 `POST /exec` 发 `auth ops 密码` 会被拒掉。
 
@@ -72,21 +72,21 @@ commands: [{
 }]
 ```
 
-- 查日志用 `log.list`（读 `logFiles` 指向的目录），别指望页面里的实时滚动：只有最近 500 行，量大就淹，也不留档。
+- 查日志用 `log.list`（读 `logFiles` 指向的目录）：列出文件，点文件名看全文。
 - 输出只有 `text` / `table` / `json`。要人读的排成 `table`，要贴给别人的用 `json`。
 - 表格列可声明语义：`bytes` 走 `toHuman`（`36290560` → `34.61M`），`duration` 走 `formatDuration`（`57720` → `57.7s`），点表头按原始数值排序。
 - 超时默认 10 秒（`timeoutMs`），超了返回 `timeout`，不会把请求挂住。
 - 出错直接抛，适配器把消息回给控制台；想让服务端 stderr 也留一条，抛之前先 `logo.error`。
 - `topics` 供 `sub <name>` 订阅，默认有 `top`（进程指标）与 `mem`。给业务加一个 `queue` 主题，比让人反复敲命令省事。
 
-## 日志
+## 二、日志
 
 ### 初始化
 
 默认实例够用时，直接用：
 
 ```ts
-import { logo, createLarkSink } from "@needle/logo";
+import { createLarkSink, logo } from "@needle/logo";
 import { createFileSink } from "@needle/logo/node";
 
 logo.info("order created", { orderId: 42 });
@@ -107,7 +107,7 @@ const log = newLogger({ name: "order-service", level: "info", sinks: [createFile
 - 默认级别 `info`，`debug` 要 `setLevel("debug")` 才出来。
 - `createFileSink` 默认 `maxBytes` 10MB、`keepDays` 7 天、`minLevel` `info`，于是只有 `info.log` / `warn.log` / `error.log`，级联收录（`error.log` 只收 error）。要 `debug.log` 传 `minLevel: "debug"`。
 - `createLogFiles({ dir })` 的目录必须与 file sink 的 `dir` 相同，否则 `log.list` 列的是另一个空目录。
-- 只记日志、不要控制台时，只 import `@needle/logo`（2.7 KB），别碰 `./console`。
+- 只记日志、不要控制台时，从默认入口只 import `logo`：打包器会把控制台 tree-shake 掉（1.6 KB）。
 
 ### 退出
 
@@ -132,7 +132,7 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
 控制台和日志都能跑，不用改代码、不需要 Durable Object，但有三处与 Node 不同（展开见 [../deploy/workers.md](../deploy/workers.md)）：
 
 - **`auth.secret` 必须固定。** isolate 会被回收重建，随机 secret 表现为「刚登录完又要登录」。
-- **没有文件系统。** 不传 `logFiles`，`log.list` 用不了；日志视图只覆盖当前 isolate，跨 isolate 要 Durable Object 或 Logpush。
+- **没有文件系统。** `createFileSink` 不可用，`logFiles` 也不需要传，`log.list` 没有目录可读；要跨实例归档日志就接 Logpush 或外部收集。
 - **批量刷新自动关闭。** 响应返回后未触发的定时器可能被取消，库探测不到可同步写的 stdout 时改为逐条立即写出（等价 `batch: false`），不用手配。
 
 ## 别的 HTTP 框架
