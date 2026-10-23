@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
 
-import { createShell, type Shell } from "../../src/shell/index.js";
-import { newLogger } from "../../src/core/logo/logo.js";
-import { ResponseX } from "../../src/core/web/responsex.js";
+import { createShell, type Shell } from "../../packages/shell/src/index.js";
+import { newLogger } from "../../packages/logo/src/logo/logo.js";
+import { ResponseX } from "../../packages/shell/src/web/responsex.js";
 import { TEST_VERSION } from "../fixtures.js";
 
 /**

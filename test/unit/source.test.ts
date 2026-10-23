@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
 
-import { createShellSource } from "../../src/shell/source.js";
-import { newLogger } from "../../src/core/logo/logo.js";
-import type { Command, Topic } from "../../src/shell/types.js";
+import { createShellSource } from "../../packages/shell/src/source.js";
+import { newLogger } from "../../packages/logo/src/logo/logo.js";
+import type { Command, Topic } from "../../packages/shell/src/types.js";
 
 const auth = { users: { admin: "secret" }, secret: "unit-test-secret" };
 

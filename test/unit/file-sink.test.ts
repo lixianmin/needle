@@ -3,8 +3,8 @@ import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { createFileSink } from "../../src/core/logo/sinks/file.js";
-import type { Level, LogRecord } from "../../src/core/logo/types.js";
+import { createFileSink } from "../../packages/logo/src/logo/sinks/file.js";
+import type { Level, LogRecord } from "../../packages/logo/src/logo/types.js";
 
 const dirs: string[] = [];
 

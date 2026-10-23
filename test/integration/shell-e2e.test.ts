@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
 
-import { createShell } from "../../src/shell/index.js";
-import { newLogger } from "../../src/core/logo/logo.js";
-import { serve } from "../../src/node/serve.js";
+import { createShell } from "../../packages/shell/src/index.js";
+import { newLogger } from "../../packages/logo/src/logo/logo.js";
+import { serve } from "../../packages/shell/src/node.js";
 import { TEST_VERSION } from "../fixtures.js";
 
 /**

@@ -4,8 +4,8 @@ import {
   createBroadcast,
   createSseResponse,
   parseTopicSpecs,
-} from "../../src/shell/sse.js";
-import type { Command, Topic } from "../../src/shell/types.js";
+} from "../../packages/shell/src/sse.js";
+import type { Command, Topic } from "../../packages/shell/src/types.js";
 import { TEST_VERSION } from "../fixtures.js";
 
 const commands: Command[] = [

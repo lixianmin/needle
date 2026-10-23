@@ -8,10 +8,11 @@
  */
 import { readFileSync } from "node:fs";
 
-import { createShell } from "../src/shell/index.js";
-import { CommandError } from "../src/shell/commands.js";
-import { logo } from "../src/core/index.js";
-import { createFileSink, createLogFiles, serve } from "../src/node/index.js";
+import { createShell } from "../packages/shell/src/index.js";
+import { CommandError } from "../packages/shell/src/commands.js";
+import { logo } from "../packages/logo/src/index.js";
+import { createFileSink, createLogFiles } from "../packages/logo/src/node/index.js";
+import { serve } from "../packages/shell/src/node.js";
 
 // 版本号的唯一来源是 package.json（AGENTS.md §14），别在这里硬编码。
 const pkg = JSON.parse(
@@ -91,7 +92,7 @@ const shell = createShell({
   ],
 });
 
-const server = await serve((req) => {
+const server = await serve(async (req) => {
   const { pathname } = new URL(req.url);
   if (pathname === "/" || pathname.startsWith("/shell")) return shell.handler(req);
   return new Response("这是你的业务服务。控制台在 /shell\n");

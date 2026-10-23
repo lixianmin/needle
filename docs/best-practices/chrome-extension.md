@@ -16,7 +16,8 @@
 
 ```ts
 // sidepanel.ts
-import { createBrowserShell, logo } from "@needle/logo";
+import { logo } from "@needle/logo";
+import { createBrowserShell } from "@needle/shell";
 
 const panel = createBrowserShell({
   logger: logo,
@@ -41,7 +42,7 @@ const panel = createBrowserShell({
 面板也可以连另一个服务端托管的控制台（比如开发机上那台），这时换 fetch 适配器，鉴权重新有意义：
 
 ```ts
-import { createFetchAdapter, mountShell } from "@needle/logo";
+import { createFetchAdapter, mountShell } from "@needle/shell";
 
 const view = mountShell(
   document.getElementById("shell")!,

@@ -8,7 +8,7 @@ import { writeFileSync } from "node:fs";
  * 一份源码、两种产物，比写两套 UI 靠谱。
  */
 const result = await Bun.build({
-  entrypoints: ["src/shell/ui/app.ts"],
+  entrypoints: ["packages/shell/src/ui/app.ts"],
   target: "browser",
   format: "iife",
   minify: true,
@@ -26,7 +26,7 @@ if (output === undefined) {
 }
 
 const text = await output.text();
-const target = "src/shell/ui/script.generated.ts";
+const target = "packages/shell/src/ui/script.generated.ts";
 writeFileSync(
   target,
   `// 由 scripts/build-ui.mjs 生成，请勿手改。改 UI 请改 src/shell/ui/ 下的源码后重跑。\nexport const UI_SCRIPT = ${JSON.stringify(text)};\n`,

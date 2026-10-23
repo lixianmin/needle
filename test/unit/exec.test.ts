@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
 
-import { createShellSource } from "../../src/shell/source.js";
-import { createExecHandler } from "../../src/shell/exec.js";
-import { newLogger } from "../../src/core/logo/logo.js";
+import { createShellSource } from "../../packages/shell/src/source.js";
+import { createExecHandler } from "../../packages/shell/src/exec.js";
+import { newLogger } from "../../packages/logo/src/logo/logo.js";
 
 function setup(timeoutMs = 20) {
   const logger = newLogger({ flushIntervalMs: 0, batch: false });
