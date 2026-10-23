@@ -60,6 +60,18 @@ export const STYLE = `
 .logo-shell table.grid tbody tr:last-child td { border-bottom: 0; }
 .logo-shell table.grid tbody tr:nth-child(even) { background: rgba(147,161,161,0.04); }
 .logo-shell table.grid tbody tr:hover { background: rgba(38,139,210,0.12); }
+
+/* 文件名 hover 的末尾样本提示：结构与 GONSOLE 同款，配色走 Solarized 变量 */
+.logo-shell .tips { position: relative; display: inline-block; }
+.logo-shell .tips .tips_text {
+  /* 纯文本样本，\n 换行要保留 */
+  visibility: hidden; white-space: pre-wrap;
+  position: absolute; z-index: 1; top: -5px; left: 105%;
+  min-width: 280px; max-width: 560px;
+  background: var(--bg-alt); color: var(--text-strong);
+  border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px;
+}
+.logo-shell .tips:hover .tips_text { visibility: visible; }
 .logo-shell .raw { color: var(--text-strong); }
 /* 左右两栏：左栏执行区，右栏日志 / 主题 */
 .logo-shell { position: relative; }

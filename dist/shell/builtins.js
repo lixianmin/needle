@@ -74,7 +74,11 @@ function createLogListCommand(deps) {
                 return { kind: "text", text: "日志目录里还没有文件" };
             }
             return filesTable.output(files.map((file) => ({
-                file: { text: file.name, href: `${deps.basePath}/log/${encodeURIComponent(file.name)}` },
+                file: {
+                    text: file.name,
+                    href: `${deps.basePath}/log/${encodeURIComponent(file.name)}`,
+                    ...(file.sample ? { tip: file.sample } : {}),
+                },
                 size: file.size,
                 modified: formatTime(file.modified),
             })));

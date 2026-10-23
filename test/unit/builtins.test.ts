@@ -14,7 +14,7 @@ function setup() {
     basePath: "/shell",
     logFiles: {
       list: async () => [
-        { name: "info.log", size: 2048, modified: 1_700_000_000_000 },
+        { name: "info.log", size: 2048, modified: 1_700_000_000_000, sample: "第一行\n第二行" },
         { name: "error.log", size: 512, modified: 1_700_000_100_000 },
       ],
       read: async () => "",
@@ -48,9 +48,12 @@ describe("内置命令", () => {
     expect(table.columns).toEqual(["file", "size", "modified"]);
     expect(table.rows).toHaveLength(2);
 
-    const first = table.rows[0]?.[0] as { text: string; href: string };
+    const first = table.rows[0]?.[0] as { text: string; href: string; tip?: string };
     expect(first.text).toBe("info.log");
     expect(first.href).toBe("/shell/log/info.log");
+    expect(first.tip).toBe("第一行\n第二行");
+    // sample 缺省的 entry 不带 tip 键
+    expect(table.rows[1]?.[0]).toEqual({ text: "error.log", href: "/shell/log/error.log" });
     // 大小是数字（排序用），不是字符串
     expect(table.rows[0]?.[1]).toBe(2048);
   });
