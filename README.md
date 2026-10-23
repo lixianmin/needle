@@ -1,31 +1,8 @@
 # logo
 
-线上排障用的控制台日志库：把 `docker exec` + `tail -f` 换成浏览器里的一个页面。
+线上排障用的控制台和日志库：在浏览器里看实时日志、敲命令查进程状态、订阅指标，不用 `docker exec` 进去 `tail -f`。
 
-零运行时依赖。只做日志 2.7 KB，带控制台 13.7 KB（min+gzip，`bun run size` 可复现）。
-
-```ts
-import { logo } from "@needle/logo";
-
-logo.info("order created", { orderId: 42 });
-// 打印：2026-10-23T10:50:43 [I] {"orderId":42,"msg":"order created"}
-// sink 收到：{"orderId":42,"time":1758991234567,"level":"info","msg":"order created"}
-
-logo.error("paid failed", err, { userId: 7 });
-// Error 展开成 message + stack
-```
-
-它有两半：日志库和控制台。
-
-**日志**：级别、字段、`Error` 展开、100ms 攒批、sink 可插拔（stdout / 文件 / 飞书），用法在下面「写日志」。
-
-**控制台**：一个网页 shell，浏览器里打开 `/console`。登录后进程的实时日志由 SSE 推进来，自己往下滚，不用轮询。常用的三件事：
-
-| 输入 | 看到什么 |
-|---|---|
-| `log.list` | 磁盘上的日志文件（`info.log` / `warn.log` / `error.log`），点文件名看全文（需要配 `logFiles`） |
-| `order 42` | 你在 `commands` 里注册的命令，返回什么渲染什么——读的是进程里的 Map、连接池、队列，不用先打日志 |
-| `sub top 2000` | 之后每 2 秒落一行 `[top] runtime=node  uptimeMs=57.7s  connections=1  rss=34.61M  heapUsed=12.3M …`，`unsub top` 停 |
+零运行时依赖：日志库 2.7 KB，含控制台 13.7 KB（min+gzip，`bun run size` 可复现）。
 
 ## 安装
 
@@ -34,30 +11,24 @@ logo.error("paid failed", err, { userId: 7 });
 bun add git+https://github.com/lixianmin/needle.git
 ```
 
-## 写日志
+## 控制台
 
-字符串拼成 `msg`，对象合并进字段，`Error` 展开成 `message` + `stack`。`warn` / `error` 立即写出并带调用栈；`info` 攒批 100ms，一个循环写 1000 条只产生一次 IO。
+一个网页 shell：中间一个滚动区，日志和命令结果都往里追加；底部一个输入框，回车执行。登录之后，进程的实时日志由 SSE 推进来，自己往下滚，不用轮询。
 
-`logo` 默认写到 stdout。一条日志可以同时写到多个地方：每个 `addSink` 挂上去的 sink 都收到同一批记录，各自决定收哪些、写到哪。
+常用的三件事：
 
-```ts
-import { createFileSink } from "@needle/logo/node";
-import { createLarkSink } from "@needle/logo/lark";
+| 输入 | 看到什么 |
+|---|---|
+| `log.list` | 磁盘上的日志文件（`info.log` / `warn.log` / `error.log`），点文件名看全文（需要配 `logFiles`） |
+| `order 42` | 你在 `commands` 里注册的命令，返回什么渲染什么——读的是进程里的 Map、连接池、队列，不用先打日志 |
+| `sub top 2000` | 之后每 2 秒落一行 `[top] runtime=node  uptimeMs=57.7s  connections=1  rss=34.61M  heapUsed=12.3M …`，`unsub top` 停 |
 
-logo.addSink(createFileSink({ dir: "logs" }));                                       // 按级别分文件
-logo.addSink(createLarkSink({ webhook: process.env.LARK_HOOK!, minLevel: "error" })); // error 推飞书
-process.on("SIGTERM", () => logo.dispose());                                         // 退出前冲缓冲区
-```
+### 挂载
 
-要另起一个实例（换级别、换名字）用 `newLogger()`；`newLogger({ sinks: [...] })` 可以在创建时就把 sink 配好。
-
-## 挂控制台
-
-控制台是一个网页 shell：一个滚动区收日志和命令输出，底部一个输入框，回车执行。它对外只有一个接口 `(req: Request) => Promise<Response>`，挂载就是把这个函数接到你的服务器上。
-
-### 挂载（Hono）
+它对外只有一个接口 `(req: Request) => Promise<Response>`，挂载就是把这个函数接到你的服务器上。Hono 是两条路由：
 
 ```ts
+import { logo } from "@needle/logo";
 import { createConsole } from "@needle/logo/console";
 import { createLogFiles } from "@needle/logo/node";
 
@@ -91,9 +62,39 @@ $ auth ops
 
 命令返回 `text` / `table` / `json` 三种形态，前端照着渲染。表格列可声明语义：`bytes` 走 `toHuman`（`36290560` → `34.61M`），`duration` 走 `formatDuration`（`57720` → `57.7s`），点表头按原始数值排序。
 
-## 按环境查阅
+## 日志库
 
-| 你要开发 | 读这篇 |
+```ts
+import { logo } from "@needle/logo";
+
+logo.info("order created", { orderId: 42 });
+// 打印：2026-10-23T10:50:43 [I] {"orderId":42,"msg":"order created"}
+// sink 收到：{"orderId":42,"time":1758991234567,"level":"info","msg":"order created"}
+
+logo.error("paid failed", err, { userId: 7 });
+// Error 展开成 message + stack
+```
+
+字符串拼成 `msg`，对象合并进字段，`Error` 展开成 `message` + `stack`。`warn` / `error` 立即写出并带调用栈；`info` 攒批 100ms，一个循环写 1000 条只产生一次 IO。
+
+`logo` 默认写到 stdout。一条日志可以同时写到多个地方：每个 `addSink` 挂上去的 sink 都收到同一批记录，各自决定收哪些、写到哪。
+
+```ts
+import { createFileSink } from "@needle/logo/node";
+import { createLarkSink } from "@needle/logo/lark";
+
+logo.addSink(createFileSink({ dir: "logs" }));                                       // 按级别分文件
+logo.addSink(createLarkSink({ webhook: process.env.LARK_HOOK!, minLevel: "error" })); // error 推飞书
+process.on("SIGTERM", () => logo.dispose());                                         // 退出前冲缓冲区
+```
+
+要另起一个实例（换级别、换名字）用 `newLogger()`；`newLogger({ sinks: [...] })` 可以在创建时就把 sink 配好。
+
+## 按平台查阅
+
+上面是两个组件的共性。各平台的接线、鉴权、日志落点、坑，见：
+
+| 你在开发 | 读这篇 |
 |---|---|
 | 服务端（Node / Bun / Workers） | [docs/best-practices/server.md](docs/best-practices/server.md) |
 | Chrome 扩展（MV3） | [docs/best-practices/chrome-extension.md](docs/best-practices/chrome-extension.md) |
