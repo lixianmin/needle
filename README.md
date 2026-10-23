@@ -1,6 +1,6 @@
 # Needle
 
-Web Shell，支持命令查看当前系统状态，如进程状态、业务数据等。
+Web Shell 控制台，支持命令查看当前系统状态，如进程状态、业务数据等。
 
 零运行时依赖：只导入日志 1.6 KB，连 shell 15.8 KB（min+gzip，`bun run size` 可复现）。
 
