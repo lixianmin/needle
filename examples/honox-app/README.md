@@ -41,7 +41,7 @@ export type AppEnv = HonoxEnv<typeof config>;
 
 两处拿法：
 
-- **请求内（`app/api/*.ts`）**：`c.get("config").getInt("server.web_port")`，类型由 `AppEnv` 带出来，不用 import。
+- **请求内（`app/api/*.ts`）**：`c.get("config").getInt("server.web_port")`。读 `c.get(...)` 的文件要写 `new Hono<AppEnv>()`（纯类型参数，运行时无成本；不写的话 `c.get("uid")` 直接编译不过）；只用 import 的接口写 `new Hono()` 就够了——示例里只有 `me.ts` 需要 `AppEnv`。
 - **请求外（`app/main.ts`、`app/md/*`、服务层）**：`import { config } from "../env"`。模块只求值一次，`loadConfig` 也只跑一次。
 
 ```ts
