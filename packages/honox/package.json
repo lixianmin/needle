@@ -1,6 +1,6 @@
 {
   "name": "@needle/honox",
-  "version": "0.3.47",
+  "version": "0.3.48",
   "description": "业务无关的 Hono 底座：配置 / JWT 鉴权 / 请求日志 / Mongo / Excel / Shell",
   "type": "module",
   "sideEffects": false,
@@ -27,10 +27,11 @@
     "dist"
   ],
   "dependencies": {
+    "@needle/got": "workspace:*",
     "@needle/logo": "workspace:*",
     "@needle/shell": "workspace:*",
-    "yaml": "^2.9.1",
-    "hucre": "^1.2.0"
+    "hucre": "^1.2.0",
+    "yaml": "^2.9.1"
   },
   "peerDependencies": {
     "hono": "^4",

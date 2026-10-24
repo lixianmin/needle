@@ -106,7 +106,9 @@ botsApi.post("/bots", (c) => { ... });
 
 已经有 `new Hono()` 实例、只想补位置时，用 `apiRoute(handler)` 单独包 handler。
 
-**rid 是 Snowflake**：入站带 `x-rid`（或 `x-request-id`）就沿用，没带才生成。位布局 `41 毫秒 | 10 机器号 | 12 序列`，epoch 取配置里的 `server.epoch_ms`（写死，不能用启动时间），机器号由 `nodeIdFromMac()` 从网卡 MAC 派生。id 对外是**定长 13 位小写 Crockford Base32 字符串**（`0-9a-z` 去掉 `i l o u`）：63 位装不进 JS number，而 `JSON.stringify(bigint)` 会抛，所以从生成那刻就是字符串——写日志、进 JSON、存 Mongo/MySQL 都不用转换。定长保证字典序 = 数值序（变长会让新 id 排到旧 id 前面，B 树回头插）。
+**rid 是 ULID**：入站带 `x-rid`（或 `x-request-id`）就沿用，没带才由 `@needle/got` 的 `nextUlid()` 生成。128 位 = 48 位绝对毫秒 + 80 位随机，对外是**定长 26 位大写 Crockford Base32 字符串**（`0-9A-Z` 去掉 `I L O U`）。不需要配纪元、也不需要配机器号：多实例、多进程、容器重建都不会重号，这是 rid 选 ULID 而不是 Snowflake 的原因（Snowflake 的机器号只有 10 位）。定长保证字典序 = 时间序；同一毫秒内不保证递增（随机段是乱的），rid 不需要。
+
+业务实体 id 要紧凑、严格递增时用 `@needle/got` 的 `nextSnowflakeId({ nodeId })`：13 位小写 Crockford Base32，`41 毫秒 | 10 机器号 | 12 序列`，多实例必须传不同 `nodeId`。
 
 **uid 与请求日志是自动的**：`createHonox()` 装配的中间件链是 `rid → 请求日志 → JWT 鉴权`，所有 `app/api/` 里的路由都挂在它后面。于是每条请求都会：
 

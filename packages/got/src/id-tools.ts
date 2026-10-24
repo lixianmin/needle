@@ -1,4 +1,21 @@
 /**
+ * id 生成：两种，用途不同。
+ *
+ * - `nextUlid()`：**请求 id（rid）用它**。48 位毫秒 + 80 位密码学随机，
+ *   不需要任何机器号配置，多实例 / 多进程 / 容器重建都不会撞。
+ * - `nextSnowflakeId()`：**业务实体 id 用它**。13 位紧凑、严格单调，
+ *   代价是要保证机器号唯一（多实例必须显式传）。
+ *
+ * 为什么 rid 不用 Snowflake：Snowflake 的机器号只有 10 位（1024 个桶），
+ * MAC / IP 再怎么取也是哈希进这 1024 个桶，38 个实例就有 50% 概率撞号；
+ * 而序列位每毫秒从 0 开始，撞了号的两个实例在同一毫秒各发一个号就是**直接重号**。
+ * rid 只用于串日志，不需要定长紧凑，也不需要严格单调——用 80 位随机换掉
+ * "必须配对机器号"这类配置错误，更划算。
+ */
+
+// ── Snowflake ────────────────────────────────────────────────────────────
+
+/**
  * Snowflake id：63 位整数 + 三段位，对外一律是**定长 13 位 Crockford Base32 字符串**。
  *
  * ```
@@ -38,13 +55,21 @@ const TIME_MAX = 2 ** 41 - 1;
 /** 13 个 ASCII 码位的复用缓冲：同步生成，一块就够，不产生额外对象。 */
 const CODE_BUFFER = new Uint8Array(13);
 
+/**
+ * Snowflake 的默认纪元：2014-12-09T00:00:00Z。
+ *
+ * 写 ISO 串而不是 `Date.UTC(2014, 12, 9)`：后者月份是 0-based，字面值其实是
+ * 2015-01-09，差一个月——epoch 是写死的常量，写错了改回来就是 id 字典序断档。
+ */
+export const DEFAULT_EPOCH = Date.parse("2014-12-09T00:00:00Z");
+
 export interface SnowflakeOptions {
   /**
    * 纪元（epoch 毫秒）。必须是一个写死的常量，不能用启动时间——
    * 否则每次重启时间位都会从头开始，id 会重复。
    */
   epoch: number;
-  /** 机器号 0..1023。单机随便给；多实例必须互不相同（可用 `nodeIdFromMac()`）。 */
+  /** 机器号 0..1023。单机随便给；多实例必须互不相同（可用 `@needle/honox/node` 的 `nodeIdFromMac()`）。 */
   nodeId: number;
   /** 注入时钟，测试用。 */
   now?: () => number;
@@ -53,6 +78,14 @@ export interface SnowflakeOptions {
 export interface Snowflake {
   /** 生成下一个 id：定长 13 位 Crockford Base32。同一毫秒内序列递增；时钟回拨会抛错。 */
   next(): string;
+}
+
+/** `nextSnowflakeId()` 的可选参数：不传就是默认纪元 + 机器号 0。 */
+export interface NextSnowflakeOptions {
+  /** 纪元（epoch 毫秒），默认 `DEFAULT_EPOCH`。 */
+  epoch?: number;
+  /** 机器号 0..1023，默认 0。**多实例必须传不同的号**，否则同一毫秒会重号。 */
+  nodeId?: number;
 }
 
 /**
@@ -167,6 +200,33 @@ export function createSnowflake(options: SnowflakeOptions): Snowflake {
   };
 }
 
+/**
+ * 按参数缓存生成器：序列状态挂在生成器上，每次新建就等于每次从序列 0 开始
+ * ——同一毫秒内连续调用会直接重号。缓存是正确性要求，不是性能优化。
+ */
+const GENERATORS = new Map<string, Snowflake>();
+
+function generatorFor(epoch: number, nodeId: number): Snowflake {
+  const key = `${epoch}:${nodeId}`;
+  let generator = GENERATORS.get(key);
+  if (generator === undefined) {
+    generator = createSnowflake({ epoch, nodeId });
+    GENERATORS.set(key, generator);
+  }
+  return generator;
+}
+
+/**
+ * 生成一个业务实体 id：定长 13 位，字典序 = 生成顺序。
+ *
+ * 不传参数 = 默认纪元 + 机器号 0，**只适用于单实例或单进程**。
+ * 多实例部署必须传互不相同的 `nodeId`（否则同一毫秒会重号）；
+ * 拿不到稳定机器号时，改用 `nextUlid()`。
+ */
+export function nextSnowflakeId(options: NextSnowflakeOptions = {}): string {
+  return generatorFor(options.epoch ?? DEFAULT_EPOCH, options.nodeId ?? 0).next();
+}
+
 /** 把 id 拆回三段，测试与排障用。`elapsedMs` 是相对 epoch 的毫秒数。 */
 export function parseSnowflake(id: string): {
   elapsedMs: number;
@@ -179,4 +239,75 @@ export function parseSnowflake(id: string): {
     nodeId: Number((value >> 12n) & 1023n),
     sequence: Number(value & 4095n),
   };
+}
+
+// ── ULID ─────────────────────────────────────────────────────────────────
+
+/**
+ * ULID：128 位 = 48 位毫秒 + 80 位随机，对外是**定长 26 位大写 Crockford Base32**。
+ *
+ * 为什么是标准 ULID 而不是自造格式：
+ * - 26 位定长 → 字典序 = 时间序，B 树只追加不回头插（和 Snowflake 同一个理由）。
+ * - 时间位是**绝对毫秒**（Unix epoch），不像 Snowflake 那样依赖自定义 epoch。
+ * - 80 位随机由 `crypto.getRandomValues` 提供：同一毫秒内撞号概率 2⁻⁸⁰，
+ *   多进程 / 多实例 / 容器重建都不需要协调机器号。
+ * - 大写是 ULID 规范的样子（绝大多数 ULID 解析器只认/默认输出大写）。
+ *
+ * 代价：同一毫秒内多次生成**不保证**递增（随机段是乱的）。rid 只用来串日志，
+ * 不需要这个性质；需要严格递增的业务 id 用 `nextSnowflakeId()`。
+ */
+const ULID_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+/** 48 位毫秒的上限。 */
+const ULID_TIME_MAX = 2 ** 48 - 1;
+/** 26 个 ASCII 码位的复用缓冲：同步生成，一块就够。 */
+const ULID_CODE_BUFFER = new Uint8Array(26);
+/** 10 字节随机数的复用缓冲。 */
+const ULID_RANDOM = new Uint8Array(10);
+
+/** 5 字节当 40 位整数读（40 位 < 2^53，number 精确）。 */
+function read40(bytes: Uint8Array, offset: number): number {
+  const low =
+    ((bytes[offset + 1]! << 24) |
+      (bytes[offset + 2]! << 16) |
+      (bytes[offset + 3]! << 8) |
+      bytes[offset + 4]!) >>>
+    0;
+  return bytes[offset]! * 0x100000000 + low;
+}
+
+/**
+ * 把时间与随机数编码进 26 位缓冲。
+ *
+ * 位布局照 ULID 规范：130 位里高 2 位恒 0，接着 48 位时间、80 位随机。
+ * 80 位正好切成两段 40 位（各 8 个字符），48 位时间落在 10 个字符里——
+ * 这样每段都装得进 `number`，全程不碰 bigint。
+ */
+function encodeUlid(ms: number, random: Uint8Array): string {
+  let rest = ms;
+  for (let index = 9; index >= 0; index -= 1) {
+    ULID_CODE_BUFFER[index] = ULID_ALPHABET.charCodeAt(rest % 32);
+    rest = Math.floor(rest / 32);
+  }
+  for (let half = 0; half < 2; half += 1) {
+    let value = read40(random, half * 5);
+    for (let index = 7; index >= 0; index -= 1) {
+      ULID_CODE_BUFFER[10 + half * 8 + index] = ULID_ALPHABET.charCodeAt(value % 32);
+      value = Math.floor(value / 32);
+    }
+  }
+  // 每请求一次，不是百万次/秒的热路径，展开成 26 个参数不如直接 spread 好读。
+  return String.fromCharCode(...ULID_CODE_BUFFER);
+}
+
+/**
+ * 生成一个 ULID：请求 id（rid）用它。
+ *
+ * `now` 只给测试注入用，业务代码不传。
+ */
+export function nextUlid(now: number = Date.now()): string {
+  if (!Number.isInteger(now) || now < 0 || now > ULID_TIME_MAX) {
+    throw new Error(`nextUlid 的时间必须是 0..${ULID_TIME_MAX} 的整数毫秒：${now}`);
+  }
+  globalThis.crypto.getRandomValues(ULID_RANDOM);
+  return encodeUlid(now, ULID_RANDOM);
 }

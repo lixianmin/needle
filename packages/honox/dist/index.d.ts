@@ -2,13 +2,10 @@ import { type Logger } from "@needle/logo";
 import { type ServerShellOptions } from "@needle/shell";
 import { Hono } from "hono";
 import type { AuthOptions } from "./auth.js";
-import { type SnowflakeOptions } from "./id.js";
 import type { HonoxEnv, PublicEntry } from "./types.js";
 export interface HonoxOptions {
     /** 请求日志用哪个 logger；默认 `@needle/logo` 的全局 `logo`。 */
     logger?: Logger;
-    /** rid 的 Snowflake 配置。默认 epoch 2014-12-09T00:00:00Z、机器号 0；多实例必须给不同 nodeId。 */
-    snowflake?: SnowflakeOptions;
     /** 解 token 的配置。白名单不在这里——用返回实例的 `allowAnonymous()`。 */
     auth: AuthOptions;
     /** 传了就把 Shell 控制台挂到 shell.basePath（默认 "/shell"）。 */
@@ -37,8 +34,6 @@ export declare function createHonox(options: HonoxOptions): HonoxApp;
 export type { Config } from "./config.js";
 export { apiRoute, createApi } from "./route.js";
 export type { ApiHandler } from "./route.js";
-export { createSnowflake, parseSnowflake } from "./id.js";
-export type { Snowflake, SnowflakeOptions } from "./id.js";
 export type { AuthOptions } from "./auth.js";
 export type { AuthErrorReason, HonoxEnv, PublicEntry } from "./types.js";
 //# sourceMappingURL=index.d.ts.map

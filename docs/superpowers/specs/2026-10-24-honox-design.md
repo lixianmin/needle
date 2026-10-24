@@ -102,7 +102,7 @@ packages/honox/
   tsconfig.build.json
 ```
 
-- `dependencies`：`@needle/shell`、`@needle/logo`（workspace）、`yaml`（读 YAML）、`hucre`（读 Excel；只在 `./excel` 入口被 import）。
+- `dependencies`：`@needle/got`、`@needle/shell`、`@needle/logo`（workspace）、`yaml`（读 YAML）、`hucre`（读 Excel；只在 `./excel` 入口被 import）。
 - `peerDependencies`：`hono: "^4"`；`mongodb` 为 **optional peer**（`peerDependenciesMeta`），不装就不会被打包。
 - **不依赖** `honox`、`vite`。
 
@@ -112,7 +112,6 @@ packages/honox/
 export interface HonoxOptions {
   /** 请求日志用哪个 logger；默认全局 logo。 */
   logger?: Logger;                           // 默认 @needle/logo 的 logo 实例
-  snowflake?: SnowflakeOptions;               // rid 生成器；默认 epoch 2014-12-09T00:00:00Z、机器号 0
   auth: {
     secret: string;                          // HS256 密钥
     claim?: string;                          // uid 取哪个 claim，默认 "sub"
@@ -135,7 +134,7 @@ export function createHonox(options: HonoxOptions): HonoxApp;
 
 **中间件顺序（库内固定，业务改不了）：**
 
-1. `rid`（请求 id）：入站 header 带了就沿用（`x-rid` 优先，其次网关常见的 `x-request-id`），没带才生成 **Snowflake**（见 8.4.2，十进制字符串）。写进 `c.set("rid")` 与响应头 `x-rid`。入站值过白名单 `^[0-9A-Za-z._-]{1,64}$`，不合规就当作没带重新生成——它是直接进日志的字段，不加限制等于允许伪造日志行。
+1. `rid`（请求 id）：入站 header 带了就沿用（`x-rid` 优先，其次网关常见的 `x-request-id`），没带才由 `nextUlid()` 生成 **ULID**（26 位大写 Crockford Base32，见 8.4.1）。写进 `c.set("rid")` 与响应头 `x-rid`。入站值过白名单 `^[0-9A-Za-z._-]{1,64}$`，不合规就当作没带重新生成——它是直接进日志的字段，不加限制等于允许伪造日志行。
 2. 每请求日志（见 8.4）。
 3. 解 JWT：从 header 或 cookie 取 token，`hono/jwt` 的 `verify` 校验；失败**不抛**，只把 `uid` 设为 `null` 并记 `authError`。
 4. 门禁：命中白名单放行；否则 `uid === null` → `ResponseX.unauthorized(...)`。
@@ -163,8 +162,8 @@ export function createHonox(options: HonoxOptions): HonoxApp;
 每请求两行，**直接走传进来的 logger**（默认就是全局 `logo`），不派生子 logger；`rid` 作为字段带上。**没有 `-->` / `<--` 箭头**：字段本身已经说明方向（出的一行有 `status` / `durationMs`）。
 
 ```
-2026-10-24T16:52:34 [I] middleware.ts:71 [requestLog()] {"rid":"02zcgfqmyyw00","path":"/health"}
-2026-10-24T16:52:34 [I] health.ts:7 {"rid":"02zcgfqmyyw00","path":"/health","status":200,"durationMs":1.3,"uid":null}
+2026-10-24T16:52:34 [I] middleware.ts:71 [requestLog()] {"rid":"01JC5W8N7Q3M2V6Z9Q4R0P1T5X","path":"/health"}
+2026-10-24T16:52:34 [I] health.ts:7 {"rid":"01JC5W8N7Q3M2V6Z9Q4R0P1T5X","path":"/health","status":200,"durationMs":1.3,"uid":null}
 ```
 
 - **结束行的位置是 API 文件**，不是中间件：由 `api()` / `apiRoute()`（见 8.4.2）在路由注册时抓下 `文件:行` 存进 context。进的那一行在 handler 之前，拿不到这个位置，所以仍是中间件行。
@@ -175,13 +174,27 @@ export function createHonox(options: HonoxOptions): HonoxApp;
 - 抛错：`log.error({ err })` 记一条（带完整栈），然后**原样 rethrow**，交给业务的 `app.onError` 或 Hono 默认处理；`finally` 仍落 `<--`（此时 status 是 500）。
 - 结构化字段：`rid`、`path`、`status`、`durationMs`、`uid`。
 
-### 8.4.1 Snowflake id（`src/id.ts`）
+### 8.4.1 id 生成（`@needle/got` 的 `id-tools.ts`）
+
+两种 id，用途不同，都放在 `@needle/got` 的根入口；`@needle/honox` 只消费，**不转手导出**（`import { nextSnowflakeId } from "@needle/got"`）。
+
+#### ULID：`nextUlid()` —— rid 用
+
+**定长 26 位大写 Crockford Base32**，128 位 = 48 位绝对毫秒 + 80 位随机。
+
+- **为什么 rid 不用 Snowflake**：机器号只有 10 位（1024 个桶），MAC / IP 取多少位最后都是哈希进这 1024 个桶——38 个实例就有约 50% 概率撞号（生日悖论）；而序列位每毫秒从 0 开始，撞号的两个实例在同一毫秒各发一个号就是**直接重号**，不是偶发。rid 只用于串日志，不需要紧凑定长，也不需要严格单调，用 80 位随机把「必须配对机器号」这类配置错误整个删掉更划算。
+- 80 位随机来自 `crypto.getRandomValues`：同一毫秒撞号概率 2⁻⁸⁰，多进程 / 多实例 / 容器重建都不需要协调。got 不 import `node:`，浏览器与 Workers 也能用。
+- 时间位是 **Unix 纪元绝对毫秒**（不是相对自定义 epoch），48 位够到公元 10889 年；越界直接抛错，不静默截断。
+- 定长 26 位 → **字典序 = 时间序**（理由见下），但同一毫秒内不保证递增（随机段是乱的）——rid 不需要这个性质。
+- 大写是 ULID 规范的样子，第三方 ULID 解析器直接认。
+
+#### Snowflake：`nextSnowflakeId()` / `createSnowflake()` —— 业务实体 id 用
 
 ```
 0 | 41 位毫秒（相对 epoch） | 10 位机器号 | 12 位序列
 ```
 
-**对外只有字符串：定长 13 位小写 Crockford Base32**（`0-9a-z` 去掉 `i l o u`）。位运算内部用 `bigint`，但不外泄。
+**对外只有字符串：定长 13 位小写 Crockford Base32**（`0-9a-z` 去掉 `i l o u`）。位运算内部不碰 `bigint`，解析才用。
 
 - 为什么不给 bigint：63 位装不进 JS `number`（`Number.MAX_SAFE_INTEGER` 是 2^53），而 `JSON.stringify(1n)` 直接抛 `TypeError`。让 bigint 出库就得靠每个调用点记得 `String()`——忘一次就是 500 或悄悄截断，这种"靠记性"的约束不该存在。字符串形态写日志、进 JSON、存 Mongo / MySQL 都不用转。
 - 为什么定长：变长字符串的字典序 ≠ 数值序（`"9..."` 排在 `"10..."` 前面），新 id 会插到旧 id 之前 → 正是要避免的 B 树回头插 / 页分裂。13 位是 63÷5 向上取整（多出的 2 位恒 0）；ASCII 里 `0-9` 在 `a-z` 之前且字母升序，所以定长小写串直接比大小 = 数值比较。
@@ -189,11 +202,12 @@ export function createHonox(options: HonoxOptions): HonoxApp;
 - 存储建议：Mongo `_id` 用字符串（13 字节，和 `ObjectId` 的 12 字节同量级）；MySQL 用 `CHAR(13) CHARACTER SET ascii COLLATE ascii_bin`，别用默认的 utf8mb4（索引更宽、大小写不敏感）。
 - 参考数字：63 位塞进 signed 64 位没问题（实测 BSON int64 往返精确），但我们**不需要**那条路——字符串形态已经绕开了 JS 精度问题。
 - **生成路径不碰 bigint**：`%` / `/` 每次都要分配 bigint 对象，几十万次/秒下全是白烧的 GC。实现把 63 位拆成 hi(31) + lo(32) 两段用 number 位运算，落进一块复用的 `Uint8Array(13)`，最后一次 `String.fromCharCode` 出串——每次调用只产生一个字符串。实测 500k 次：405ns/个 → 244ns/个（约 -40%）。`decode` 仍用 bigint，它只在解析/测试里跑。
-- **epoch 必须写死**（库默认 2014-12-09T00:00:00Z；示例显式传 `server.epoch_ms`）：用启动时间当 epoch 会让每次重启的时间位从 0 开始，id 直接重复。
-- **机器号**：0..1023。`nodeIdFromMac()`（`./node` 入口，读 `os.networkInterfaces()`，排序后 FNV-1a 取低 10 位）零配置；容器每次重建 MAC 会变，多实例请显式配。
+- **epoch 必须写死**（`nextSnowflakeId()` 默认 2014-12-09T00:00:00Z）——用启动时间当 epoch 会让每次重启的时间位从 0 开始，id 直接重复。业务要自己的纪元就传 `createSnowflake({ epoch, nodeId })`。
+- **机器号**：0..1023。`nextSnowflakeId()` 不传就是机器号 0，**只适用于单实例/单进程**；多实例必须传互不相同的 `nodeId`（`@needle/honox/node` 的 `nodeIdFromMac()` 是零配置来源，但容器重建即变、且 10 位截断会撞，生产更推荐显式配）。
+- **生成器要缓存**：序列状态挂在生成器上，`nextSnowflakeId()` 内部按 `epoch:nodeId` 复用同一个实例；每次新建等于每次从序列 0 开始，同一毫秒内连续调用会直接重号。
 - **同一毫秒**：序列 +1，超过 4095 就自旋等下一毫秒（不丢号不重号）。
 - **时钟回拨**：照原版 Snowflake 直接抛错，不静默产生更小的 id——B 树回头插正是要避免的页分裂。等时钟追上来会让请求卡住，所以不选等待。
-- 用途不限于 rid：业务实体 id 直接 `createSnowflake({ epoch, nodeId })`，两个进程只要 nodeId 不同就不会撞。
+- 选型小结：要定长紧凑、严格单调、可解出机器号与序列 → Snowflake；要不配任何东西、多实例随便扩 → ULID。
 
 ### 8.4.2 `createApi()` / `apiRoute()`：把日志位置挪到 API 文件
 
@@ -451,7 +465,7 @@ HTTP 接口按 `app/api/<name>.ts` 一接口一文件（照 rim.server 的 `app/
 
 | 文件 | 覆盖 |
 |---|---|
-| `id.test.ts` | 位布局可解回三段；同毫秒序列递增；跨毫秒归零且整体递增；4096 个后等下一毫秒；时钟回拨抛错；不同 nodeId 不撞；nodeId 越界与早于 epoch 报错；十进制字符串往返 |
+| `id.test.ts`（已搬到 `packages/got/test/id-tools.test.ts`） | 位布局可解回三段；同毫秒序列递增；跨毫秒归零且整体递增；4096 个后等下一毫秒；时钟回拨抛错；不同 nodeId 不撞；nodeId 越界与早于 epoch 报错；ULID 位布局/字典序/同毫秒不重复/时间越界；`nextSnowflakeId()` 默认参数与生成器缓存 |
 | `auth.test.ts` | 有效 token 放行；缺失 / 无效 / 过期 → 401 且 code=unauthorized；白名单精确匹配与 method 限定；`:id` 与 `/*` 匹配（含基路径本身）；cookie 取 token；`claim` 可配 |
 | `request-log.test.ts` | 两行（`-->` / `<--`）；401 也有结束行；handler 抛错 → 落 error 且 rethrow、结束行 status 500；行里带 `rid` |
 | `config.test.ts` | `common.yml` 缺失时跳过；`app_<env>.yml` 缺失时报错带路径与 ENV 值；深合并（对象递归、数组整体替换）；`APP_*` 覆盖嵌套字段；true/false/数字转换；`required` 缺失报错带字段路径 |
@@ -469,7 +483,7 @@ Mongo 测试用结构化 fake（`as unknown as MongoClient`），不依赖真实
 - 变异的是 `packages/honox/src/{auth,config,excel,id,middleware,mongo,node,route}.ts`，测试命令是 `bun test packages/honox/test`（只跑这个包，1.8 分钟跑完 ~880 个变异体）。
 - **必须 `--inPlace`**：仓库根是 TypeScript 7.0.2（原生版），Stryker 的沙盒会给 tsconfig 做预处理、调 `ts.parseConfigFileTextToJson`——这个 API 在 TS 7 里没有，直接崩。`--inPlace` 跳过沙盒（也就跳过那段预处理），改完自动从 `.stryker-tmp/backup-*` 还原。
 - **测试要 import `../src/*`**：从包名（`@needle/honox/excel`）导入会解析到 `dist/`，变异源码根本影响不到测试——这类文件的分母会变成 0 分（早期 config.ts 就是这样暴露的）。所以 config / excel / mongo 的测试改成直接 import `../src/`；`entry.test.ts` / `browser-safety.test.ts` 这类**故意**验证产物的测试保持用包名。
-- 当前分数 82.33%（`id.ts` 95.24、`middleware.ts` 95.65、`config.ts` 85.22、`excel.ts` 82.03、`auth.ts` 76.30、`route.ts` 75.86、`node.ts` 69.51、`mongo.ts` 71.43），阈值 `break: 80`。
+- 当前分数 82.33%（`middleware.ts` 95.65、`config.ts` 85.22、`excel.ts` 82.03、`auth.ts` 76.30、`route.ts` 75.86、`node.ts` 69.51、`mongo.ts` 71.43），阈值 `break: 80`。id 生成已搬到 `@needle/got`，未重跑本包变异测试。
 - 剩下的存活变异体主要是两类：错误消息里的字符串（改了也测不出来），以及"等价变异"（`?.` 换成 `.`、`typeof x === "function" ? x.bind(t) : x` 的三个分支——传进来的本来就是函数）。要再往上抬就得为这些等价物补"反直觉"的测试，性价比低。
 
 **验收命令**（沿用根 VERIFY，不改）：

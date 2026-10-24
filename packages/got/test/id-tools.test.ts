@@ -1,9 +1,17 @@
 import { describe, expect, test } from "bun:test";
-import { createSnowflake, parseSnowflake } from "../src/id.js";
-import { nodeIdFromMac } from "../src/node.js";
+import {
+  createSnowflake,
+  DEFAULT_EPOCH,
+  nextSnowflakeId,
+  nextUlid,
+  parseSnowflake,
+} from "../src/id-tools.js";
 
 const EPOCH = Date.UTC(2026, 0, 1);
-const ID_PATTERN = /^[0-9a-hjkmnp-tv-z]{13}$/;
+const SNOWFLAKE_PATTERN = /^[0-9a-hjkmnp-tv-z]{13}$/;
+/** 26 位大写 Crockford：去掉 I / L / O / U。 */
+const ULID_PATTERN = /^[0-9A-HJKMNP-TV-Z]{26}$/;
+const ULID_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 
 /** 可控时钟：每次取值都从数组里拿下一个，耗尽后停在最后一个。 */
 function clockOf(...stamps: number[]): () => number {
@@ -26,6 +34,15 @@ function reference(elapsed: number, node: number, sequence: number): string {
     value /= 32n;
   }
   return out;
+}
+
+/** 把 ULID 的 26 位解回 128 位整数，用来验证位布局（时间在前 48 位）。 */
+function decodeUlid(id: string): bigint {
+  let value = 0n;
+  for (const char of id) {
+    value = value * 32n + BigInt(ULID_ALPHABET.indexOf(char));
+  }
+  return value;
 }
 
 describe("createSnowflake", () => {
@@ -51,7 +68,7 @@ describe("createSnowflake", () => {
   test("返回定长 13 位 Crockford Base32 字符串", () => {
     const ids = createSnowflake({ epoch: EPOCH, nodeId: 37, now: () => EPOCH + 1234 });
     const id = ids.next();
-    expect(id).toMatch(ID_PATTERN);
+    expect(id).toMatch(SNOWFLAKE_PATTERN);
     expect(id).toHaveLength(13);
     // 全小写；不许出现大写，也不许出现容易看混的 i / l / o / u
     expect(/[A-Z]/.test(id)).toBe(false);
@@ -171,12 +188,99 @@ describe("createSnowflake", () => {
   });
 });
 
-describe("nodeIdFromMac", () => {
-  test("返回 10 位范围内的整数，且多次调用一致", () => {
-    const first = nodeIdFromMac();
-    expect(Number.isInteger(first)).toBe(true);
-    expect(first).toBeGreaterThanOrEqual(0);
-    expect(first).toBeLessThanOrEqual(1023);
-    expect(nodeIdFromMac()).toBe(first);
+describe("nextSnowflakeId", () => {
+  test("不传参：默认纪元 + 机器号 0，仍是 13 位可解析的字符串", () => {
+    const id = nextSnowflakeId();
+    expect(id).toMatch(SNOWFLAKE_PATTERN);
+    expect(parseSnowflake(id).nodeId).toBe(0);
+    // 默认纪元写死在库里：elapsedMs 能对上「现在 − 2014-12-09」就说明这个常量没漂。
+    // 1 分钟容差足够吃掉测试自身的耗时，又远小于任何写错的日期（最短也差一天）。
+    const expected = Date.now() - DEFAULT_EPOCH;
+    expect(Math.abs(parseSnowflake(id).elapsedMs - expected)).toBeLessThan(60_000);
+  });
+
+  test("传 nodeId 就按这个号编进去（多实例靠它分流）", () => {
+    expect(parseSnowflake(nextSnowflakeId({ nodeId: 7 })).nodeId).toBe(7);
+    expect(parseSnowflake(nextSnowflakeId({ nodeId: 1023 })).nodeId).toBe(1023);
+  });
+
+  test("连续调用严格递增且不重复（同一毫秒靠序列位，跨毫秒靠时间位）", () => {
+    const generated = Array.from({ length: 5000 }, () => nextSnowflakeId());
+    expect(new Set(generated).size).toBe(generated.length);
+    for (let index = 1; index < generated.length; index += 1) {
+      expect(generated[index]! > generated[index - 1]!).toBe(true);
+    }
+  });
+
+  test("同一组参数复用同一个生成器：序列不会每调用一次就归零", () => {
+    // 每次都新建一个 Snowflake 的话，同毫秒内每次都发序列 0 → 直接撞号。
+    const ids = Array.from({ length: 3 }, () => nextSnowflakeId({ nodeId: 3 }));
+    const sequences = ids.map((id) => parseSnowflake(id).sequence);
+    const elapsed = ids.map((id) => parseSnowflake(id).elapsedMs);
+    const sameMs = elapsed.every((value) => value === elapsed[0]);
+    // 同一毫秒内必须递增；恰好跨了毫秒的话序列归零，那就只检查不重复。
+    expect(new Set(ids).size).toBe(3);
+    if (sameMs) {
+      expect(sequences[1]!).toBeGreaterThan(sequences[0]!);
+    }
+  });
+
+  test("nodeId 越界照样报错", () => {
+    expect(() => nextSnowflakeId({ nodeId: 1024 })).toThrow(/nodeId 必须是 0\.\.1023/);
+  });
+});
+
+describe("nextUlid", () => {
+  test("定长 26 位大写 Crockford Base32，不含 I / L / O / U", () => {
+    const id = nextUlid();
+    expect(id).toMatch(ULID_PATTERN);
+    expect(id).toHaveLength(26);
+    expect(/[ilou]/.test(id.toLowerCase())).toBe(false);
+  });
+
+  test("位布局：前 48 位是毫秒时间戳，后 80 位是随机数", () => {
+    const now = Date.UTC(2026, 0, 2, 3, 4, 5);
+    const id = nextUlid(now);
+    // 130 位里高 2 位恒 0，所以整个 128 位值右移 80 位就是时间戳
+    expect(Number(decodeUlid(id) >> 80n)).toBe(now);
+  });
+
+  test("可注入时间：只有时间位变，长度与字符集不变", () => {
+    const early = nextUlid(0);
+    const late = nextUlid(Date.UTC(2100, 0, 1));
+    expect(early).toMatch(ULID_PATTERN);
+    expect(late).toMatch(ULID_PATTERN);
+    expect(late > early).toBe(true);
+  });
+
+  test("字典序 = 时间序（跨毫秒不会倒退）", () => {
+    const stamps = [0, 1, 2, 999, 1000, 2 ** 32, Date.UTC(2083, 0, 1)];
+    const generated = stamps.map((stamp) => nextUlid(stamp));
+    expect([...generated].sort()).toEqual(generated);
+  });
+
+  test("同一毫秒内不重复：80 位随机顶住并发", () => {
+    const now = Date.UTC(2026, 5, 1);
+    const ids = Array.from({ length: 10_000 }, () => nextUlid(now));
+    expect(new Set(ids).size).toBe(ids.length);
+    // 高位（前 10 位）在同一毫秒内必然相同，差异只能来自后 16 位随机段
+    expect(new Set(ids.map((id) => id.slice(0, 10))).size).toBe(1);
+    expect(new Set(ids.map((id) => id.slice(10))).size).toBe(ids.length);
+  });
+
+  test("时间位用满 48 位也不溢出到第 11 个字符（首字符恒 < '8'）", () => {
+    // 48 位最大值
+    expect(nextUlid(2 ** 48 - 1)).toMatch(/^[0-7]/);
+  });
+
+  test("时间越界报错：48 位装不下就拒绝，不静默截断", () => {
+    expect(() => nextUlid(-1)).toThrow(/nextUlid/);
+    expect(() => nextUlid(2 ** 48)).toThrow(/nextUlid/);
+    expect(() => nextUlid(1.5)).toThrow(/nextUlid/);
+  });
+
+  test("id 直接进 JSON：不需要任何转换", () => {
+    const id = nextUlid();
+    expect(JSON.parse(JSON.stringify({ id }))).toEqual({ id });
   });
 });
