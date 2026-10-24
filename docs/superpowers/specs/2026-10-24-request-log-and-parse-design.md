@@ -129,7 +129,7 @@ botsApi.get("/health", (ctx) => ctx.json({ ok: true })); // 不校验参数
 手写（唯一真值）：
 
 ```ts
-// app/model/bots.ts
+// app/beans/bots.ts
 export class Boss {
   name: string = "";
   level: number = 0;
@@ -148,7 +148,7 @@ export class BotsBody {
 生成（提交进仓库，勿手改）：
 
 ```ts
-// app/model/bots.generated.ts
+// app/beans/bots.generated.ts
 export const BossSchema = Type.Object({ name: Type.String(), level: Type.Number() }, { additionalProperties: false });
 export const BotsBodySchema = Type.Object({
   ids: Type.Array(Type.Number()),
@@ -165,7 +165,7 @@ type _BotsBodyInSync = Assert<Equals<Static<typeof BotsBodySchema>, BotsBody>>;
   - **硬报错**（不静默降级）：方法/getter/装饰器/泛型/任意联合/未声明的类型/字段缺类型标注/循环引用/跨文件重名。
   - 同文件内按依赖拓扑排序（`const` 有 TDZ，顺序错了模块初始化就炸）；跨文件自动 `import { XSchema } from "./x.generated.js"`。
 - 解析器用 `typescript-6`（npm 别名 `npm:typescript@6.0.3`，只进 devDependencies，23MB，不进产物）。项目编译器仍是 7.0.2。
-- schema 注册：生成物调 `registerModel("BotsBody", BotsBodySchema)`（用类名，不用类值，避免与 model 文件形成运行时环）。路由拿到 class 后按 `class.name` 懒查注册表；查不到就抛一条带修复提示的错误（「先 import app/model/index.js」）。
+- schema 注册：生成物调 `registerModel("BotsBody", BotsBodySchema)`（用类名，不用类值，避免与 model 文件形成运行时环）。路由拿到 class 后按 `class.name` 懒查注册表；查不到就抛一条带修复提示的错误（「先 import app/beans/index.js」）。
 - `additionalProperties: false` 只作用在 body；`parseQuery` 先按 schema 声明的键过滤，再校验——query 上多带的参数（`_t` 之类）不会 400。
 
 ### 5.6 参数解析
@@ -189,10 +189,11 @@ type _BotsBodyInSync = Assert<Equals<Static<typeof BotsBodySchema>, BotsBody>>;
 
 ## 6 示例改动
 
-- `app/model/bots.ts` + `app/model/bots.generated.ts` + `app/model/index.ts`（barrel，把生成物 import 一遍）。
-- `app/api/bots.ts`：`createApi("api/bots")` + `(ctx, query)` / `(ctx, body)` + `traceOf(ctx)`。
+- `app/beans/bots.ts` + `app/beans/bots.generated.ts` + `app/beans/index.ts`（barrel：`export * from "./bots.js"` 出手写 class，`export * from "./bots.generated.js"` 出 schema 并完成注册）。业务只 import `../beans/index.js`，记忆负担是一行路径而不是一堆文件名。
+- `app/api/bots.ts`：`createApi("api/bots")` + `(ctx, query)` / `(ctx, body)`；handler 开头 `const trace = traceOf(ctx)` 取一次，后续多个出口复用同一个对象（日志不是一次性消耗品）。
+- **handler 参数不写类型注解**：模型参数 + 推断已经给全了 `ctx: Context<HonoxEnv>` 与 `body: BotsBody`；再写一遍既是同一信息出现两次，也会在模型改名时留下第二处要改的地方。
 - `app/api/health.ts`：`createApi("api/health")`，handler 不写日志——零日志正是要的效果。
-- `app/main.ts` 启动前 import `./model/index.js`。
+- `app/main.ts` 启动前 import `./beans/index.js`。
 
 ## 7 测试
 
@@ -218,5 +219,5 @@ type _BotsBodyInSync = Assert<Equals<Static<typeof BotsBodySchema>, BotsBody>>;
 - `packages/honox/src/{middleware,route,types,index,auth,request,parse,trace,model}.ts`、`packages/honox/test/*`
 - `packages/honox/package.json`、根 `package.json`（`typescript-6` 别名）
 - `scripts/gen-models.ts`、`.githooks/pre-commit`
-- `examples/honox-app/app/model/*`、`app/api/{bots,health}.ts`、`app/main.ts`、`examples/honox-app/package.json`
+- `examples/honox-app/app/beans/*`、`app/api/{bots,health}.ts`、`app/main.ts`、`examples/honox-app/package.json`
 - 本 spec、`docs/superpowers/specs/2026-10-24-honox-design.md`（§8.4 / §8.4.3 重写）、`docs/01.memory.md`、`docs/best-practices/node-server.md`（drop console 禁令）

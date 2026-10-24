@@ -21,6 +21,6 @@ describe("model 注册表", () => {
       a: number = 0;
     }
     expect(() => modelSchema(Unknown)).toThrow(/没有为 Unknown 注册 schema/);
-    expect(() => modelSchema(Unknown)).toThrow(/app\/model\/index\.js/);
+    expect(() => modelSchema(Unknown)).toThrow(/barrel/);
   });
 });

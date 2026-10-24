@@ -25,7 +25,7 @@
 - **`createApi()` 组路由抛错时父 `onError` 是否还收得到**（Proxy 绑定 bug，§3 实测过）。
 - **`RequestError` 会不会被记成 error 日志**：客户端传错参数不该产生 error 级日志。
 - **query 上的多余参数**（`?_t=123`）不能 400；body 上的多余字段要 400。
-- **模型未注册**：报错信息必须指出「先 import app/model/index.js」，而不是 `undefined is not an object`。
+- **模型未注册**：报错信息必须指出「先 import app/beans/index.js」，而不是 `undefined is not an object`。
 
 ---
 
@@ -234,7 +234,7 @@ git commit -m "feat(honox): body/query 解析与 RequestError，失败统一抛 
 
 **Interfaces:**
 - Produces: `registerModel(name: string, schema: TSchema): void`、`modelSchema(ctor: ModelClass): TSchema`、`type ModelClass<T = unknown> = abstract new (...args: never[]) => T`。
-- Produces: 未注册时抛 `Error`，message 含「没有为 BotsBody 注册 schema」与「先 import app/model/index.js」。
+- Produces: 未注册时抛 `Error`，message 含「没有为 BotsBody 注册 schema」与「先 import app/beans/index.js」。
 
 - [ ] **Step 1: 写失败测试**
 
@@ -422,8 +422,8 @@ test("循环引用 / 方法 / 泛型 / 未知类型 / 重名 都硬报错", asyn
 根 `package.json` 加 devDependency；`.githooks/pre-commit` 在 `bun run build` 之后加：
 
 ```sh
-bun scripts/gen-models.ts examples/honox-app/app/model/*.ts
-git add examples/honox-app/app/model/*.generated.ts
+bun scripts/gen-models.ts examples/honox-app/app/beans/*.ts
+git add examples/honox-app/app/beans/*.generated.ts
 ```
 
 - [ ] **Step 5: 跑测试确认通过** → `bun test test/gen-models.test.ts`
@@ -439,7 +439,7 @@ git commit -m "feat(scripts): model class 生成 TypeBox schema，带漂移断�
 ### Task 8: 示例改造
 
 **Files:**
-- Create: `examples/honox-app/app/model/bots.ts`、`examples/honox-app/app/model/bots.generated.ts`、`examples/honox-app/app/model/index.ts`
+- Create: `examples/honox-app/app/beans/bots.ts`、`examples/honox-app/app/beans/bots.generated.ts`、`examples/honox-app/app/beans/index.ts`
 - Modify: `examples/honox-app/app/api/bots.ts`、`examples/honox-app/app/api/health.ts`、`examples/honox-app/app/api/index.ts`、`examples/honox-app/app/main.ts`、`examples/honox-app/package.json`
 
 **Interfaces:**
@@ -447,7 +447,7 @@ git commit -m "feat(scripts): model class 生成 TypeBox schema，带漂移断�
 
 - [ ] **Step 1: 写模型并生成**
 
-`app/model/bots.ts` 写 `Boss` / `BotsQuery` / `BotsBody`（与 spec §5.5 一致），跑 `bun scripts/gen-models.ts app/model/*.ts` 得到生成物，写 `app/model/index.ts`：
+`app/beans/bots.ts` 写 `Boss` / `BotsQuery` / `BotsBody`（与 spec §5.5 一致），跑 `bun scripts/gen-models.ts app/beans/*.ts` 得到生成物，写 `app/beans/index.ts`：
 
 ```ts
 import "./bots.generated.js";
@@ -470,7 +470,7 @@ botsApi.post("/bots", BotsBody, (ctx, body) => {
 });
 ```
 
-`health.ts` 改成 `createApi("api/health")`，handler 不写日志。`main.ts` 在 `registerApis(app)` 之前 `import "./model/index.js";`。`examples/honox-app/package.json` 加 `@sinclair/typebox` 与 `@needle/got` 之外它需要的东西（若生成物 import typebox）。
+`health.ts` 改成 `createApi("api/health")`，handler 不写日志。`main.ts` 在 `registerApis(app)` 之前 `import "./beans/index.js";`。`examples/honox-app/package.json` 加 `@sinclair/typebox` 与 `@needle/got` 之外它需要的东西（若生成物 import typebox）。
 
 - [ ] **Step 3: 验证**
 

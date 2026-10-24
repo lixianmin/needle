@@ -22,7 +22,7 @@ export function modelSchema(model: ModelClass): TSchema {
   const schema = registry.get(model.name);
   if (schema === undefined) {
     throw new Error(
-      `没有为 ${model.name} 注册 schema：生成的 *.generated.ts 没有被 import（先 import app/model/index.js）`,
+      `没有为 ${model.name} 注册 schema：生成的 *.generated.ts 没有被 import（先 import 汇总它们的 barrel，示例是 app/beans/index.js）`,
     );
   }
   return schema;
