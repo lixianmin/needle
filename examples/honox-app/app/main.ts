@@ -5,7 +5,7 @@ import { viper } from "./viper.js";
 import { initTemplates } from "./md/index.js";
 
 // 配置在 app/viper.ts 里加载（ENV 决定读 res/config/app_<env>.yml，只认
-// dev / fat / pro）。任何地方都直接 `import { viper } from "../viper"`，
+// dev / fat / pro）。任何地方都直接 `import { viper } from "../viper.js"`，
 // 不经过 request context。
 
 // /shell 在 JWT 白名单里，对匿名网络可达；口令是它唯一的门。
