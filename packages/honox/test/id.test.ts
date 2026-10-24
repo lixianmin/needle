@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { createSnowflake, parseSnowflake } from "../src/id.js";
+import { nodeIdFromMac } from "../src/node.js";
 
 const EPOCH = Date.UTC(2026, 0, 1);
 const ID_PATTERN = /^[0-9a-hjkmnp-tv-z]{13}$/;
@@ -98,8 +99,17 @@ describe("createSnowflake", () => {
   });
 
   test("同一毫秒超过 4096 个：等下一毫秒，不重复不丢号", () => {
-    const stamps = [EPOCH, ...Array.from({ length: 4096 }, () => EPOCH), EPOCH + 1];
-    const ids = createSnowflake({ epoch: EPOCH, nodeId: 1, now: clockOf(...stamps) });
+    // 时钟在前 4097 次都停在 EPOCH，之后才走到下一毫秒：这样自旋循环必须真的转一圈，
+    // 否则序列溢出后仍停在同一毫秒（会重复发号）。
+    let reads = 0;
+    const ids = createSnowflake({
+      epoch: EPOCH,
+      nodeId: 1,
+      now: () => {
+        reads += 1;
+        return reads > 4097 ? EPOCH + 1 : EPOCH;
+      },
+    });
     const generated: string[] = [];
     for (let i = 0; i < 4097; i += 1) {
       generated.push(ids.next());
@@ -129,6 +139,15 @@ describe("createSnowflake", () => {
     expect(() => createSnowflake({ epoch: EPOCH, nodeId: 1.5 })).toThrow(/nodeId/);
   });
 
+  test("41 位时间位到顶：超了就报错，边界值本身可用", () => {
+    const TIME_MAX = 2 ** 41 - 1;
+    const atMax = createSnowflake({ epoch: 0, nodeId: 1, now: () => TIME_MAX });
+    expect(parseSnowflake(atMax.next()).elapsedMs).toBe(TIME_MAX);
+
+    const over = createSnowflake({ epoch: 0, nodeId: 1, now: () => TIME_MAX + 1 });
+    expect(() => over.next()).toThrow(/epoch 太早：41 位毫秒只够 \d+ 年/);
+  });
+
   test("当前时间早于 epoch：报错而不是产生负数", () => {
     const ids = createSnowflake({ epoch: EPOCH, nodeId: 1, now: () => EPOCH - 1 });
     expect(() => ids.next()).toThrow(/早于 epoch/);
@@ -149,5 +168,15 @@ describe("createSnowflake", () => {
     const ids = createSnowflake({ epoch: EPOCH, nodeId: 1, now: () => EPOCH + 1 });
     const id = ids.next();
     expect(JSON.parse(JSON.stringify({ id }))).toEqual({ id });
+  });
+});
+
+describe("nodeIdFromMac", () => {
+  test("返回 10 位范围内的整数，且多次调用一致", () => {
+    const first = nodeIdFromMac();
+    expect(Number.isInteger(first)).toBe(true);
+    expect(first).toBeGreaterThanOrEqual(0);
+    expect(first).toBeLessThanOrEqual(1023);
+    expect(nodeIdFromMac()).toBe(first);
   });
 });

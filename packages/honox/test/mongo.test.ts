@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { MongoClient } from "mongodb";
-import { createMongo } from "@needle/honox/mongo";
+import { createMongo } from "../src/mongo.js";
 
 function fakeClient() {
   const calls = { dbNames: [] as (string | undefined)[], closed: 0, sessions: 0 };

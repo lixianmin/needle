@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { writeXlsx } from "hucre/xlsx";
-import { createMetadata } from "@needle/honox/excel";
+import { createMetadata } from "../src/excel.js";
 
 type Cell = string | number | null;
 
