@@ -12,7 +12,7 @@ import type { Snowflake } from "./id.js";
  *
  * 用法：`app.get("/apc", apiRoute((c) => { ... }))`。
  */
-export declare function apiRoute<T extends object>(handler: Handler<HonoxEnv<T>>): Handler<HonoxEnv<T>>;
+export declare function apiRoute(handler: Handler<HonoxEnv>): Handler<HonoxEnv>;
 /**
  * 每请求两行：进的那行只有 rid / path，出的一行额外带 status / durationMs / uid。
  *（曾经用 `-->` / `<--` 当 msg，后来去掉：字段本身已经说明方向，箭头是噪音。）
@@ -28,9 +28,7 @@ export declare function apiRoute<T extends object>(handler: Handler<HonoxEnv<T>>
  * 导出它是为了单独测日志行为；业务侧应该只调 installMiddleware。
  */
 export declare function createRequestLog(log: Logger): MiddlewareHandler<HonoxEnv>;
-export interface MiddlewareOptions<C extends object> {
-    /** 挂进 context，业务用 `c.get("config")` 取。 */
-    config: C;
+export interface MiddlewareOptions {
     /** rid 生成器（没带 x-rid 时用）。 */
     ids: Snowflake;
     log: Logger;
@@ -45,5 +43,5 @@ export interface MiddlewareOptions<C extends object> {
  * 顺序不能交给业务：日志排在门禁前面，401 才有结束行；JWT 排在门禁前面，
  * 门禁才看得到 uid。这两个顺序错一个，症状都很隐蔽（"日志偶尔少一行"）。
  */
-export declare function installMiddleware<C extends object>(app: Hono<HonoxEnv<C>>, options: MiddlewareOptions<C>): void;
+export declare function installMiddleware(app: Hono<HonoxEnv>, options: MiddlewareOptions): void;
 //# sourceMappingURL=middleware.d.ts.map

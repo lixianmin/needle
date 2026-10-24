@@ -9,9 +9,8 @@ import type { HonoxEnv, PublicEntry } from "./types.js";
 /** rid 的默认纪元：2026-01-01T00:00:00Z。生产建议显式传自己的 epoch。 */
 const DEFAULT_EPOCH = Date.UTC(2026, 0, 1);
 
-export interface HonoxOptions<C extends object> {
-  config: C;
-  /** 默认 @needle/logo 的 logo 实例。 */
+export interface HonoxOptions {
+  /** 请求日志用哪个 logger；默认 `@needle/logo` 的全局 `logo`。 */
   log?: Logger;
   /** rid 的 Snowflake 配置；epoch 与 nodeId 都该显式给（多实例必须不同 nodeId）。 */
   id?: SnowflakeOptions;
@@ -30,11 +29,9 @@ function normalizeBasePath(basePath: string): string {
  *
  * 业务路由挂在返回值上，所以自动继承中间件链。
  */
-export function createHonox<C extends object>(
-  options: HonoxOptions<C>,
-): Hono<HonoxEnv<C>> {
+export function createHonox(options: HonoxOptions): Hono<HonoxEnv> {
   const log = options.log ?? logo;
-  const app = new Hono<HonoxEnv<C>>();
+  const app = new Hono<HonoxEnv>();
 
   const shellBasePath =
     options.shell === undefined ? null : normalizeBasePath(options.shell.basePath ?? "/shell");
@@ -54,7 +51,6 @@ export function createHonox<C extends object>(
 
   // 中间件链（rid → 请求日志 → JWT → 门禁）全在 middleware.ts，顺序由库固定。
   installMiddleware(app, {
-    config: options.config,
     log,
     auth: options.auth,
     ids: createSnowflake(options.id ?? { epoch: DEFAULT_EPOCH, nodeId: 0 }),
@@ -62,7 +58,7 @@ export function createHonox<C extends object>(
   });
 
   if (shell !== null && shellBasePath !== null) {
-    const handle = (c: Context<HonoxEnv<C>>) => shell.handler(c.req.raw);
+    const handle = (c: Context<HonoxEnv>) => shell.handler(c.req.raw);
     app.all(shellBasePath, handle);
     app.all(`${shellBasePath}/*`, handle);
   }

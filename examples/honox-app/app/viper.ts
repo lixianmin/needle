@@ -1,5 +1,4 @@
 import { loadConfig } from "@needle/honox/node";
-import type { Config } from "@needle/honox/node";
 
 /**
  * 全进程唯一的配置实例（viper 风格取值器）。
@@ -19,6 +18,5 @@ export const viper = loadConfig({
 declare module "hono" {
   interface ContextVariableMap {
     uid: string | null;
-    config: Config;
   }
 }

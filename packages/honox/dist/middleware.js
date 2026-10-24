@@ -103,8 +103,6 @@ export function installMiddleware(app, options) {
         // 调用方带了就用它的（网关/上游的链路 id 才能串起来），没带才自己生成。
         const rid = resolveRid((name) => c.req.header(name), options.ids);
         c.set("rid", rid);
-        c.set("config", options.config);
-        c.set("log", options.log);
         await next();
         c.header("x-rid", rid);
     });

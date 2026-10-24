@@ -1,6 +1,6 @@
 {
   "name": "@needle/got",
-  "version": "0.3.35",
+  "version": "0.3.36",
   "description": "Needle 的通用数据结构：SortedTable",
   "type": "module",
   "sideEffects": false,

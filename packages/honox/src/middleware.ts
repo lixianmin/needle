@@ -36,7 +36,7 @@ function resolveRid(
  *
  * 用法：`app.get("/apc", apiRoute((c) => { ... }))`。
  */
-export function apiRoute<T extends object>(handler: Handler<HonoxEnv<T>>): Handler<HonoxEnv<T>> {
+export function apiRoute(handler: Handler<HonoxEnv>): Handler<HonoxEnv> {
   // 跳 1 帧：第 0 帧是 apiRoute 自己。
   const where = captureCallSite(1);
   if (where === undefined) {
@@ -106,9 +106,7 @@ export function createRequestLog(log: Logger): MiddlewareHandler<HonoxEnv> {
   };
 }
 
-export interface MiddlewareOptions<C extends object> {
-  /** 挂进 context，业务用 `c.get("config")` 取。 */
-  config: C;
+export interface MiddlewareOptions {
   /** rid 生成器（没带 x-rid 时用）。 */
   ids: Snowflake;
   log: Logger;
@@ -124,16 +122,11 @@ export interface MiddlewareOptions<C extends object> {
  * 顺序不能交给业务：日志排在门禁前面，401 才有结束行；JWT 排在门禁前面，
  * 门禁才看得到 uid。这两个顺序错一个，症状都很隐蔽（"日志偶尔少一行"）。
  */
-export function installMiddleware<C extends object>(
-  app: Hono<HonoxEnv<C>>,
-  options: MiddlewareOptions<C>,
-): void {
+export function installMiddleware(app: Hono<HonoxEnv>, options: MiddlewareOptions): void {
   app.use("*", async (c, next) => {
     // 调用方带了就用它的（网关/上游的链路 id 才能串起来），没带才自己生成。
     const rid = resolveRid((name) => c.req.header(name), options.ids);
     c.set("rid", rid);
-    c.set("config", options.config);
-    c.set("log", options.log);
     await next();
     c.header("x-rid", rid);
   });

@@ -31,7 +31,6 @@ export function createHonox(options) {
     ];
     // 中间件链（rid → 请求日志 → JWT → 门禁）全在 middleware.ts，顺序由库固定。
     installMiddleware(app, {
-        config: options.config,
         log,
         auth: options.auth,
         ids: createSnowflake(options.id ?? { epoch: DEFAULT_EPOCH, nodeId: 0 }),

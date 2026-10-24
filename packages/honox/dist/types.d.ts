@@ -1,4 +1,3 @@
-import type { Logger } from "@needle/logo";
 import type { JWTPayload } from "hono/utils/jwt/types";
 /** 取 token 失败的原因。门禁据此选 401 的 message。 */
 export type AuthErrorReason = "missing" | "invalid" | "expired";
@@ -7,14 +6,17 @@ export type PublicEntry = string | {
     method: string;
     path: string;
 };
-/** 中间件塞进 c.var 的全部内容。 */
-export interface HonoxEnv<C extends object = Record<string, unknown>> {
+/**
+ * 中间件塞进 c.var 的全部内容。
+ *
+ * 只放**每个请求独有**的东西：配置是进程级单例（用 viper 取值器直接 import），
+ * 日志是进程级单例（直接用 `logo`），都不该按请求复制一份进 context。
+ */
+export interface HonoxEnv {
     Variables: {
         uid: string | null;
         user: JWTPayload | null;
         authError: AuthErrorReason | null;
-        config: C;
-        log: Logger;
         rid: string;
         /** 由 `apiRoute()` 写入：这个请求命中的 API 注册在哪个文件:行。 */
         api?: {
