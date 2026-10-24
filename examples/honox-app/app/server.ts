@@ -2,7 +2,7 @@ import { createHonox } from "@needle/honox";
 import { loadSheets } from "@needle/honox/excel";
 import { loadConfig } from "@needle/honox/node";
 import { ResponseX } from "@needle/shell";
-import { planSheet } from "./lib/plans";
+import { apcSheet, botSheet } from "./lib/templates";
 
 // 用 type 而不是 interface：createHonox 的泛型约束是 Record<string, unknown>，
 // interface 没有隐式索引签名，TS 7 会直接报 TS2344。
@@ -32,7 +32,7 @@ if (shellPassword === undefined || shellPassword === "") {
 }
 
 // hucre 只能异步读：预载一次，之后 getter 同步、零 IO。
-await loadSheets([planSheet]);
+await loadSheets([botSheet, apcSheet]);
 
 // createHonox 返回现成的 Hono 实例，路由直接挂在它上面，类型从实例上就带着
 // （env 里的 uid / reqId / config 因此不需要手写 ContextVariableMap）。
@@ -47,19 +47,28 @@ const app = createHonox({
   },
 });
 
-app.get("/", (c) => c.text("honox-app: GET /health、GET /me、GET /plans/:id"));
+app.get("/", (c) => c.text("honox-app: GET /health、GET /me、GET /bots/:id、GET /apc/:id"));
 
 app.get("/health", (c) => c.json({ ok: true }));
 
 app.get("/me", (c) => c.json({ uid: c.get("uid") }));
 
-app.get("/plans/:id", (c) => {
+app.get("/bots/:id", (c) => {
   const id = Number(c.req.param("id"));
-  const plan = Number.isFinite(id) ? planSheet.get(id) : undefined;
-  if (plan === undefined) {
-    return ResponseX.notFound("plan 不存在");
+  const bot = Number.isFinite(id) ? botSheet.get(id) : undefined;
+  if (bot === undefined) {
+    return ResponseX.notFound("bot 不存在");
   }
-  return c.json(plan);
+  return c.json(bot);
+});
+
+app.get("/apc/:id", (c) => {
+  const id = Number(c.req.param("id"));
+  const apc = Number.isFinite(id) ? apcSheet.get(id) : undefined;
+  if (apc === undefined) {
+    return ResponseX.notFound("apc 不存在");
+  }
+  return c.json(apc);
 });
 
 // Bun 认这个默认导出（{ port, fetch }）并在启动时自己 Bun.serve，
