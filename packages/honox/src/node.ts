@@ -1,5 +1,4 @@
 import { readFileSync } from "node:fs";
-import { networkInterfaces, type NetworkInterfaceInfo } from "node:os";
 import { join, resolve } from "node:path";
 import { parse } from "yaml";
 import { applyEnv, assertRequired, createConfig, deepMerge, type Config, type EnvLike } from "./config.js";
@@ -82,33 +81,4 @@ export function loadConfig<C extends Record<string, unknown>>(
   const withEnv = applyEnv(merged, options.envVars ?? process.env, options.envPrefix ?? "APP_");
   assertRequired(withEnv, options.required ?? []);
   return createConfig(withEnv as C, env);
-}
-
-/**
- * 从网卡 MAC 派生 10 位机器号（0..1023）。
- *
- * 取所有非内部的 MAC，排序后 FNV-1a 哈希：同一台机器每次算出同一个号，
- * 不用配置。注意容器（Docker 默认）每次重建 MAC 都会变——多实例部署请显式
- * 配 nodeId，别依赖这里。
- */
-export function nodeIdFromMac(): number {
-  const macs = Object.values(networkInterfaces())
-    .flat()
-    .filter(
-      (entry): entry is NetworkInterfaceInfo =>
-        entry !== undefined && !entry.internal && entry.mac !== "" && entry.mac !== "00:00:00:00:00:00",
-    )
-    .map((entry) => entry.mac)
-    .sort();
-  if (macs.length === 0) {
-    throw new Error("找不到可用的网卡 MAC：请显式配置 nodeId");
-  }
-
-  // FNV-1a 32 位：够把 MAC 摊开，也不引依赖。
-  let hash = 0x811c9dc5;
-  for (const char of macs.join("|")) {
-    hash ^= char.charCodeAt(0);
-    hash = Math.imul(hash, 0x01000193) >>> 0;
-  }
-  return hash & 0x3ff;
 }

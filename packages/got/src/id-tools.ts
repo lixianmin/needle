@@ -69,7 +69,7 @@ export interface SnowflakeOptions {
    * 否则每次重启时间位都会从头开始，id 会重复。
    */
   epoch: number;
-  /** 机器号 0..1023。单机随便给；多实例必须互不相同（可用 `@needle/honox/node` 的 `nodeIdFromMac()`）。 */
+  /** 机器号 0..1023。单机随便给；多实例必须互不相同，从部署配置里给（不要从 MAC / IP 派生：10 位桶会撞）。 */
   nodeId: number;
   /** 注入时钟，测试用。 */
   now?: () => number;

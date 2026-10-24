@@ -25,12 +25,4 @@ export interface LoadConfigOptions {
  * 点分路径的兼容、缺值报错、`APP_SERVER__WEB_PORT` 这类覆盖都收在这一层。
  */
 export declare function loadConfig<C extends Record<string, unknown>>(options?: LoadConfigOptions): Config<C>;
-/**
- * 从网卡 MAC 派生 10 位机器号（0..1023）。
- *
- * 取所有非内部的 MAC，排序后 FNV-1a 哈希：同一台机器每次算出同一个号，
- * 不用配置。注意容器（Docker 默认）每次重建 MAC 都会变——多实例部署请显式
- * 配 nodeId，别依赖这里。
- */
-export declare function nodeIdFromMac(): number;
 //# sourceMappingURL=node.d.ts.map
