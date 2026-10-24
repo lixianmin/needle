@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { SortedTable } from "../../src/core/collections/sorted-table.js";
+import { SortedTable } from "../src/collections/sorted-table.js";
 
 describe("SortedTable", () => {
   test("乱序插入，遍历时按 key 有序", () => {

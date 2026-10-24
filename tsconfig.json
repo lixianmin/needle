@@ -22,7 +22,8 @@
     "noUnusedParameters": true
   },
   "include": [
-    "src",
+    "packages/*/src",
+    "packages/*/test",
     "test",
     "examples",
     "scripts"
