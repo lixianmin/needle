@@ -82,34 +82,3 @@ describe("honox 是唯一允许依赖 Hono 的包", () => {
     expect(offenders).toEqual([]);
   });
 });
-    expect(deps("packages/logo/package.json")).toEqual({});
-    expect(deps("packages/shell/package.json")).toEqual({ "@needle/logo": "workspace:*" });
-  });
-
-  test("入口表里没有框架适配入口", () => {
-    const entries: Record<string, string[]> = {
-      "packages/got/package.json": ["."],
-      "packages/logo/package.json": [".", "./node"],
-      "packages/shell/package.json": [".", "./node"],
-    };
-    for (const [rel, expected] of Object.entries(entries)) {
-      const manifest = JSON.parse(source(rel)) as { exports: Record<string, unknown> };
-      expect(Object.keys(manifest.exports)).toEqual(expected);
-    }
-  });
-});
-
-describe("honox 是唯一允许依赖 Hono 的包", () => {
-  test("hono 只出现在 honox 的 peerDependencies 里", () => {
-    const manifest = pkg("packages/honox/package.json");
-    expect(manifest.peerDependencies?.hono).toBeDefined();
-    expect(manifest.dependencies ?? {}).not.toHaveProperty("hono");
-  });
-
-  test("hono 的 import 只出现在 honox 与示例 app 里", () => {
-    const offenders = [...codeFiles("packages"), ...codeFiles("examples")]
-      .filter((rel) => /from\s+["']hono(\/|["'])/.test(source(rel)))
-      .filter((rel) => !ALLOWED_PREFIXES.some((prefix) => rel.startsWith(prefix)));
-    expect(offenders).toEqual([]);
-  });
-});
