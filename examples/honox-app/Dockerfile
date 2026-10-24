@@ -19,11 +19,10 @@ RUN bun install --frozen-lockfile && bun run build
 FROM oven/bun:1
 WORKDIR /app
 COPY --from=builder /src/examples/honox-app/dist ./dist
-COPY --from=builder /src/examples/honox-app/config ./config
 COPY --from=builder /src/examples/honox-app/res ./res
 
 ENV ENV=dev
 ENV NODE_ENV=production
-EXPOSE 3000
+EXPOSE 8213
 USER bun
 CMD ["bun", "dist/index.js"]

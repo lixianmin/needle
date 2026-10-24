@@ -9,7 +9,7 @@
 ```bash
 bun install     # 装 hono / typescript 等
 bun run build   # bun build → dist/index.js（自包含产物）
-SHELL_PASSWORD=dev bun run start   # 默认 3000 端口，PORT 可改
+SHELL_PASSWORD=dev bun run start   # 默认 8213 端口（res/config/common.yml），PORT 可改
 ```
 
 ## 为什么不是 HonoX
@@ -20,11 +20,13 @@ SHELL_PASSWORD=dev bun run start   # 默认 3000 端口，PORT 可改
 
 ## 配置
 
-- `config/common.yml`：所有环境共享。
-- `config/app_<env>.yml`：只写差异项，`ENV` 决定加载哪个（默认 `dev`）。
-- 环境变量覆盖：`APP_AUTH__SECRET=xxx`（`__` 分隔层级），优先级最高。
+配置和模板表都在 `res/` 下，与镜像里的目录结构一致：
 
-启动时缺 `auth.secret` 会直接报错，不会带着空密钥跑。
+- `res/config/common.yml`：所有环境共享（端口、host、redis）。
+- `res/config/app_<env>.yml`：只写差异项，`ENV` 决定加载哪个（默认 `dev`）。
+- 环境变量覆盖：`APP_AUTH__SECRET=xxx`（`__` 分隔层级），优先级最高；`PORT` / `HOST` 直接盖 端口/host。
+
+`loadConfig({ dir: "res/config" })` 读的就是这个目录。启动时缺 `auth.secret` 会直接报错，不会带着空密钥跑。`logger` / `metadata` / `redis` 几段当前示例不读（`@needle/logo` 的 lark sink 没接线，模板路径写死在 `app/md/`），留着给业务扩展；`lark_token` 在仓库里是空字符串，真实值用环境变量注入。
 
 ## 接口
 
@@ -70,10 +72,10 @@ app/md/
 
 ```bash
 docker build -f examples/honox-app/Dockerfile -t honox-app .
-docker run --rm -p 3000:3000 \
+docker run --rm -p 8213:8213 \
   -e APP_AUTH__SECRET="换成你自己的随机串" \
   -e SHELL_PASSWORD="换成你自己的口令" \
   honox-app
 ```
 
-镜像里 `NODE_ENV=production`：不传 `APP_AUTH__SECRET` 就启动报错，不会带着仓库里的 dev 密钥裸奔；`SHELL_PASSWORD` 同理（`/shell` 在 JWT 白名单里，对它唯一的门就是这个口令）。`ENV` 默认 `dev`，换成其它值要先加对应的 `config/app_<env>.yml`，否则启动直接报找不到环境配置。镜像不带 `node_modules`：`dist/index.js` 是自包含产物。
+镜像里 `NODE_ENV=production`：不传 `APP_AUTH__SECRET` 就启动报错，不会带着仓库里的 dev 密钥裸奔；`SHELL_PASSWORD` 同理（`/shell` 在 JWT 白名单里，对它唯一的门就是这个口令）。`ENV` 默认 `dev`，换成其它值要先加对应的 `res/config/app_<env>.yml`（`app_fat.yml` 没写 `auth.secret`，跑 fat 得靠 `APP_AUTH__SECRET`）。镜像不带 `node_modules`：`dist/index.js` 是自包含产物；`res/` 是运行时 fs 读的，整目录拷进镜像。

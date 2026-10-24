@@ -246,15 +246,16 @@ export function createMongo(options: MongoOptions): Mongo;
 
 ```
 examples/honox-app/
-  app/server.ts          # loadConfig → createHonox(...) → 路由直接挂 → export default { port, fetch }
+  app/server.ts          # loadConfig({dir:"res/config"}) → createHonox(...) → 路由直接挂 → export default { port, hostname, fetch }
   app/md/                # 一表一文件：bot-template.ts / apc-template.ts，index.ts 统一预载
-  config/common.yml      # auth.secret
-  config/app_dev.yml     # 只写与 common 不同的项
+  res/config/common.yml  # 服务器端口/host、redis
+  res/config/app_dev.yml # 只写与 common 不同的项（含本示例必填的 auth.secret）
+  res/metadata/*.xlsx    # 模板表（见 8.11）
   Dockerfile
   README.md              # 怎么跑、怎么打镜像
 ```
 
-构建只有一步：`bun build app/server.ts --target=bun --outfile=dist/index.js`。Bun 认得 `export default { port, fetch }` 并在启动时自己 serve，所以 `dist/index.js` 是自包含产物（npm 依赖已打进去），运行镜像不带 `node_modules`；`config/` 与 `res/` 走运行时 fs 读取，仍需拷进镜像。
+构建只有一步：`bun build app/server.ts --target=bun --outfile=dist/index.js`。Bun 认得 `export default { port, hostname, fetch }` 并在启动时自己 serve，所以 `dist/index.js` 是自包含产物（npm 依赖已打进去），运行镜像不带 `node_modules`；`res/` 走运行时 fs 读取（配置 + 模板表都在里面），需整目录拷进镜像。配置目录不是库默认的 `config`，示例显式传 `dir: "res/config"`。
 
 ### 8.10 Excel 配置（`@needle/honox/excel`）
 
