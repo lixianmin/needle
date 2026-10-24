@@ -57,17 +57,33 @@ function classify(sheetName) {
     }
     return null;
 }
-/** 列名统一按小写比较：表头在 toRecords 里已经 lowercase 了。 */
-function normalizeColumns(columns) {
-    return (columns ?? []).map((column) => column.trim().toLowerCase());
+/**
+ * 归一成 列名 → 分隔符 的表。列名按小写比较（表头在 toRecords 里已经 lowercase 了），
+ * 分隔符写空字符串时退回默认的 `|`。
+ */
+function normalizeSplit(split) {
+    const columns = new Map();
+    if (split === undefined) {
+        return columns;
+    }
+    if (Array.isArray(split)) {
+        for (const column of split) {
+            columns.set(column.trim().toLowerCase(), SPLIT_SEPARATOR);
+        }
+        return columns;
+    }
+    for (const [column, separator] of Object.entries(split)) {
+        columns.set(column.trim().toLowerCase(), separator === "" ? SPLIT_SEPARATOR : separator);
+    }
+    return columns;
 }
 /**
- * 按 `|` 拆列：原始值 `"a|b|0"` → `["a", "b", "0"]`。
+ * 按各列的分隔符拆列：`"a|b|0"` → `["a", "b", "0"]`。
  * 空单元格给 `[]`；列名写错（表里没这列）就不动它，避免造出幽灵字段。
  */
 function applySplit(row, columns) {
     const shaped = { ...row };
-    for (const column of columns) {
+    for (const [column, separator] of columns) {
         if (!(column in shaped)) {
             continue;
         }
@@ -76,7 +92,7 @@ function applySplit(row, columns) {
             value === null || value === undefined || value === ""
                 ? []
                 : String(value)
-                    .split(SPLIT_SEPARATOR)
+                    .split(separator)
                     .map((part) => part.trim());
     }
     return shaped;
@@ -191,7 +207,7 @@ export function createMetadata() {
         };
     }
     function template(name, options = {}) {
-        const columns = normalizeColumns(options.split);
+        const columns = normalizeSplit(options.split);
         let cachedVersion = -1;
         let byId = new Map();
         let list = [];
@@ -204,7 +220,7 @@ export function createMetadata() {
             if (cachedVersion === state.version) {
                 return { byId, list };
             }
-            if (columns.length === 0) {
+            if (columns.size === 0) {
                 byId = table.byId;
                 list = table.list;
             }
@@ -228,7 +244,7 @@ export function createMetadata() {
         };
     }
     function config(name, options = {}) {
-        const columns = normalizeColumns(options.split);
+        const columns = normalizeSplit(options.split);
         let cachedVersion = -1;
         let shaped;
         return {
@@ -240,7 +256,7 @@ export function createMetadata() {
                     throw new Error(`没有 Config 表：${name}（sheet 名要原样、且以 ${CONFIG_SUFFIX} 结尾；已加载：${listOf(state.configs.keys())}）`);
                 }
                 if (cachedVersion !== state.version) {
-                    shaped = (columns.length === 0 ? value : applySplit(value, columns));
+                    shaped = (columns.size === 0 ? value : applySplit(value, columns));
                     cachedVersion = state.version;
                 }
                 return shaped;

@@ -15,14 +15,24 @@ const SPREADSHEET_EXTENSIONS: readonly string[] = [".xlsx", ".xlsm"];
 /** 拆列的默认分隔符：配置表里 `503048|508012|0|0` 这种形态。 */
 const SPLIT_SEPARATOR = "|";
 
+/**
+ * 拆列的声明，两种写法：
+ * - `["equips", "tags"]`：这些列按默认分隔符 `|` 拆；
+ * - `{ equips: "|", tags: "," }`：逐列指定分隔符（写 `""` 等同默认）。
+ *
+ * TS 没有 Go 那样的 struct tag，运行时也没有类型信息，所以分隔符只能这样
+ * 跟句柄一起声明——位置就是 `app/md/<名>-template.ts` 里那一行。
+ */
+export type SplitColumns = readonly string[] | Readonly<Record<string, string>>;
+
 export interface TemplateOptions {
   /**
-   * 这些列在读取时按 `|` 拆成 `string[]`。
+   * 这些列在读取时拆成 `string[]`。
    *
    * 不拆的话业务侧每次都得自己 `split("|")`，还得处理空单元格；
    * 拆列结果里 `"0"` 保留（它是有含义的占位），空单元格是 `[]`。
    */
-  readonly split?: readonly string[];
+  readonly split?: SplitColumns;
 }
 
 export interface Template<T> {
@@ -120,21 +130,37 @@ function classify(sheetName: string): "template" | "config" | null {
   return null;
 }
 
-/** 列名统一按小写比较：表头在 toRecords 里已经 lowercase 了。 */
-function normalizeColumns(columns: readonly string[] | undefined): readonly string[] {
-  return (columns ?? []).map((column) => column.trim().toLowerCase());
+/**
+ * 归一成 列名 → 分隔符 的表。列名按小写比较（表头在 toRecords 里已经 lowercase 了），
+ * 分隔符写空字符串时退回默认的 `|`。
+ */
+function normalizeSplit(split: SplitColumns | undefined): ReadonlyMap<string, string> {
+  const columns = new Map<string, string>();
+  if (split === undefined) {
+    return columns;
+  }
+  if (Array.isArray(split)) {
+    for (const column of split) {
+      columns.set(column.trim().toLowerCase(), SPLIT_SEPARATOR);
+    }
+    return columns;
+  }
+  for (const [column, separator] of Object.entries(split)) {
+    columns.set(column.trim().toLowerCase(), separator === "" ? SPLIT_SEPARATOR : separator);
+  }
+  return columns;
 }
 
 /**
- * 按 `|` 拆列：原始值 `"a|b|0"` → `["a", "b", "0"]`。
+ * 按各列的分隔符拆列：`"a|b|0"` → `["a", "b", "0"]`。
  * 空单元格给 `[]`；列名写错（表里没这列）就不动它，避免造出幽灵字段。
  */
 function applySplit(
   row: Record<string, CellValue>,
-  columns: readonly string[],
+  columns: ReadonlyMap<string, string>,
 ): Record<string, unknown> {
   const shaped: Record<string, unknown> = { ...row };
-  for (const column of columns) {
+  for (const [column, separator] of columns) {
     if (!(column in shaped)) {
       continue;
     }
@@ -143,7 +169,7 @@ function applySplit(
       value === null || value === undefined || value === ""
         ? []
         : String(value)
-            .split(SPLIT_SEPARATOR)
+            .split(separator)
             .map((part) => part.trim());
   }
   return shaped;
@@ -279,7 +305,7 @@ export function createMetadata(): Metadata {
     name: string,
     options: TemplateOptions = {},
   ): Template<T> {
-    const columns = normalizeColumns(options.split);
+    const columns = normalizeSplit(options.split);
     let cachedVersion = -1;
     let byId: ReadonlyMap<number, T> = new Map();
     let list: readonly T[] = [];
@@ -293,7 +319,7 @@ export function createMetadata(): Metadata {
       if (cachedVersion === state.version) {
         return { byId, list };
       }
-      if (columns.length === 0) {
+      if (columns.size === 0) {
         byId = table.byId as ReadonlyMap<number, T>;
         list = table.list as readonly T[];
       } else {
@@ -323,7 +349,7 @@ export function createMetadata(): Metadata {
     name: string,
     options: TemplateOptions = {},
   ): Config<T> {
-    const columns = normalizeColumns(options.split);
+    const columns = normalizeSplit(options.split);
     let cachedVersion = -1;
     let shaped: T | undefined;
 
@@ -338,7 +364,7 @@ export function createMetadata(): Metadata {
           );
         }
         if (cachedVersion !== state.version) {
-          shaped = (columns.length === 0 ? value : applySplit(value, columns)) as T;
+          shaped = (columns.size === 0 ? value : applySplit(value, columns)) as T;
           cachedVersion = state.version;
         }
         return shaped as T;
