@@ -112,6 +112,7 @@ packages/honox/
 export interface HonoxOptions<C extends Record<string, unknown>> {
   /** 请求日志用哪个 logger；默认全局 logo。 */
   logger?: Logger;                           // 默认 @needle/logo 的 logo 实例
+  snowflake?: SnowflakeOptions;               // rid 生成器；默认 epoch 2014-12-09T00:00:00Z、机器号 0
   auth: {
     secret: string;                          // HS256 密钥
     claim?: string;                          // uid 取哪个 claim，默认 "sub"
@@ -184,7 +185,7 @@ export function createHonox<C extends Record<string, unknown>>(
 - 存储建议：Mongo `_id` 用字符串（13 字节，和 `ObjectId` 的 12 字节同量级）；MySQL 用 `CHAR(13) CHARACTER SET ascii COLLATE ascii_bin`，别用默认的 utf8mb4（索引更宽、大小写不敏感）。
 - 参考数字：63 位塞进 signed 64 位没问题（实测 BSON int64 往返精确），但我们**不需要**那条路——字符串形态已经绕开了 JS 精度问题。
 - **生成路径不碰 bigint**：`%` / `/` 每次都要分配 bigint 对象，几十万次/秒下全是白烧的 GC。实现把 63 位拆成 hi(31) + lo(32) 两段用 number 位运算，落进一块复用的 `Uint8Array(13)`，最后一次 `String.fromCharCode` 出串——每次调用只产生一个字符串。实测 500k 次：405ns/个 → 244ns/个（约 -40%）。`decode` 仍用 bigint，它只在解析/测试里跑。
-- **epoch 必须写死**（示例放 `server.epoch_ms`，2026-01-01T00:00:00Z）：用启动时间当 epoch 会让每次重启的时间位从 0 开始，id 直接重复。
+- **epoch 必须写死**（库默认 2014-12-09T00:00:00Z；示例显式传 `server.epoch_ms`）：用启动时间当 epoch 会让每次重启的时间位从 0 开始，id 直接重复。
 - **机器号**：0..1023。`nodeIdFromMac()`（`./node` 入口，读 `os.networkInterfaces()`，排序后 FNV-1a 取低 10 位）零配置；容器每次重建 MAC 会变，多实例请显式配。
 - **同一毫秒**：序列 +1，超过 4095 就自旋等下一毫秒（不丢号不重号）。
 - **时钟回拨**：照原版 Snowflake 直接抛错，不静默产生更小的 id——B 树回头插正是要避免的页分裂。等时钟追上来会让请求卡住，所以不选等待。

@@ -3,8 +3,14 @@ import { createServerShell } from "@needle/shell";
 import { Hono } from "hono";
 import { createSnowflake } from "./id.js";
 import { installMiddleware } from "./middleware.js";
-/** rid 的默认纪元：2026-01-01T00:00:00Z。生产建议显式传自己的 epoch。 */
-const DEFAULT_EPOCH = Date.UTC(2026, 0, 1);
+/**
+ * rid 的默认纪元：2014-12-09T00:00:00Z。
+ *
+ * 写 ISO 串而不是 `Date.UTC(2014, 12, 9)`：后者月份是 0-based，字面值其实是
+ * 2015-01-09，差一个月——epoch 是写死的常量，写错了改回来就是 id 字典序断档。
+ * 生产建议显式传自己的 epoch。
+ */
+const DEFAULT_EPOCH = Date.parse("2014-12-09T00:00:00Z");
 function normalizeBasePath(basePath) {
     const trimmed = basePath.replace(/\/+$/, "");
     return trimmed === "" ? "" : trimmed;
@@ -33,7 +39,7 @@ export function createHonox(options) {
     installMiddleware(app, {
         log,
         auth: options.auth,
-        ids: createSnowflake(options.id ?? { epoch: DEFAULT_EPOCH, nodeId: 0 }),
+        ids: createSnowflake(options.snowflake ?? { epoch: DEFAULT_EPOCH, nodeId: 0 }),
         public: publicEntries,
     });
     if (shell !== null && shellBasePath !== null) {

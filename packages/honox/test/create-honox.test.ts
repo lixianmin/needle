@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { newLogger, type LogRecord } from "@needle/logo";
 import { sign } from "hono/jwt";
 import { createHonox } from "../src/index.js";
+import { parseSnowflake } from "../src/id.js";
 import { apiRoute, createApi } from "../src/route.js";
 
 const SECRET = "test-secret";
@@ -63,6 +64,20 @@ describe("createHonox", () => {
       expect(id).not.toBe(bad);
       expect(id).toMatch(/^[0-9a-hjkmnp-tv-z]{13}$/);
     }
+  });
+
+  test("不传 snowflake 时用默认纪元生成 rid", async () => {
+    const app = createHonox({ auth: { secret: SECRET } });
+    app.get("/rid", (c) => c.json({}));
+    const res = await app.request("/rid");
+    const rid = res.headers.get("x-rid")!;
+    expect(rid).toMatch(/^[0-9a-hjkmnp-tv-z]{13}$/);
+    // 默认纪元写死在库里：elapsedMs 能对上「现在 − 2014-12-09」就说明这个常量没漂。
+    // 1 分钟容差足够吃掉测试自身的耗时，又远小于任何写错的日期（最短也差一天）。
+    const expected = Date.now() - Date.parse("2014-12-09T00:00:00Z");
+    const { elapsedMs, nodeId } = parseSnowflake(rid);
+    expect(Math.abs(elapsedMs - expected)).toBeLessThan(60_000);
+    expect(nodeId).toBe(0);
   });
 
   test("响应头有 x-rid，且与结束日志的 rid 一致", async () => {

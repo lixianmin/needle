@@ -29,7 +29,7 @@ await initTemplates(viper.getString("metadata.base_url"));
 // rid 用 Snowflake：epoch 写死在配置里（不能用启动时间），机器号从网卡 MAC 派生。
 // 多实例部署时 MAC 会变（容器），那种场景请改成显式配置 nodeId。
 const app = createHonox({
-  id: {
+  snowflake: {
     epoch: viper.getInt("server.epoch_ms"),
     nodeId: nodeIdFromMac(),
   },
