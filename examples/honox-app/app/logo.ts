@@ -1,4 +1,4 @@
-import { LEVELS, createLarkSink, logo, type LarkSink, type Level, type LogFiles } from "@needle/logo";
+import { LEVELS, createLarkSink, formatTime, logo, type LarkSink, type Level, type LogFiles } from "@needle/logo";
 import { createFileSink, createLogFiles } from "@needle/logo/node";
 import { networkInterfaces } from "node:os";
 import { viper } from "./viper.js";
@@ -69,7 +69,8 @@ function startupInfo(): Record<string, unknown> {
     endpoint: where,
     shell: `http://${where}/shell`,
     pid: process.pid,
-    startedAt: new Date().toISOString(),
+    // 时间一律东八区（与落盘日志、面板同一个口径），不用 toISOString 那种 UTC
+    startedAt: formatTime(Date.now()),
   };
 }
 
