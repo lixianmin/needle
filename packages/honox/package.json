@@ -13,6 +13,10 @@
     "./node": {
       "types": "./dist/node.d.ts",
       "default": "./dist/node.js"
+    },
+    "./mongo": {
+      "types": "./dist/mongo.d.ts",
+      "default": "./dist/mongo.js"
     }
   },
   "files": [
@@ -24,9 +28,16 @@
     "yaml": "^2.9.1"
   },
   "peerDependencies": {
-    "hono": "^4"
+    "hono": "^4",
+    "mongodb": "^7"
   },
   "devDependencies": {
-    "hono": "^4.13.13"
+    "hono": "^4.13.13",
+    "mongodb": "^7.7.0"
+  },
+  "peerDependenciesMeta": {
+    "mongodb": {
+      "optional": true
+    }
   }
 }
