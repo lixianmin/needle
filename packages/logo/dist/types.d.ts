@@ -15,7 +15,10 @@ export interface LogRecord {
     level: Level;
     name?: string;
     msg?: string;
-    /** 调用点 `file.ts:12`，由库填写（与 Go 版 logo 的 FlagShortFile 同口径）。 */
+    /**
+     * 调用点 `file.ts:12`，由 payload 提供（`traceOf` 用注册时抓的那一帧）。
+     * 库不再逐条抓栈：打包后栈里只是 bundle 坐标（与 Go 版 FlagShortFile 同口径）。
+     */
     site?: string;
     /** 调用点所在函数名。 */
     fn?: string;

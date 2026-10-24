@@ -34,8 +34,9 @@ function moduleOf(c) {
     return where === undefined ? {} : { module: where.module };
 }
 /**
- * 只兜两种业务补不了的日志：500 和慢请求。其余请求一律不记——打什么由业务
- * 用 `traceOf(ctx)` 自己决定（health 这类接口本来就该是零日志）。
+ * 只兜业务补不了的三种：未捕获异常（含非 Error 抛出）、未 finalize、慢请求。
+ * 其余请求一律不记——打什么由业务用 `traceOf(ctx)` 自己决定（health 这类接口
+ * 本来就该是零日志）。
  *
  * 500 的日志放在这里而不是 `onError`：业务可以自己 `app.onError`（单槽替换），
  * 替换掉之后库里的日志就没了；而 `c.error` 是 compose 写的，与谁处理无关。
@@ -73,7 +74,14 @@ function createFallbackLog(log, slowMs) {
             if (isRequestError(c.error)) {
                 return;
             }
-            log.error({ ...base(), status, durationMs, uid }, c.error);
+            // HTTPException 这类自带 4xx 的错误同样不是服务端故障，记 warn 就够。
+            const line = { ...base(), status, durationMs, uid };
+            if (status >= 500) {
+                log.error(line, c.error);
+            }
+            else {
+                log.warn(line, c.error);
+            }
             return;
         }
         if (!responded) {
@@ -82,8 +90,9 @@ function createFallbackLog(log, slowMs) {
             log.error({ ...base(), status: 500, durationMs, uid }, new Error("请求没有 finalize：handler 既没返回 Response，也没 await next()"));
             return;
         }
-        // error 行已经带 durationMs，慢请求只补没出错的那一路，避免一次慢失败记两条。
-        if (slowMs > 0 && durationMs >= slowMs) {
+        // 401 / 404 已经由门禁 / notFound 记过一行；error 行也带 durationMs。
+        // 慢请求只补「没人记过」的那一类，避免一次请求记两条。
+        if (slowMs > 0 && durationMs >= slowMs && status !== 401 && status !== 404) {
             log.warn({ ...base(), status, durationMs, uid });
         }
     };

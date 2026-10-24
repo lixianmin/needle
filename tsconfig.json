@@ -22,7 +22,8 @@
     "noUnusedParameters": true
   },
   "exclude": [
-    "examples/honox-app"
+    "examples/honox-app",
+    "test/.tmp-gen"
   ],
   "include": [
     "packages/*/src",

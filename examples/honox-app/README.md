@@ -45,10 +45,9 @@ Shell 面板的账号在 `res/config/app_dev.yml` 的 `server.shell_users` 里�
 export const viper = loadConfig({ dir: "res/config", required: ["auth.secret", "metadata.base_url", "server.web_port"] });
 ```
 
-两处拿法，拿到的是同一个实例：
+只有一种拿法：`import { viper } from "../viper"`，请求内请求外都直接 import。
 
-- **请求外**（`app/main.ts`、`app/md/*`、服务层）：`import { viper } from "../viper"`。
-- **请求内**（`app/api/*.ts`）：`c.get("config")`。键的类型在 `app/viper.ts` 里用 `declare module "hono" { interface ContextVariableMap { ... } }` 声明一次，所以接口文件写 `new Hono()` 就够了，不用 import 任何 env 类型。
+配置是进程级单例，不进 request context——少一份可变的副本，也少一层「配置从哪来」的追问。`app/viper.ts` 只 `declare module "hono"` 补了 `uid` 一个键，那是请求级的东西。
 
 ```ts
 viper.getInt("server.web_port")           // 8001
@@ -97,6 +96,7 @@ app/viper.ts     # 配置实例（viper 风格取值器）+ c.get 的键声明
 ```ts
 // app/api/bots.ts —— 一个文件一个组，可以挂多条路由
 import { createApi } from "@needle/honox";
+import { BotsBody, BotsQuery } from "../beans/bots.js";
 
 export const botsApi = createApi("api/bots");   // 参数是日志里的模块名，必填
 
@@ -109,7 +109,9 @@ botsApi.get("/health", (ctx) => ctx.json({ ok: true }));       // 不校验参�
 
 参数模型见 `app/beans/`：手写 class（`bots.ts`），`scripts/gen-models.ts` 生成 TypeBox schema（`bots.generated.ts`，提交进仓库）。bean 文件顶部 `import "./bots.generated.js"`，所以业务 import 这个 bean 文件时 schema 就注册好了，不需要额外的 barrel。生成物带漂移断言，class 改了没重新生成会编译报错。
 
-handler 的参数不用写类型注解：`botsApi.post("/bots", BotsBody, (ctx, body) => …)` 已经推断出 `ctx: Context<HonoxEnv>` 和 `body: BotsBody`，再写一遍就是同一信息写两次。
+handler 的参数不用写类型注解：`botsApi.post("/bots", BotsBody, (ctx, request) => …)` 已经推断出 `ctx: Context<HonoxEnv>` 和 `request: BotsBody`，再写一遍就是同一信息写两次。
+
+**模型类名在压缩后必须还在**：注册表按 `class.name` 查 schema，`bun build --minify` 会把类名抹平（和下面 Excel sheet 名同一个坑）。线上要用压缩构建就给生成物传显式名字，或者别压缩 bean 文件。
 
 已经有 `new Hono()` 实例时，用 `apiRoute("api/apc", handler)` 单独包 handler。
 
@@ -135,10 +137,14 @@ botsApi.post("/bots", BotsBody, (ctx, request) => {
 ```
 
 ```
-[I] bots.ts:37 [handler()] {"rid":"01M5Q4VBM312ET9MKN9RRYB40N","uid":"u1","method":"POST","path":"/bots","module":"api/bots","ids":[1,99]}
+[I] bots.ts:35 {"rid":"01M5Q4VBM312ET9MKN9RRYB40N","uid":"u1","method":"POST","path":"/bots","module":"api/bots","ids":[1,99]}
 ```
 
+（`bots.ts:35` 是注册那一行；`fn` 为空所以没有 `[fn()]`。打包后这个行号会变成 bundle 坐标，`module` 才是生产环境的定位依据。）
+
 库只补业务补不了的四种：401（门禁）、404（未命中）、500（含未捕获异常）、慢请求（默认 >1000ms）。`/health` 这种不写日志的接口就是零日志。
+
+query 的约定（写死的行为）：重复键在数组 schema 下收齐全部值、否则取最后一个；空串 `?id=` 视为未传；只认 schema 声明过的键，多余的忽略。**数组要用重复键**（`?ids=1&ids=2`），`?ids[]=1` 这种带方括号的写法不认。
 
 日志走 `@needle/logo` 的批处理，进程被杀前可能还没刷出来——本地验证时给它 1~2 秒。
 

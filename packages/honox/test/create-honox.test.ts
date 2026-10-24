@@ -158,6 +158,16 @@ describe("createHonox", () => {
     expect(first?.site).not.toBe(second?.site);
   });
 
+  test("Shell 未命中的路径也记一条 404（这条路径不在 Hono 路由表里）", async () => {
+    const { app, records } = setup();
+
+    const res = await app.request("/shell/zzz");
+
+    expect(res.status).toBe(404);
+    expect(records).toHaveLength(1);
+    expect(records[0]).toMatchObject({ path: "/shell/zzz", status: 404, level: "info" });
+  });
+
   test("Shell 面板挂到 /shell，且不被门禁拦", async () => {
     const { app } = setup();
     expect((await app.request("/shell")).status).toBe(200);

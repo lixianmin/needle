@@ -14,8 +14,8 @@ export const BotsBodySchema = Type.Object({
 // 漂移断言：class 改了没重新生成，tsc 会在这里报错。
 type Equals<A, B> = (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false;
 type Assert<T extends true> = T;
-type _BotsQueryInSync = Assert<Equals<Static<typeof BotsQuerySchema>, BotsQuery>>;
-type _BotsBodyInSync = Assert<Equals<Static<typeof BotsBodySchema>, BotsBody>>;
+export type _BotsQueryInSync = Assert<Equals<Static<typeof BotsQuerySchema>, BotsQuery>>;
+export type _BotsBodyInSync = Assert<Equals<Static<typeof BotsBodySchema>, BotsBody>>;
 
 // 按类名注册，路由那边 modelSchema(Model) 查得到。
 registerModel("BotsQuery", BotsQuerySchema);

@@ -1,6 +1,7 @@
 import { logo } from "@needle/logo";
 import { ResponseX, createServerShell } from "@needle/shell";
 import { Hono } from "hono";
+import { HTTPException } from "hono/http-exception";
 import { installMiddleware } from "./middleware.js";
 import { isRequestError } from "./request.js";
 function normalizeBasePath(basePath) {
@@ -47,10 +48,23 @@ export function createHonox(options) {
         if (isRequestError(error)) {
             return ResponseX.fail(error.status, error.code, error.message);
         }
+        // Hono 自带的中间件（basic-auth / bearer-auth / zValidator 之类）抛的是
+        // HTTPException，它自带状态码与响应体；一律当 500 会把 401 变成 500。
+        if (error instanceof HTTPException) {
+            return error.getResponse();
+        }
         return ResponseX.internalError("服务内部错误");
     });
     if (shell !== null && shellBasePath !== null) {
-        const handle = (c) => shell.handler(c.req.raw);
+        const handle = async (c) => {
+            const res = await shell.handler(c.req.raw);
+            // 面板不在 Hono 的路由表里，未命中的 404 由 shell 自己回——不在这里记，
+            // 这条路径就一条日志都没有（而它恰好是唯一允许匿名访问的子树）。
+            if (res.status === 404) {
+                log.info({ rid: c.get("rid"), method: c.req.method, path: c.req.path, status: 404 });
+            }
+            return res;
+        };
         app.all(shellBasePath, handle);
         app.all(`${shellBasePath}/*`, handle);
     }

@@ -2,18 +2,36 @@ import { captureCallSite } from "@needle/logo";
 import { Hono } from "hono";
 import { modelSchema } from "./model.js";
 import { parseBody, parseQuery } from "./parse.js";
-/** 登记路由的方法：这些调用要抓注册位置。 */
-const ROUTE_METHODS = ["get", "post", "put", "patch", "delete", "all"];
+/** 登记路由的方法：这些调用要抓注册位置（与 Hono 的 METHODS + all 对齐）。 */
+const ROUTE_METHODS = [
+    "get",
+    "post",
+    "put",
+    "delete",
+    "options",
+    "patch",
+    "query",
+    "all",
+];
 const ROUTE_METHOD_SET = new Set(ROUTE_METHODS);
 /** 这些方法读 query，其余读 body。约定：一个路由只校验一侧参数。 */
-const QUERY_METHODS = new Set(["get", "delete"]);
+const QUERY_METHODS = new Set(["get", "delete", "options", "query"]);
 /**
- * 模型类（class）与普通 handler 在运行时只差一个特征：class 一定有 `prototype`。
- * 不判这个的话，`api.get(path, h1, h2)`（Hono 支持一个路径挂多个 handler）会被
- * 当成 `(path, Model, handler)`，然后拿 h1 的 name 去查 schema，整条路由 500。
+ * 模型类（class）与普通 handler 在运行时只差一个特征：class 的 `prototype` 是
+ * **不可写**的（ES 规范如此），普通 function 声明/表达式的 `prototype` 可写。
+ *
+ * 不能只看 `prototype !== undefined`：function 声明也有 prototype，
+ * `api.get(path, function auth() {}, handler)` 会被误判成带模型的写法，
+ * 然后整条路由 500（「没有为 auth 注册 schema」）。
+ *
+ * 前提是 class 没有被降级成 function（编译目标 es2015+）。降级之后这个判据
+ * 失效，带模型的写法会被当成 handler 链——所以不要给 bean 用 es5 目标。
  */
 function isModelClass(value) {
-    return typeof value === "function" && value.prototype !== undefined;
+    if (typeof value !== "function") {
+        return false;
+    }
+    return Object.getOwnPropertyDescriptor(value, "prototype")?.writable === false;
 }
 function withOrigin(handler, origin) {
     return (c, next) => {
@@ -54,16 +72,27 @@ export function createApi(module) {
     return new Proxy(app, {
         get(target, prop, receiver) {
             if (typeof prop === "string" && ROUTE_METHOD_SET.has(prop)) {
-                return (path, second, third) => {
+                // 用 rest：Hono 自己支持一条路径挂多个 handler，写死 second/third 会把
+                // 第三个之后的 handler 悄悄丢掉（路由变成 404，注册期毫无提示）。
+                return (path, ...args) => {
+                    // Hono 还允许不带路径的 `get(handler)`（沿用上一次的 path）；createApi
+                    // 不支持它——那种写法抓不到「这条路由注册在哪」，模块身份也就丢了。
+                    if (typeof path !== "string") {
+                        throw new Error(`createApi 的路由必须带路径：${prop}("/path", handler)`);
+                    }
                     // 第 0 帧是这个箭头函数（route.ts），第 1 帧是调用方（接口文件）。
                     const origin = { module, ...captureCallSite(1) };
-                    const handlers = typeof third === "function" && isModelClass(second)
-                        ? [withModel(origin, prop, second, third)]
-                        : [second, third]
+                    const withModelForm = args.length === 2 && typeof args[1] === "function" && isModelClass(args[0]);
+                    if (!withModelForm && args.some(isModelClass)) {
+                        throw new Error(`${prop} ${path}：带模型的写法只支持 (path, Model, handler)，模型不能出现在 handler 位置`);
+                    }
+                    const handlers = withModelForm
+                        ? [withModel(origin, prop, args[0], args[1])]
+                        : args
                             .filter((entry) => typeof entry === "function")
                             .map((entry) => withOrigin(entry, origin));
                     const register = target[prop];
-                    register?.(path, ...handlers);
+                    register?.call(target, path, ...handlers);
                     // 返回代理而不是 target：链式 `.get(...).post(...)` 后续调用也要被包住。
                     return receiver;
                 };

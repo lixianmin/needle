@@ -15,13 +15,16 @@
  */
 import ts from "typescript-6";
 import { readFileSync, writeFileSync } from "node:fs";
-import { basename, dirname, relative, resolve } from "node:path";
+import { basename, dirname, relative, resolve, sep } from "node:path";
 
 const SCALARS: Partial<Record<ts.SyntaxKind, string>> = {
   [ts.SyntaxKind.NumberKeyword]: "Type.Number()",
   [ts.SyntaxKind.StringKeyword]: "Type.String()",
   [ts.SyntaxKind.BooleanKeyword]: "Type.Boolean()",
 };
+
+/** 生成物里已经占用的标识符：model 类不能同名，否则产物里重复声明。 */
+const RESERVED_NAMES = new Set(["Type", "Static", "Equals", "Assert", "registerModel"]);
 
 interface Model {
   name: string;
@@ -112,7 +115,13 @@ function collect(files: readonly string[]): Map<string, Model> {
     if (file.endsWith(".generated.ts")) {
       continue;
     }
-    const source = ts.createSourceFile(file, readFileSync(file, "utf8"), ts.ScriptTarget.ES2022, true);
+    let text: string;
+    try {
+      text = readFileSync(file, "utf8");
+    } catch (error) {
+      die(`读不到 ${file}：${error instanceof Error ? error.message : String(error)}`);
+    }
+    const source = ts.createSourceFile(file, text, ts.ScriptTarget.ES2022, true);
     for (const statement of source.statements) {
       if (!ts.isClassDeclaration(statement) || statement.name === undefined) {
         continue;
@@ -120,7 +129,15 @@ function collect(files: readonly string[]): Map<string, Model> {
       const name = statement.name.getText();
       const modifiers = ts.getModifiers(statement) ?? [];
       if (!modifiers.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword)) {
-        die(`${basename(file)}：model class ${name} 必须 export（生成物要按名字 import）`);
+        die(
+          `${basename(file)}：model class ${name} 必须 export（生成物要按名字 import；不想被生成就挪出 beans 目录）`,
+        );
+      }
+      if (statement.typeParameters !== undefined) {
+        die(`${basename(file)}：model class ${name} 不支持泛型`);
+      }
+      if (RESERVED_NAMES.has(name)) {
+        die(`${basename(file)}：model class 不能叫 ${name}（与生成物里的标识符冲突）`);
       }
       if (models.has(name)) {
         die(`模型重名：${name}（${models.get(name)?.file} 与 ${file}）`);
@@ -140,9 +157,29 @@ function validate(models: Map<string, Model>): void {
       if (!ts.isPropertyDeclaration(member)) {
         die(`${model.name}：只支持字段声明，${member.getText()} 不支持`);
       }
+      if (
+        member.name.kind === ts.SyntaxKind.PrivateIdentifier ||
+        ts.isComputedPropertyName(member.name)
+      ) {
+        die(`${model.name}.${member.name.getText()}：不支持 #private / 计算属性名`);
+      }
       const modifiers = ts.getModifiers(member) ?? [];
       if (modifiers.some((modifier) => modifier.kind === ts.SyntaxKind.StaticKeyword)) {
         die(`${model.name}.${member.name.getText()}：不支持 static 字段`);
+      }
+      if (
+        modifiers.some(
+          (modifier) =>
+            modifier.kind === ts.SyntaxKind.PrivateKeyword ||
+            modifier.kind === ts.SyntaxKind.ProtectedKeyword,
+        )
+      ) {
+        die(`${model.name}.${member.name.getText()}：不支持 private / protected 字段`);
+      }
+      // readonly 会让漂移断言永远为 false（`Static<>` 出来的是可变属性，
+      // `Equals` 对修饰符敏感），所以宁可在这里报错，也不生成一个编不过的文件。
+      if (modifiers.some((modifier) => modifier.kind === ts.SyntaxKind.ReadonlyKeyword)) {
+        die(`${model.name}.${member.name.getText()}：不支持 readonly 字段`);
       }
       if (ts.canHaveDecorators(member) && (ts.getDecorators(member) ?? []).length > 0) {
         die(`${model.name}.${member.name.getText()}：不支持装饰器`);
@@ -213,7 +250,8 @@ function render(file: string, ordered: readonly Model[], all: readonly Model[]):
       const depModel = all.find((candidate) => candidate.name === dep);
       if (depModel !== undefined && depModel.file !== file) {
         const target = resolve(dirname(depModel.file), `${basename(depModel.file, ".ts")}.generated.js`);
-        const specifier = relative(dirname(file), target);
+        // Windows 的 relative() 用反斜杠，而 import 说明符必须用正斜杠。
+        const specifier = relative(dirname(file), target).split(sep).join("/");
         foreign.set(dep, specifier.startsWith(".") ? specifier : `./${specifier}`);
       }
     }
@@ -251,7 +289,7 @@ ${fields.join("\n\n")}
 // 漂移断言：class 改了没重新生成，tsc 会在这里报错。
 type Equals<A, B> = (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false;
 type Assert<T extends true> = T;
-${ordered.map((model) => `type _${model.name}InSync = Assert<Equals<Static<typeof ${model.name}Schema>, ${model.name}>>;`).join("\n")}
+${ordered.map((model) => `export type _${model.name}InSync = Assert<Equals<Static<typeof ${model.name}Schema>, ${model.name}>>;`).join("\n")}
 
 // 按类名注册，路由那边 modelSchema(Model) 查得到。
 ${registrations}

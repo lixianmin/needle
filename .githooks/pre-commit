@@ -10,7 +10,11 @@ bun install --silent
 bun run build
 # model class → TypeBox schema：生成物跟 dist 一样随源码提交（spec §5.5）。
 if [ -d examples/honox-app/app/beans ]; then
-  bun scripts/gen-models.ts examples/honox-app/app/beans/*.ts
-  git add examples/honox-app/app/beans/*.generated.ts
+  # find 而不是 shell glob：glob 不递归，beans 下建子目录时生成物会永远不重建。
+  MODEL_FILES=$(find examples/honox-app/app/beans -name '*.ts' ! -name '*.generated.ts' | sort)
+  if [ -n "$MODEL_FILES" ]; then
+    bun scripts/gen-models.ts $MODEL_FILES
+    git add examples/honox-app/app/beans
+  fi
 fi
 git add bun.lock packages/*/package.json packages/*/dist packages/shell/src/ui/script.generated.ts

@@ -76,7 +76,7 @@
 ### 5.2 `traceOf(ctx)`
 
 ```ts
-export function traceOf(ctx: Context<AppEnv>, log?: Logger): Trace;
+export function traceOf(ctx: Context<HonoxEnv>, log?: Logger): Trace;
 export interface Trace {
   debug(...args: unknown[]): Trace;
   info(...args: unknown[]): Trace;
@@ -132,7 +132,7 @@ botsApi.get("/health", (ctx) => ctx.json({ ok: true }));  // 不校验参数
 - 注册时 `captureCallSite(1)` 抓 `site`/`fn`（dev-only，见 §8），连同 `module` 一起 `c.set("api", …)`。
 - 模型按方法决定解析哪一侧：GET/DELETE → query，POST/PUT/PATCH → body。代价：一个路由不能同时校验 query 与 body（当前没有这种接口；真出现时再加）。
 - **`createApi()` 的 Proxy 必须只绑原型方法**，实例自有字段（`errorHandler` / `routes`）原样返回——否则父 `onError` 收不到该组路由的异常（§3 实测）。
-- `HonoxEnv.Variables.api` 变成 `{ module: string; site?: string; fn?: string }`。
+- `HonoxEnv.Variables.api` 变成 `{ module?: string; site?: string; fn?: string }`（类型上可选，`createApi` / `apiRoute` 一定写；裸 `app.get` 没有）。
 
 ### 5.5 model → schema 生成
 

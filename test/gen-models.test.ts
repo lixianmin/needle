@@ -68,6 +68,15 @@ export class BotsBody {
     expect(out).toContain('import { BossSchema } from "./models.generated.js"');
   });
 
+  test("同一个输入跑两次，产物逐字相同（pre-commit 依赖这个）", () => {
+    reset();
+    const file = write("models.ts", 'export class A {\n  ids: number[] = [];\n}\n');
+    expect(run([file]).code).toBe(0);
+    const first = readFileSync(join(TMP, "models.generated.ts"), "utf8");
+    expect(run([file]).code).toBe(0);
+    expect(readFileSync(join(TMP, "models.generated.ts"), "utf8")).toBe(first);
+  });
+
   test("漂移断言：class 改了没重新生成，tsc 报错", () => {
     reset();
     const file = write("models.ts", 'export class BotsBody {\n  ids: number[] = [];\n}\n');
@@ -110,6 +119,11 @@ export class BotsBody {
       { label: "方法", content: "export class A {\n  x: number = 0;\n  run(): void {}\n}\n", pattern: /只支持字段声明/ },
       { label: "缺类型标注", content: "export class A {\n  x = 0;\n}\n", pattern: /必须有类型标注/ },
       { label: "未知类型", content: "export class A {\n  x: Unknown = null;\n}\n", pattern: /未知类型 Unknown/ },
+      { label: "泛型", content: "export class A<T> {\n  x: number = 0;\n}\n", pattern: /不支持泛型/ },
+      { label: "#private", content: "export class A {\n  #x: number = 0;\n}\n", pattern: /#private/ },
+      { label: "保留名", content: "export class Type {\n  x: number = 0;\n}\n", pattern: /不能叫 Type/ },
+      { label: "readonly", content: "export class A {\n  readonly x: number = 0;\n}\n", pattern: /不支持 readonly/ },
+      { label: "private", content: "export class A {\n  private x: number = 0;\n}\n", pattern: /private \/ protected/ },
       { label: "Date", content: "export class A {\n  at: Date = new Date();\n}\n", pattern: /不支持 Date/ },
       { label: "static", content: "export class A {\n  static x: number = 0;\n}\n", pattern: /不支持 static/ },
       { label: "未 export", content: "class A {\n  x: number = 0;\n}\n", pattern: /必须 export/ },
