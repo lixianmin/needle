@@ -10,6 +10,8 @@ import { readXlsx } from "hucre/xlsx";
 const TEMPLATE_SUFFIX = "Template";
 const CONFIG_SUFFIX = "Config";
 const SPREADSHEET_EXTENSIONS = [".xlsx", ".xlsm"];
+/** 拆列的默认分隔符：配置表里 `503048|508012|0|0` 这种形态。 */
+const SPLIT_SEPARATOR = "|";
 /** 同一文件里的多个 sheet 只解析一次 zip；失败时把缓存删掉，允许重试。 */
 const workbooks = new Map();
 function loadWorkbook(path) {
@@ -54,6 +56,30 @@ function classify(sheetName) {
         return "config";
     }
     return null;
+}
+/** 列名统一按小写比较：表头在 toRecords 里已经 lowercase 了。 */
+function normalizeColumns(columns) {
+    return (columns ?? []).map((column) => column.trim().toLowerCase());
+}
+/**
+ * 按 `|` 拆列：原始值 `"a|b|0"` → `["a", "b", "0"]`。
+ * 空单元格给 `[]`；列名写错（表里没这列）就不动它，避免造出幽灵字段。
+ */
+function applySplit(row, columns) {
+    const shaped = { ...row };
+    for (const column of columns) {
+        if (!(column in shaped)) {
+            continue;
+        }
+        const value = row[column];
+        shaped[column] =
+            value === null || value === undefined || value === ""
+                ? []
+                : String(value)
+                    .split(SPLIT_SEPARATOR)
+                    .map((part) => part.trim());
+    }
+    return shaped;
 }
 function listOf(names) {
     const all = [...names];
@@ -100,7 +126,7 @@ function toConfig(path, sheetName, rows) {
  * 用显式实例而不是模块级全局：测试各建一个，互不串状态。
  */
 export function createMetadata() {
-    const state = { loaded: false, templates: new Map(), configs: new Map() };
+    const state = { loaded: false, version: 0, templates: new Map(), configs: new Map() };
     function requireLoaded() {
         if (!state.loaded) {
             throw new Error("元数据尚未加载：先 await metadata.load(dir) 再取模板或配置");
@@ -155,6 +181,7 @@ export function createMetadata() {
         }
         // 全部成功才替换：半加载状态会让下一次 load 读到混合数据。
         state.loaded = true;
+        state.version += 1;
         state.templates = templates;
         state.configs = configs;
         return {
@@ -163,18 +190,47 @@ export function createMetadata() {
             skipped,
         };
     }
-    function template(name) {
+    function template(name, options = {}) {
+        const columns = normalizeColumns(options.split);
+        let cachedVersion = -1;
+        let byId = new Map();
+        let list = [];
+        /**
+         * 拆列视图按句柄缓存：同一张表可以有几个句柄各写各的 split。
+         * version 变了（重新 load）就重建，避免拿到上一份数据的视图。
+         */
+        function view() {
+            const table = requireTemplate(name);
+            if (cachedVersion === state.version) {
+                return { byId, list };
+            }
+            if (columns.length === 0) {
+                byId = table.byId;
+                list = table.list;
+            }
+            else {
+                const shaped = table.list.map((row) => applySplit(row, columns));
+                // id 在 toTemplateTable 里已经校验成数字，这里只是从视图里取回来当 key。
+                byId = new Map(shaped.map((row) => [row.id, row]));
+                list = shaped;
+            }
+            cachedVersion = state.version;
+            return { byId, list };
+        }
         return {
             name,
             get(id) {
-                return requireTemplate(name).byId.get(id);
+                return view().byId.get(id);
             },
             all() {
-                return requireTemplate(name).list;
+                return view().list;
             },
         };
     }
-    function config(name) {
+    function config(name, options = {}) {
+        const columns = normalizeColumns(options.split);
+        let cachedVersion = -1;
+        let shaped;
         return {
             name,
             get() {
@@ -183,7 +239,11 @@ export function createMetadata() {
                 if (value === undefined) {
                     throw new Error(`没有 Config 表：${name}（sheet 名要原样、且以 ${CONFIG_SUFFIX} 结尾；已加载：${listOf(state.configs.keys())}）`);
                 }
-                return value;
+                if (cachedVersion !== state.version) {
+                    shaped = (columns.length === 0 ? value : applySplit(value, columns));
+                    cachedVersion = state.version;
+                }
+                return shaped;
             },
         };
     }

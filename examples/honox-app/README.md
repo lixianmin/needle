@@ -73,7 +73,7 @@ app/md/
 
 **新增一张表 = 在 `app/md/` 加一个文件**（需要对外就再加一个 `app.get`）；`index.ts` 和 `server.ts` 的模板相关代码都不用动。启动时 `await initTemplates(config.metadata.base_url)` 一次读完，之后 `getBotTemplate(id)` / `getSelectApcConfig()` 同步、零 IO。表直接用 Excel 维护，没有生成脚本。
 
-`equips` 是 `|` 分隔的装备 id 串，`0` 表示该槽位空；库原样返回字符串，拆分交给业务。
+`equips` 在 Excel 里是 `503048|508012|0|0|…` 这样的串，声明 `{ split: ["equips"] }` 后库里直接拆成 `string[]`（`"0"` 表示该槽位空，保留；元素会 trim；空单元格给 `[]`）。`SelectApcConfig` 的四个字段同理。业务侧拿到就是数组，不用自己 `split("|")`。
 
 规则：首行表头（小写 + trim）。Template 每行必须有数字 `id`，缺 id / 非数字 / 重复都会在加载时报错并带 `文件#sheet` 和行号；Config 取第一个非空数据行，一行都没有也报错。同名 sheet 不能出现在两个文件里。`metadata.base_url` 目前只支持本地目录——`app_fat.yml` 里那个 https 地址是 rim.server 的远端元数据用法，本库还没做远端拉取。
 

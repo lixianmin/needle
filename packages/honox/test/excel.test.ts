@@ -127,6 +127,87 @@ describe("Template：按 sheet 名 + id 两级取数", () => {
   });
 });
 
+describe("拆列：按 | 拆成 string[]", () => {
+  test("声明的列被拆开，trim 后保留 0", async () => {
+    const dir = await oneFile("ApcTemplate", [
+      ["id", "equips", "name"],
+      [1, "503048| 508012 |0", "哪里桃"],
+    ]);
+    const metadata = createMetadata();
+    await metadata.load(dir);
+    const apc = metadata.template<{ id: number; equips: string[]; name: string }>("ApcTemplate", {
+      split: ["equips"],
+    });
+    expect(apc.get(1)?.equips).toEqual(["503048", "508012", "0"]);
+    expect(apc.all()[0]?.equips).toEqual(["503048", "508012", "0"]);
+  });
+
+  test("没声明的列保持原样（同一个值还是带 | 的字符串）", async () => {
+    const dir = await oneFile("ApcTemplate", [
+      ["id", "equips", "note"],
+      [1, "1|2", "a|b"],
+    ]);
+    const metadata = createMetadata();
+    await metadata.load(dir);
+    const apc = metadata.template<{ id: number; equips: string[]; note: string }>("ApcTemplate", {
+      split: ["equips"],
+    });
+    expect(apc.get(1)).toEqual({ id: 1, equips: ["1", "2"], note: "a|b" });
+  });
+
+  test("空单元格拆成空数组", async () => {
+    const dir = await oneFile("ApcTemplate", [
+      ["id", "equips"],
+      [1, null],
+      [2, ""],
+    ]);
+    const metadata = createMetadata();
+    await metadata.load(dir);
+    const apc = metadata.template<{ id: number; equips: string[] }>("ApcTemplate", {
+      split: ["equips"],
+    });
+    expect(apc.get(1)?.equips).toEqual([]);
+    expect(apc.get(2)?.equips).toEqual([]);
+  });
+
+  test("不声明 split 时原样返回字符串", async () => {
+    const dir = await oneFile("ApcTemplate", [
+      ["id", "equips"],
+      [1, "1|2"],
+    ]);
+    const metadata = createMetadata();
+    await metadata.load(dir);
+    expect(metadata.template("ApcTemplate").get(1)).toEqual({ id: 1, equips: "1|2" });
+  });
+
+  test("Config 也能拆列", async () => {
+    const dir = await oneFile("SelectApcConfig", [
+      ["select_apc1", "select_apc2"],
+      ["10|11|26", "1|9"],
+    ]);
+    const metadata = createMetadata();
+    await metadata.load(dir);
+    const config = metadata.config<{ select_apc1: string[]; select_apc2: string[] }>(
+      "SelectApcConfig",
+      { split: ["select_apc1", "select_apc2"] },
+    );
+    expect(config.get()).toEqual({ select_apc1: ["10", "11", "26"], select_apc2: ["1", "9"] });
+  });
+
+  test("重新 load 后句柄的拆列视图跟着换", async () => {
+    const first = await oneFile("ApcTemplate", [["id", "equips"], [1, "1|2"]]);
+    const second = await oneFile("ApcTemplate", [["id", "equips"], [1, "9|8|7"]]);
+    const metadata = createMetadata();
+    const apc = metadata.template<{ id: number; equips: string[] }>("ApcTemplate", {
+      split: ["equips"],
+    });
+    await metadata.load(first);
+    expect(apc.get(1)?.equips).toEqual(["1", "2"]);
+    await metadata.load(second);
+    expect(apc.get(1)?.equips).toEqual(["9", "8", "7"]);
+  });
+});
+
 describe("Config：全局一份", () => {
   test("取第一个非空数据行", async () => {
     const dir = await oneFile("SelectApcConfig", [
