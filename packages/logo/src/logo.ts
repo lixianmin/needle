@@ -11,9 +11,8 @@ const DEFAULT_MAX_BUFFER = 10_000;
 /**
  * 剪掉本库内部的栈帧，只留调用点。
  *
- * 不写死路径：本库的目录搬过三次（`dist/core/` → `packages/logo/src/logo/` →
- * `src/logo/`），每搬一次固定正则就失效一次，症状是栈里冒出 captureStack
- * 自己。改成拿第一帧（captureStack 所在文件）的目录当基准——同一目录下的帧
+ * 不写死路径：本库的目录搬过几次，每搬一次固定正则就失效一次，症状是栈里冒出
+ * captureStack 自己。改成拿第一帧（captureStack 所在文件）的目录当基准——同一目录下的帧
  * 都是内部帧，与目录布局无关。
  */
 function captureStack(): string {
@@ -36,7 +35,7 @@ export interface LoggerOptions {
   level?: Level;
   /** logger 的名字，写进每条记录的 name 字段。默认不出现。 */
   name?: string;
-  /** 初始 sink 列表。默认空——根入口的 `logo` 实例才挂了 stdout。 */
+  /** 初始 sink 列表。默认空——`@needle/logo` 根入口的 `logo` 实例才挂了 stdout。 */
   sinks?: Sink[];
   /** 注入时间，测试用。 */
   now?: () => number;

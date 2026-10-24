@@ -1,9 +1,8 @@
 import { describe, expect, test } from "bun:test";
 
 import { createShellSource } from "../src/source.js";
-// 必须跟 shell 内部用的是同一个模块实例：两边都从 src 解析。
-import { logo } from "@needle/logo";
-import { newLogger } from "@needle/logo";
+// 必须跟 shell 内部用的是同一个模块实例：两边都按包名解析到 @needle/logo 的 dist。
+import { logo, newLogger } from "@needle/logo";
 import type { Command, Topic } from "../src/types.js";
 
 const auth = { users: { admin: "secret" }, secret: "unit-test-secret" };

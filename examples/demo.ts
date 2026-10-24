@@ -4,7 +4,7 @@
  * 打开 http://127.0.0.1:1234/shell
  * 登录：xmli / 123456
  *
- * 页面每隔一秒会收到一条 heartbeat，用来确认 SSE 是活的。
+ * SSE 空闲 15 秒发一次 `: ping` 注释心跳；面板里看不到它，只能从连接不断确认。
  */
 import { readFileSync } from "node:fs";
 

@@ -147,7 +147,7 @@ auth: { users: {...}, secret: env.SHELL_SECRET }   // 不要省略
 | Shell 页面 / SSE | 有 | 有 |
 | 右栏实时日志 | 有 | 有（只覆盖当前 isolate，别的实例看不到） |
 | 命令执行 | 完整 | 完整 |
-| CPU / 内存指标 | 真实读数 | 自维护计数器 |
+| CPU / 内存指标 | 真实读数 | 只有 uptime / 连接数，没有内存读数 |
 | 登录态 | 随进程重启失效 | 随 isolate 回收失效（配了固定 secret 后由 token 有效期兜底） |
 
 ### 日志怎么拿出去
@@ -172,4 +172,4 @@ Shell 右栏只在面板打开时收实时日志，没有历史；Workers 又没
 
 ### 验证过什么
 
-`packages/shell/test/integration/workers.test.ts` 用 miniflare（真实的 workerd）跑过：页面渲染、公开命令、登录、`top` 返回 `runtime: "workers"`、SSE 鉴权与建流。不是“文档说可以”，是跑过的。
+`packages/shell/test/integration/workers.test.ts` 用 miniflare（真实的 workerd）跑过：页面渲染、匿名的 `help`、登录、`top` 返回 `runtime: "workers"`、SSE 鉴权与建流。不是“文档说可以”，是跑过的。

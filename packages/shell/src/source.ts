@@ -40,7 +40,7 @@ export type ExecResult =
 
 export interface ShellSourceOptions {
   /**
-   * 日志来源。默认用根入口的全局实例——全项目写同一个 logger 时，
+   * 日志来源。默认用 `@needle/logo` 的全局 `logo` 实例——全项目写同一个 logger 时，
    * 右栏自然接管所有日志，不用一层层往下传。测试或需要独立配置时传自己的实例。
    */
   logger?: Logger;

@@ -4,7 +4,7 @@ export interface LoggerOptions {
     level?: Level;
     /** logger 的名字，写进每条记录的 name 字段。默认不出现。 */
     name?: string;
-    /** 初始 sink 列表。默认空——根入口的 `logo` 实例才挂了 stdout。 */
+    /** 初始 sink 列表。默认空——`@needle/logo` 根入口的 `logo` 实例才挂了 stdout。 */
     sinks?: Sink[];
     /** 注入时间，测试用。 */
     now?: () => number;
