@@ -42,7 +42,7 @@
 
 - **依赖方向**：`honox → shell → logo`，`core` 不依赖任何包。
 - **与既有决策「needle 自己不依赖 Hono」的冲突及解除方式。** `packages/shell/test/no-hono-coupling.test.ts` 现在钉的是整个 `packages/` + `examples/`：依赖表、依赖图「只有一条生产边 shell → logo」、入口表、源码里不许 `from "hono"`，四条全查；memory.md 2026-10-22 也记了这条决策。`@needle/honox` 会全撞红。人类已拍板：**不是废掉这条决策，而是收窄口径**——`core` / `logo` / `shell` 三个包依旧不依赖 Hono、不提供框架适配入口，这条性质保持不变；`@needle/honox` 成为唯一、显式的例外。落地方式：测试改成按包分组断言 + 新增「整个仓库只有 honox 的依赖表/源码可以出现 hono」，依赖图与入口表补上 honox，同一个提交更新 memory.md 那条决策。
-- **TypeScript 7 与 HonoX 不兼容（已实测）**：honox 0.1.62 的岛检测经 `precinct` → `@typescript-eslint/typescript-estree` 调用 TS API，在 TS 7.0.2 上抛 `TypeError: Cannot read properties of undefined (reading 'Cjs')`，vite 连配置都加载不了；换 5.9.3 立即通过。仓库根是 TS 7.0.2，所以示例 app 必须独立安装、不进 workspace。
+- **TypeScript 7 与 HonoX 不兼容（已实测）**：honox 0.1.62 的岛检测经 `precinct` → `@typescript-eslint/typescript-estree` 调用 TS API，在 TS 7.0.2 上抛 `TypeError: Cannot read properties of undefined (reading 'Cjs')`，vite 连配置都加载不了；换 5.9.3 立即通过。**结论：示例不引 HonoX**，因此这条约束不再生效，示例的 TypeScript 与根同为 7.0.2（测试钉住）。业务若要 HonoX，需自行降级 TS 或等上游修修。
 - **按环境拆入口是本仓库既定做法**（`@needle/logo`、`@needle/shell` 都有 `./node`）：根入口无 `node:`，Node 专属能力走子入口。
 - **控制流必须带花括号**，语句体独占多行（AGENTS.md 代码风格）。
 
