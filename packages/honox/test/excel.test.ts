@@ -194,6 +194,29 @@ describe("拆列：按 | 拆成 string[]", () => {
     expect(config.get()).toEqual({ select_apc1: ["10", "11", "26"], select_apc2: ["1", "9"] });
   });
 
+  test("逐列指定分隔符（对象写法），没写的列不动", async () => {
+    const dir = await oneFile("BotTemplate", [
+      ["id", "tags", "prompt"],
+      [1, "a,b, c", "x|y"],
+    ]);
+    const metadata = createMetadata();
+    await metadata.load(dir);
+    const bots = metadata.template<{ id: number; tags: string[]; prompt: string }>("BotTemplate", {
+      split: { tags: "," },
+    });
+    expect(bots.get(1)).toEqual({ id: 1, tags: ["a", "b", "c"], prompt: "x|y" });
+  });
+
+  test("分隔符写空字符串时退回默认 |", async () => {
+    const dir = await oneFile("BotTemplate", [["id", "tags"], [1, "a|b"]]);
+    const metadata = createMetadata();
+    await metadata.load(dir);
+    const bots = metadata.template<{ id: number; tags: string[] }>("BotTemplate", {
+      split: { tags: "" },
+    });
+    expect(bots.get(1)?.tags).toEqual(["a", "b"]);
+  });
+
   test("重新 load 后句柄的拆列视图跟着换", async () => {
     const first = await oneFile("ApcTemplate", [["id", "equips"], [1, "1|2"]]);
     const second = await oneFile("ApcTemplate", [["id", "equips"], [1, "9|8|7"]]);

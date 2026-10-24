@@ -75,6 +75,12 @@ app/md/
 
 `equips` 在 Excel 里是 `503048|508012|0|0|…` 这样的串，声明 `{ split: ["equips"] }` 后库里直接拆成 `string[]`（`"0"` 表示该槽位空，保留；元素会 trim；空单元格给 `[]`）。`SelectApcConfig` 的四个字段同理。业务侧拿到就是数组，不用自己 `split("|")`。
 
+分隔符默认 `|`；要逐列指定就写成对象（TS 没有 Go 的 struct tag，声明位置就是 `app/md/<名>-template.ts` 那一行）：
+
+```ts
+metadata.template<BotTemplate>("BotTemplate", { split: { tags: ",", prompt: "|" } });
+```
+
 规则：首行表头（小写 + trim）。Template 每行必须有数字 `id`，缺 id / 非数字 / 重复都会在加载时报错并带 `文件#sheet` 和行号；Config 取第一个非空数据行，一行都没有也报错。同名 sheet 不能出现在两个文件里。`metadata.base_url` 目前只支持本地目录——`app_fat.yml` 里那个 https 地址是 rim.server 的远端元数据用法，本库还没做远端拉取。
 
 ## Docker

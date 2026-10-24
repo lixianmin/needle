@@ -1,11 +1,20 @@
+/**
+ * 拆列的声明，两种写法：
+ * - `["equips", "tags"]`：这些列按默认分隔符 `|` 拆；
+ * - `{ equips: "|", tags: "," }`：逐列指定分隔符（写 `""` 等同默认）。
+ *
+ * TS 没有 Go 那样的 struct tag，运行时也没有类型信息，所以分隔符只能这样
+ * 跟句柄一起声明——位置就是 `app/md/<名>-template.ts` 里那一行。
+ */
+export type SplitColumns = readonly string[] | Readonly<Record<string, string>>;
 export interface TemplateOptions {
     /**
-     * 这些列在读取时按 `|` 拆成 `string[]`。
+     * 这些列在读取时拆成 `string[]`。
      *
      * 不拆的话业务侧每次都得自己 `split("|")`，还得处理空单元格；
      * 拆列结果里 `"0"` 保留（它是有含义的占位），空单元格是 `[]`。
      */
-    readonly split?: readonly string[];
+    readonly split?: SplitColumns;
 }
 export interface Template<T> {
     readonly name: string;

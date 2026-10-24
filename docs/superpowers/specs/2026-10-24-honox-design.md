@@ -289,9 +289,12 @@ export interface MetadataReport {
   readonly skipped: readonly string[];
 }
 
+/** 数组写法：这些列按默认分隔符 `|` 拆；对象写法：逐列指定分隔符。 */
+export type SplitColumns = readonly string[] | Readonly<Record<string, string>>;
+
 export interface TemplateOptions {
-  /** 这些列在读取时按 `|` 拆成 string[]；空单元格 → []，`"0"` 保留。 */
-  readonly split?: readonly string[];
+  /** 这些列在读取时拆成 string[]；空单元格 → []，`"0"` 保留。 */
+  readonly split?: SplitColumns;
 }
 
 export interface Metadata {
@@ -312,7 +315,7 @@ export function createMetadata(): Metadata;
 - 同一文件只解析一次 zip，按绝对路径缓存 workbook。
 - 表头：首行 `trim().toLowerCase()`；`id` 只接受数字：缺 `id` 或非数字 → 抛错，消息带 `文件#sheet`、Excel 行号（1 基，含表头）与原始值；重复 `id` → 抛错；**同名 sheet 出现在两个文件里 → 抛错**（第一层索引只能用 sheet 名，必须唯一）。行对象原样保留多余列。
 - `Config` 取第一个非空数据行（与 go-excel 读单结构体同口径）；整张表没有数据行 → 抛错。
-- **拆列**：`{ split: ["equips"] }` 让库按 `|` 把该列拆成 `string[]`，业务侧不用每次 `split("|")` 再处理空值。`"0"` 保留（配置表里它是"该槽位空"的占位），元素 `trim()`，空单元格给 `[]`；列名写错（表里没这列）不动它，不造幽灵字段。拆列视图按句柄缓存，`load()` 递增版本号让缓存失效——同一张表可以有多个句柄各写各的 split。
+- **拆列**：`{ split: ["equips"] }` 让库按 `|` 把该列拆成 `string[]`，业务侧不用每次 `split("|")` 再处理空值。分隔符可逐列指定：`{ split: { tags: ",", equips: "|" } }`（写 `""` 等同默认 `|`）。Go 有 struct tag（`xlsx:"equips;split(|)"`），TS 没有运行时类型信息，所以分隔符只能跟句柄一起声明——位置就是 `app/md/<名>-template.ts` 里那一行。`"0"` 保留（配置表里它是"该槽位空"的占位），元素 `trim()`，空单元格给 `[]`；列名写错（表里没这列）不动它，不造幽灵字段。拆列视图按句柄缓存，`load()` 递增版本号让缓存失效——同一张表可以有多个句柄各写各的 split。
 - 扫描只认 `.xlsx` / `.xlsm`，按文件名排序遍历（报错与日志稳定）。
 
 ### 8.11 示例里的 Excel
