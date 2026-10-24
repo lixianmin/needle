@@ -129,7 +129,7 @@ botsApi.post("/bots", BotsBody, (ctx, request) => {
   // 一行：建 trace + 打第一条日志（四个级别方法都返回 trace 自己）
   const trace = traceOf(ctx).info(request);
   ...
-  // 出口：先记一条 info，再把响应返回
+  // 出口：记一行 info（status + result），然后把响应返回
   return trace.json({ bots, missing });
 });
 ```

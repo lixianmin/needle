@@ -114,7 +114,7 @@ describe("traceOf", () => {
     expect(records[0]).toMatchObject({ status: 201 });
   });
 
-  test("notFound：记一条 info（status 404 + 业务字段），返回 404", async () => {
+  test("notFound：记一条 info（status 404 + 响应体），返回 404", async () => {
     const { records, log } = setup();
     const app = new Hono<HonoxEnv>();
     app.use("*", async (c, next) => {
@@ -122,14 +122,38 @@ describe("traceOf", () => {
       c.set("uid", null);
       await next();
     });
-    app.get("/x", (c) => traceOf(c, log).notFound({ id: 9, reason: "gone" }, "bot 不存在"));
+    app.get("/x", (c) => traceOf(c, log).notFound("bot 不存在"));
 
     const res = await app.request("/x");
 
     expect(res.status).toBe(404);
     expect(await res.json()).toEqual({ code: "not_found", message: "bot 不存在" });
     expect(records).toHaveLength(1);
-    expect(records[0]).toMatchObject({ status: 404, id: 9, reason: "gone", level: "info" });
+    expect(records[0]).toMatchObject({
+      status: 404,
+      result: { code: "not_found", message: "bot 不存在" },
+      level: "info",
+    });
+  });
+
+  test("notFound 默认 message；想记业务字段就链一个 info", async () => {
+    const { records, log } = setup();
+    const app = new Hono<HonoxEnv>();
+    app.use("*", async (c, next) => {
+      c.set("rid", "r1");
+      c.set("uid", null);
+      await next();
+    });
+    app.get("/x", (c) => {
+      const trace = traceOf(c, log);
+      return trace.info({ id: 9, reason: "gone" }).notFound();
+    });
+
+    const res = await app.request("/x");
+
+    expect(res.status).toBe(404);
+    expect(records.map((r) => r.status)).toEqual([undefined, 404]);
+    expect(records[0]).toMatchObject({ id: 9, reason: "gone" });
   });
 
   test("没有 api 上下文时不出 module / site / fn", async () => {

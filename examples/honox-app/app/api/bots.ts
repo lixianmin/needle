@@ -22,7 +22,8 @@ botsApi.get("/bots", BotsQuery, (ctx, request) => {
 
   const bot = getBotTemplate(request.id);
   if (bot === undefined) {
-    return trace.notFound({ id: request.id, reason: "bot_not_found" }, "bot 不存在");
+    // 404 那行只记响应体；request.id 已经在上一条日志里了，不重复带。
+    return trace.notFound("bot 不存在");
   }
   return trace.json({ baseUrl, bot });
 });

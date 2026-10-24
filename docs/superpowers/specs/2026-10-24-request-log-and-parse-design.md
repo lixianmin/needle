@@ -83,13 +83,16 @@ export interface Trace {
   warn(...args: unknown[]): Trace;
   error(...args: unknown[]): Trace;
   json(body: unknown, status?: ContentfulStatusCode): Response;
-  notFound(fields?: unknown, message?: string): Response;
+  notFound(message?: string): Response;
 }
 ```
 
 - 四个级别方法**返回 trace 自己**，所以「建 trace + 打第一条日志」一行写完：`const trace = traceOf(ctx).info(request)`。
-- `json` / `notFound` 是响应出口：先落一行 info（`json` 记 `{status, result}`，`notFound` 记 `{status:404, ...fields}`），再把响应返回。
-  每个出口都留一行因此是默认动作；不想记就直接用 `ctx.json`。
+- `json` / `notFound` 是响应出口，规则只有一条：**记的那一行就是它返回的响应**。
+  `json` 记 `{status, result: body}`，`notFound` 记 `{status: 404, result: {code, message}}`。
+  所以两个方法都只有一个参数，不存在「第一个参数是日志负载、第二个是响应」那种读不出意图的形状。
+  业务想额外记字段就显式链一个 `.info({...})`（它返回 trace 自己），不想要就 `trace.notFound("…")` 一行。
+  不想记这条响应日志就直接用 `ctx.json`。
 - 生成时把 `rid` / `uid` / `method` / `path` / `module` / `site` / `fn` 从 `ctx` 取干净，之后打日志不再碰 `ctx`（`json` / `notFound` 要造响应，仍要用它）。
 - 每次调用等价于 `log[level](base, ...args)`：**绑定字段在前、业务参数在后**，同名时业务覆盖（与 logo「后写的赢」一致）。
 - 不往 `Context` 上挂任何东西（`c.error` 已被 Hono 占用；挂 `c.log` 又要声明合并污染所有 `Context`）。
