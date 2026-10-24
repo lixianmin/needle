@@ -16,12 +16,24 @@ const logFiles = initLog();
 // /shell 在 JWT 白名单里，对匿名网络可达；口令是它唯一的门。
 // 没配 shell_users 就不挂面板，免得留一个没人能管的入口。
 const shellUsers = viper.getStringMap("server.shell_users");
+
+/** 登录态有效期：7 天。测试时最常重启，半天就掉登录太磨人。 */
+const SHELL_TOKEN_TTL_DAYS = 7;
+
 const shell =
   Object.keys(shellUsers).length === 0
     ? undefined
     : {
         basePath: "/shell",
-        auth: { users: shellUsers },
+        auth: {
+          users: shellUsers,
+          // 必须显式给，不能靠库随机生成：随机密钥每次重启都换，已签发的
+          // token 全部作废，浏览器里存着的那个就变成“每次重启都要重新登录”。
+          // 单独一把钥匙，不复用 auth.secret：两边都是 HS256 + sub/exp 的
+          // payload，共用一个密钥等于把 Shell 口令变成业务接口的通行证。
+          secret: viper.getString("shell.secret"),
+          ttlMs: SHELL_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000,
+        },
         title: "honox-app",
         version: "0.1.0",
         logFiles,

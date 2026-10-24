@@ -14,6 +14,8 @@ bun run start      # 跑构建产物；端口取自 res/config，ENV 默认 dev
 ```
 
 Shell 面板的账号在 `res/config/app_dev.yml` 的 `server.shell_users` 里（本仓库是 `xmli / 123456`，只用于本地）。
+登录密钥是 `shell.secret`，与业务 JWT 的 `auth.secret` 分开（两边 token 都是 `sub`+`exp`，共用一个密钥等于把面板口令变成业务接口的通行证）。**必须显式配**：库在不给 secret 时会随机生成，那样每次重启已签发的 token 全废，浏览器里的登录态跟着丢。`app_pro.yml` 刻意不写，镜像里用 `APP_SHELL__SECRET` 注入。
+登录态存 localStorage，有效期 7 天（`main.ts` 里 `SHELL_TOKEN_TTL_DAYS`）。
 
 ## 相对导入一律带 `.js`
 
