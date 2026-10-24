@@ -247,7 +247,7 @@ export function createMongo(options: MongoOptions): Mongo;
 ```
 examples/honox-app/
   app/server.ts          # loadConfig → createHonox(...) → 路由直接挂 → export default { port, fetch }
-  app/lib/templates.ts   # defineSheet 声明 BotTemplate / ApcTemplate 两张表
+  app/md/                # 一表一文件：bot-template.ts / apc-template.ts，index.ts 统一预载
   config/common.yml      # auth.secret
   config/app_dev.yml     # 只写与 common 不同的项
   Dockerfile
@@ -296,9 +296,11 @@ export async function loadSheets(sheets: readonly Sheet<unknown>[]): Promise<voi
 
 ### 8.11 示例里的 Excel
 
-示例 app 带两张表：`res/metadata/BotTemplate.xlsx`（sheet `BotTemplate`，列 `id` / `name` / `prompt`）与 `res/metadata/ApcTemplate.xlsx`（sheet `ApcTemplate`，列 `id` / `equips` / `gender` / `name` / `buy_money` / `buy_price`；`equips` 是 `|` 分隔的装备 id 串，原样当字符串返回）。`app/lib/templates.ts` 用 `defineSheet` 声明，`app/server.ts` 顶层 `await loadSheets([botSheet, apcSheet])` 预载，`GET /bots/:id` 与 `GET /apc/:id` 各自调 `get(Number(c.req.param("id")))`；找不到 id 返回 `ResponseX.notFound(...)`。
+示例 app 带两张表：`res/metadata/BotTemplate.xlsx`（sheet `BotTemplate`，列 `id` / `name` / `prompt`）与 `res/metadata/ApcTemplate.xlsx`（sheet `ApcTemplate`，列 `id` / `equips` / `gender` / `name` / `buy_money` / `buy_price`；`equips` 是 `|` 分隔的装备 id 串，原样当字符串返回）。
 
-`ApcTemplate.xlsx` 里另有一张 `SelectApcConfig`（无 `id` 列），不归 `defineSheet` 管，不加载。表不用脚本生成，直接用 Excel 维护。
+布局照 rim.proxy：`res/metadata/` 下一张表对应 `app/md/` 下一个文件，文件名 kebab-case。每个文件导出 `XxxTemplate` 类型、`defineSheet` 句柄和 `getXxxTemplate(id)` getter；`app/md/index.ts` 集中 `initTemplates()`（`await loadSheets([botTemplate, apcTemplate])`）并转出 getter。`app/server.ts` 只调 `await initTemplates()`，新增表不改它。
+
+`GET /bots/:id` 与 `GET /apc/:id` 各自调 `getXxxTemplate(Number(c.req.param("id")))`；找不到 id 返回 `ResponseX.notFound(...)`。`ApcTemplate.xlsx` 里另有一张 `SelectApcConfig`（无 `id` 列），不归 `defineSheet` 管，不加载。表不用脚本生成，直接用 Excel 维护。
 
 ### 8.12 仓库接线
 
