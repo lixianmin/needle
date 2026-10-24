@@ -10,6 +10,8 @@ export interface ShellLayout {
     form: HTMLFormElement;
     input: HTMLInputElement;
     aside: HTMLElement;
+    /** 压在左右分界线上的拖拽把手。 */
+    resizer: HTMLElement;
     logTab: HTMLButtonElement;
     topicTab: HTMLButtonElement;
     tools: HTMLElement;

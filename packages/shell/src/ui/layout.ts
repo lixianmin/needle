@@ -12,6 +12,8 @@ export interface ShellLayout {
   form: HTMLFormElement;
   input: HTMLInputElement;
   aside: HTMLElement;
+  /** 压在左右分界线上的拖拽把手。 */
+  resizer: HTMLElement;
   logTab: HTMLButtonElement;
   topicTab: HTMLButtonElement;
   tools: HTMLElement;
@@ -112,8 +114,17 @@ export function buildLayout(doc: Document):ShellLayout {
 
   const main = el(doc, "div", "main");
   main.append(out.output, out.form);
+
+  // 分界线本身是个可操作元素：5px 的透明条压在 `.side` 的左边框上。
+  // role=separator + tabindex 让它也能用方向键调（详见 resizer.ts）。
+  const resizer = el(doc, "div", "resizer");
+  resizer.setAttribute("role", "separator");
+  resizer.setAttribute("aria-orientation", "vertical");
+  resizer.setAttribute("aria-label", "调整右栏宽度");
+  resizer.tabIndex = 0;
+
   const body = el(doc, "div", "body");
-  body.append(main, side.aside);
+  body.append(main, resizer, side.aside);
 
   const wrap = el(doc, "div", "logo-shell");
   wrap.append(head.header, body);
@@ -129,6 +140,7 @@ export function buildLayout(doc: Document):ShellLayout {
     form: out.form,
     input: out.input,
     aside: side.aside,
+    resizer,
     logTab: side.logTab,
     topicTab: side.topicTab,
     tools: side.tools,

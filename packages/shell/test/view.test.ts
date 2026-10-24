@@ -745,3 +745,21 @@ describe("未登录命令门禁", () => {
     expect(topicSpecs).toContain("top");
   });
 });
+
+describe("左右分栏可调", () => {
+  test("分界线上有个可聚焦的 separator，夹在 main 与 aside 之间", () => {
+    const { document } = mount();
+
+    const resizer = document.querySelector(".resizer") as unknown as HTMLElement;
+    expect(resizer.getAttribute("role")).toBe("separator");
+    expect(resizer.getAttribute("aria-orientation")).toBe("vertical");
+    expect(resizer.tabIndex).toBe(0);
+
+    const body = resizer.parentElement as unknown as HTMLElement;
+    expect([...body.children].map((node) => (node as HTMLElement).className)).toEqual([
+      "main",
+      "resizer",
+      "side",
+    ]);
+  });
+});

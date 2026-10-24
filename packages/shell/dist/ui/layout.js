@@ -55,8 +55,15 @@ export function buildLayout(doc) {
     const side = buildSidebar(doc);
     const main = el(doc, "div", "main");
     main.append(out.output, out.form);
+    // 分界线本身是个可操作元素：5px 的透明条压在 `.side` 的左边框上。
+    // role=separator + tabindex 让它也能用方向键调（详见 resizer.ts）。
+    const resizer = el(doc, "div", "resizer");
+    resizer.setAttribute("role", "separator");
+    resizer.setAttribute("aria-orientation", "vertical");
+    resizer.setAttribute("aria-label", "调整右栏宽度");
+    resizer.tabIndex = 0;
     const body = el(doc, "div", "body");
-    body.append(main, side.aside);
+    body.append(main, resizer, side.aside);
     const wrap = el(doc, "div", "logo-shell");
     wrap.append(head.header, body);
     return {
@@ -70,6 +77,7 @@ export function buildLayout(doc) {
         form: out.form,
         input: out.input,
         aside: side.aside,
+        resizer,
         logTab: side.logTab,
         topicTab: side.topicTab,
         tools: side.tools,

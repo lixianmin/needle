@@ -12,6 +12,7 @@ import { createLogList } from "./loglist.js";
 import type { LogList } from "./loglist.js";
 import { createOutputSink } from "./output.js";
 import type { OutputSink } from "./output.js";
+import { mountResizer } from "./resizer.js";
 import { createState, topicSpec } from "./state.js";
 import type { ShellUiState } from "./state.js";
 import { createTableRenderer } from "./table.js";
@@ -57,6 +58,7 @@ export function mountShell(root: HTMLElement, adapter:ShellAdapter):ShellView {
 
   wireTabs(ui, logList, topicList);
   wireToolbar(ui, state, logList, updateDropped);
+  const resizer = mountResizer({ pane: ui.aside, handle: ui.resizer });
   const unsubscribe = adapter.subscribe((event) => {
     handleEvent(event, { ui, state, logList, topicList, sink, updateDropped });
   });
@@ -66,6 +68,7 @@ export function mountShell(root: HTMLElement, adapter:ShellAdapter):ShellView {
     dispose() {
       disposeFocus();
       unsubscribe();
+      resizer.dispose();
       logList.dispose();
       topicList.dispose();
       ui.wrap.remove();

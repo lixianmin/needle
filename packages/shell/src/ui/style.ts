@@ -79,9 +79,19 @@ export const STYLE = `
 .logo-shell .body { display: flex; flex: 1; min-height: 0; }
 .logo-shell .main { display: flex; flex-direction: column; flex: 1; min-width: 0; }
 .logo-shell .side {
-  display: flex; flex-direction: column; width: 38%; min-width: 260px; min-height: 0;
+  display: flex; flex-direction: column; flex: none;
+  /* 上限靠 clamp 笑，夹取规则仅此一处；var 由 resizer.ts 拖动时改写 */
+  width: clamp(260px, var(--side-width, 38%), 72%);
+  min-height: 0;
   border-left: 1px solid var(--line);
 }
+/* 拖拽把手：5px 透明条压在分界线上，hover / 键盘聚焦时亮起来 */
+.logo-shell .resizer {
+  flex: none; width: 5px; margin-left: -3px;
+  background: transparent; cursor: col-resize; touch-action: none;
+}
+.logo-shell .resizer:hover,
+.logo-shell .resizer:focus-visible { background: var(--blue); outline: none; }
 .logo-shell .tabs { display: flex; gap: 4px; padding: 6px 12px 0; border-bottom: 1px solid var(--line); }
 .logo-shell .tab {
   background: transparent; border: 0; border-bottom: 2px solid transparent;
@@ -106,8 +116,10 @@ export const STYLE = `
 .logo-shell .spacer { position: relative; }
 .logo-shell .row { position: absolute; left: 0; right: 0; }
 .logo-shell .row .head {
-  height: 18px; line-height: 18px; padding: 0 12px;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  /* 折行，不用省略号：日志后半段（status / durationMs / uid）才是要看的部分，
+     截掉就只剩前缀。行高因此不再固定，由 loglist 实测。 */
+  min-height: 18px; line-height: 18px; padding: 0 12px;
+  white-space: pre-wrap; overflow-wrap: anywhere;
 }
 .logo-shell .row .t { color: var(--dim); margin-right: 8px; }
 .logo-shell .row .lv-debug { color: var(--dim); }
@@ -131,6 +143,7 @@ export const STYLE = `
 @media (max-width: 720px) {
   .logo-shell .side { display: none; }
   .logo-shell .side.open { display: flex; position: absolute; inset: 0; width: 100%; min-width: 0; background: var(--bg); border-left: 0; }
+  .logo-shell .resizer { display: none; }
   .logo-shell .toggle { display: inline-block; }
 }
 `;
