@@ -268,7 +268,7 @@ bun run build               # core → logo → ui → shell，产物写进各�
 bunx tsc --noEmit           # 类型检查
 bun test                    # 全部用例
 
-# `packages/*/dist/` 随源码一起提交，这样 git 依赖不需要构建步骤就能用。
+# `packages/*/dist/` 随源码一起提交：clone 下来直接 bun test / smoke 就能跑。
 # 每次提交都会自动重建三份 dist 并 stage 进同一个 commit。
 git config core.hooksPath .githooks
 ```

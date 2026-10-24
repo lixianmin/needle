@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "@needle/logo",
+      "name": "needle",
       "devDependencies": {
         "@needle/core": "workspace:*",
         "@needle/logo": "workspace:*",

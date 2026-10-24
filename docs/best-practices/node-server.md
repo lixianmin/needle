@@ -172,4 +172,4 @@ Shell 右栏只在面板打开时收实时日志，没有历史；Workers 又没
 
 ### 验证过什么
 
-`test/integration/workers.test.ts` 用 miniflare（真实的 workerd）跑过：页面渲染、公开命令、登录、`top` 返回 `runtime: "workers"`、SSE 鉴权与建流。不是“文档说可以”，是跑过的。
+`packages/shell/test/integration/workers.test.ts` 用 miniflare（真实的 workerd）跑过：页面渲染、公开命令、登录、`top` 返回 `runtime: "workers"`、SSE 鉴权与建流。不是“文档说可以”，是跑过的。

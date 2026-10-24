@@ -31,6 +31,16 @@ describe("needle 自己不依赖 Hono", () => {
     }
   });
 
+  test("依赖图只有一条生产边：shell → logo", () => {
+    const deps = (rel: string): Record<string, string> => {
+      const pkg = JSON.parse(source(rel)) as { dependencies?: Record<string, string> };
+      return pkg.dependencies ?? {};
+    };
+    expect(deps("packages/core/package.json")).toEqual({});
+    expect(deps("packages/logo/package.json")).toEqual({});
+    expect(deps("packages/shell/package.json")).toEqual({ "@needle/logo": "workspace:*" });
+  });
+
   test("入口表里没有框架适配入口", () => {
     const entries: Record<string, string[]> = {
       "packages/core/package.json": ["."],
