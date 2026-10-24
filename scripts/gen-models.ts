@@ -6,7 +6,7 @@
  * 手写的 class 是唯一真值；生成物（`*.generated.ts`）提交进仓库，pre-commit 重建。
  * 生成物里带一条漂移断言：class 改了没重新生成，`tsc` 会直接报错。
  *
- * 支持的字段类型：标量、`T[]` / `Array<T>`、同文件与跨文件 class 嵌套、`?` 可选、`Date`。
+ * 支持的字段类型：标量、`T[]` / `Array<T>`、同文件与跨文件 class 嵌套、`?` 可选。
  * 其余（方法 / getter / 装饰器 / 泛型 / 任意联合 / 递归）一律报错，不静默降级——
  * 悄悄生成一个 `Type.Any()` 比生成失败危险得多。
  *
@@ -15,7 +15,7 @@
  */
 import ts from "typescript-6";
 import { readFileSync, writeFileSync } from "node:fs";
-import { basename, dirname, resolve } from "node:path";
+import { basename, dirname, relative, resolve } from "node:path";
 
 const SCALARS: Partial<Record<ts.SyntaxKind, string>> = {
   [ts.SyntaxKind.NumberKeyword]: "Type.Number()",
@@ -63,7 +63,7 @@ function classOfField(node: ts.TypeNode, models: Map<string, Model>, where: stri
       return classOfField(arg, models, where);
     }
     if (name === "Date") {
-      return undefined;
+      die(`${where}：不支持 Date——JSON 里它是字符串，模型请写 string`);
     }
     if (!models.has(name)) {
       die(`${where}：引用了未知类型 ${name}（只认已声明的 model class）`);
@@ -98,7 +98,7 @@ function typeExpr(node: ts.TypeNode, models: Map<string, Model>, where: string):
       return `Type.Array(${typeExpr(arg, models, where)})`;
     }
     if (name === "Date") {
-      return 'Type.String({ format: "date-time" })';
+      return die(`${where}：不支持 Date——JSON 里它是字符串，模型请写 string`);
     }
     return `${name}Schema`;
   }
@@ -114,6 +114,10 @@ function collect(files: readonly string[]): Map<string, Model> {
         continue;
       }
       const name = statement.name.getText();
+      const modifiers = ts.getModifiers(statement) ?? [];
+      if (!modifiers.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword)) {
+        die(`${basename(file)}：model class ${name} 必须 export（生成物要按名字 import）`);
+      }
       if (models.has(name)) {
         die(`模型重名：${name}（${models.get(name)?.file} 与 ${file}）`);
       }
@@ -131,6 +135,13 @@ function validate(models: Map<string, Model>): void {
     for (const member of model.decl.members) {
       if (!ts.isPropertyDeclaration(member)) {
         die(`${model.name}：只支持字段声明，${member.getText()} 不支持`);
+      }
+      const modifiers = ts.getModifiers(member) ?? [];
+      if (modifiers.some((modifier) => modifier.kind === ts.SyntaxKind.StaticKeyword)) {
+        die(`${model.name}.${member.name.getText()}：不支持 static 字段`);
+      }
+      if (ts.canHaveDecorators(member) && (ts.getDecorators(member) ?? []).length > 0) {
+        die(`${model.name}.${member.name.getText()}：不支持装饰器`);
       }
       if (member.type === undefined) {
         die(`${model.name}.${member.name.getText()}：字段必须有类型标注（写成 ids = [] 读不到类型）`);
@@ -197,7 +208,9 @@ function render(file: string, ordered: readonly Model[], all: readonly Model[]):
     for (const dep of model.deps) {
       const depModel = all.find((candidate) => candidate.name === dep);
       if (depModel !== undefined && depModel.file !== file) {
-        foreign.set(dep, `./${basename(depModel.file).replace(/\.ts$/, ".generated.js")}`);
+        const target = resolve(dirname(depModel.file), `${basename(depModel.file, ".ts")}.generated.js`);
+        const specifier = relative(dirname(file), target);
+        foreign.set(dep, specifier.startsWith(".") ? specifier : `./${specifier}`);
       }
     }
   }

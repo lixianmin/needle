@@ -92,7 +92,7 @@ packages/honox/
   package.json          # exports: "." / "./node" / "./mongo" / "./excel"
   src/index.ts          # createHonox + 类型（无 node:）
   src/auth.ts           # JWT 解析 + 门禁 + 白名单匹配
-  src/request-log.ts    # 每请求日志中间件
+  src/parse.ts          # body / query 解析（TypeBox）
   src/config.ts         # 合并/必填检查（纯逻辑，node 入口复用）
   src/node.ts           # loadConfig（读 YAML）
   src/mongo.ts          # createMongo / withTransaction
@@ -139,7 +139,7 @@ export function createHonox(options: HonoxOptions): HonoxApp;
 3. 解 JWT：从 header 或 cookie 取 token，`hono/jwt` 的 `verify` 校验；失败**不抛**，只把 `uid` 设为 `null` 并记 `authError`。
 4. 门禁：命中白名单放行；否则 `uid === null` → `ResponseX.unauthorized(...)`。
 
-日志在门禁之前，401 也有 `<--` 结束行；`finally` 保证抛错也落一行。
+兜底日志在门禁之前，401 也有日志；500 由中间件读 `c.error` 记（见 8.4）。
 
 ### 8.3 鉴权与白名单
 
@@ -478,7 +478,7 @@ HTTP 接口按 `app/api/<name>.ts` 一接口一文件（照 rim.server 的 `app/
 
 参数走 query 而不是路径段：`GET /bots?id=1`、`GET /apc?id=1` 取单条，不带 `id` 返回全表，`id` 非数字 → `ResponseX.badRequest(...)`，查不到 → `ResponseX.notFound(...)`；`GET /select-apc` 返回那份 Config。理由：id 是可选筛选条件，不是资源路径的一部分。
 
-中间件链（rid → 请求日志 → JWT）由 `createHonox()` 统一装在本库路由之前，因此每个 API 都自动拿到 `c.get("uid")` 并打出 `-->` / `<--` 两行日志（结束行带 path / status / durationMs / uid / rid）。表不用脚本生成，直接用 Excel 维护。
+中间件链（rid → 兜底日志 → JWT）由 `createHonox()` 统一装在本库路由之前，因此每个 API 都自动拿到 `c.get("uid")`；请求日志由业务用 `traceOf(ctx)` 自己写（见 8.4）。表不用脚本生成，直接用 Excel 维护。
 
 注意：`metadata.base_url` 目前只支持本地目录。`app_fat.yml` 里它是 https 地址（rim.server 用来拉远端元数据），本库还没做远端拉取，跑 `ENV=fat` 会在加载时报目录不存在。
 
@@ -502,7 +502,7 @@ HTTP 接口按 `app/api/<name>.ts` 一接口一文件（照 rim.server 的 `app/
 |---|---|
 | `id.test.ts`（已搬到 `packages/got/test/id-tools.test.ts`） | 位布局可解回三段；同毫秒序列递增；跨毫秒归零且整体递增；4096 个后等下一毫秒；时钟回拨抛错；不同 nodeId 不撞；nodeId 越界与早于 epoch 报错；ULID 位布局/字典序/同毫秒不重复/时间越界；`nextSnowflakeId()` 默认参数与生成器缓存 |
 | `auth.test.ts` | 有效 token 放行；缺失 / 无效 / 过期 → 401 且 code=unauthorized；白名单精确匹配与 method 限定；`:id` 与 `/*` 匹配（含基路径本身）；cookie 取 token；`claim` 可配 |
-| `request-log.test.ts` | 两行（`-->` / `<--`）；401 也有结束行；handler 抛错 → 落 error 且 rethrow、结束行 status 500；行里带 `rid` |
+| `middleware.test.ts` | 401 / 404 / 500 / 慢请求各一条且字段正确；业务自装 onError 仍有 500 日志；RequestError 不记 error；不写日志的路由零日志 |
 | `config.test.ts` | `common.yml` 缺失时跳过；`app_<env>.yml` 缺失时报错带路径与 ENV 值；深合并（对象递归、数组整体替换）；`APP_*` 覆盖嵌套字段；true/false/数字转换；`required` 缺失报错带字段路径 |
 | `mongo.test.ts` | `db()` 透传库名（不传时用连接串默认）；`withTransaction` 把 session 传给回调；`close()` 幂等；注入的 client 不被 close |
 | `shell-mount.test.ts` | `/shell` 返回 HTML；`/shell/*` 可用；白名单生效（不带 token 也能访问） |
@@ -541,7 +541,7 @@ bun install && bun run build && bunx tsc --noEmit && bun test && node test/smoke
 ## 11. 留给实现者决定
 
 - 白名单匹配器的具体实现（正则 vs 手写分段比较），只要满足 8.3 的三条语义并有测试。
-- 日志字段的排列与消息文案（`-->` / `<--` 的形状固定）。
+- 日志字段的排列与消息文案。
 - 中间件文件怎么拆、哪些函数内部可见；只要公开 API 与 8.2 一致。
 - 示例 app 的目录细节、README 措辞、Dockerfile 分层（单阶段够用即可）。
 - YAML 读取失败（语法错）的错误文案。

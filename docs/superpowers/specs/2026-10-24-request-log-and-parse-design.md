@@ -160,7 +160,8 @@ type _BotsBodyInSync = Assert<Equals<Static<typeof BotsBodySchema>, BotsBody>>;
 ```
 
 - 生成器 `scripts/gen-models.ts`（约 160 行），读全部 model 文件：
-  - 支持：标量、`T[]` / `Array<T>`、同文件与跨文件 class 嵌套、`?` 可选、`Date`（→ `format: date-time`）。
+  - 支持：标量、`T[]` / `Array<T>`、同文件与跨文件 class 嵌套、`?` 可选。
+  - **不支持 `Date`**：JSON 里它是字符串，`Static<>` 是 `string`、class 字段是 `Date`，漂移断言永远过不去；要日期就写 `string`。
   - **硬报错**（不静默降级）：方法/getter/装饰器/泛型/任意联合/未声明的类型/字段缺类型标注/循环引用/跨文件重名。
   - 同文件内按依赖拓扑排序（`const` 有 TDZ，顺序错了模块初始化就炸）；跨文件自动 `import { XSchema } from "./x.generated.js"`。
 - 解析器用 `typescript-6`（npm 别名 `npm:typescript@6.0.3`，只进 devDependencies，23MB，不进产物）。项目编译器仍是 7.0.2。

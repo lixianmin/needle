@@ -66,14 +66,19 @@ function createFallbackLog(log: Logger, slowMs: number): MiddlewareHandler<Honox
     try {
       await next();
     } catch (error) {
-      log.error({ ...base(), status: 500 }, error);
+      // compose 只把 Error 交给 onError；非 Error 抛出会穿到这里，所以这一路也得记。
+      log.error({ ...base(), status: 500, durationMs: elapsedMs(started), uid: c.get("uid") }, error);
       throw error;
     }
 
     const durationMs = elapsedMs(started);
     const uid = c.get("uid");
     // 没 finalize 时读 c.res 会惰性造一个 200，那会把失败记成成功。
-    const status = c.finalized ? c.res.status : 500;
+    // 另外 `c.res` 运行时可能被塞进一个 Context（中间件 `return next()` 时的老写法），
+    // 所以还要判 instance Response，否则 status 会是 undefined。
+    const response = c.finalized ? c.res : undefined;
+    const responded = response instanceof Response;
+    const status = responded ? response.status : 500;
 
     if (c.error !== undefined) {
       // 客户端传错参数不是服务端故障：onError 已经把它映射成 4xx。
@@ -81,6 +86,16 @@ function createFallbackLog(log: Logger, slowMs: number): MiddlewareHandler<Honox
         return;
       }
       log.error({ ...base(), status, durationMs, uid }, c.error);
+      return;
+    }
+
+    if (!responded) {
+      // handler 既没返回 Response 也没 await next()：Hono 到更外层才抛这个错，
+      // 中间件这层看不到异常，只能自己判——否则这次请求一条日志都没有。
+      log.error(
+        { ...base(), status: 500, durationMs, uid },
+        new Error("请求没有 finalize：handler 既没返回 Response，也没 await next()"),
+      );
       return;
     }
 

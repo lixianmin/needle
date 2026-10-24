@@ -7,6 +7,14 @@ const ROUTE_METHODS = ["get", "post", "put", "patch", "delete", "all"];
 const ROUTE_METHOD_SET = new Set(ROUTE_METHODS);
 /** 这些方法读 query，其余读 body。约定：一个路由只校验一侧参数。 */
 const QUERY_METHODS = new Set(["get", "delete"]);
+/**
+ * 模型类（class）与普通 handler 在运行时只差一个特征：class 一定有 `prototype`。
+ * 不判这个的话，`api.get(path, h1, h2)`（Hono 支持一个路径挂多个 handler）会被
+ * 当成 `(path, Model, handler)`，然后拿 h1 的 name 去查 schema，整条路由 500。
+ */
+function isModelClass(value) {
+    return typeof value === "function" && value.prototype !== undefined;
+}
 function withOrigin(handler, origin) {
     return (c, next) => {
         c.set("api", origin);
@@ -49,10 +57,13 @@ export function createApi(module) {
                 return (path, second, third) => {
                     // 第 0 帧是这个箭头函数（route.ts），第 1 帧是调用方（接口文件）。
                     const origin = { module, ...captureCallSite(1) };
-                    const handler = typeof third === "function"
-                        ? withModel(origin, prop, second, third)
-                        : withOrigin(second, origin);
-                    target[prop]?.(path, handler);
+                    const handlers = typeof third === "function" && isModelClass(second)
+                        ? [withModel(origin, prop, second, third)]
+                        : [second, third]
+                            .filter((entry) => typeof entry === "function")
+                            .map((entry) => withOrigin(entry, origin));
+                    const register = target[prop];
+                    register?.(path, ...handlers);
                     // 返回代理而不是 target：链式 `.get(...).post(...)` 后续调用也要被包住。
                     return receiver;
                 };

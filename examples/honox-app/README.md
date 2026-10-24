@@ -1,6 +1,6 @@
 # honox-app
 
-`@needle/honox` 的示例：配置 + JWT 鉴权 + 每请求日志 + Excel 模板表 + Shell 面板。路由直接挂在 `createHonox()` 返回的 Hono 实例上，不引入 npm 上的 `honox`（HonoX）——见“为什么不是 HonoX”。
+`@needle/honox` 的示例：配置 + JWT 鉴权 + 请求日志（业务自写）+ Excel 模板表 + Shell 面板。路由直接挂在 `createHonox()` 返回的 Hono 实例上，不引入 npm 上的 `honox`（HonoX）——见“为什么不是 HonoX”。
 
 ## 依赖怎么来
 
@@ -98,29 +98,42 @@ app/viper.ts     # 配置实例（viper 风格取值器）+ c.get 的键声明
 // app/api/bots.ts —— 一个文件一个组，可以挂多条路由
 import { createApi } from "@needle/honox";
 
-export const botsApi = createApi();
+export const botsApi = createApi("api/bots");   // 参数是日志里的模块名，必填
 
-botsApi.get("/bots", (c) => { ... });
-botsApi.post("/bots", (c) => { ... });
+botsApi.get("/bots", BotsQuery, (ctx, query) => { ... });   // GET/DELETE：解析 query
+botsApi.post("/bots", BotsBody, (ctx, body) => { ... });    // POST/PUT/PATCH：解析 body
+botsApi.get("/health", (ctx) => ctx.json({ ok: true }));    // 不校验参数
 ```
 
-`createApi()` 返回的是真正的 `Hono`，所以 `app.route("/", botsApi)` 照常挂。它比 `new Hono()` 多做的唯一一件事：**每次登记路由都自动抓下「文件:行」**写进 context，请求日志结束行因此指到 `bots.ts:9` 而不是中间件那一行。
+`createApi(module)` 返回的是真正的 `Hono`，所以 `app.route("/", botsApi)` 照常挂。`module` 会写进 context，业务日志里因此带 `"module":"api/bots"`——打包、压缩后 `文件:行` 会变成 bundle 坐标，这个字符串才是生产环境唯一还活着的定位信息。
 
-已经有 `new Hono()` 实例、只想补位置时，用 `apiRoute(handler)` 单独包 handler。
+参数模型见 `app/model/`：手写 class（`bots.ts`），`scripts/gen-models.ts` 生成 TypeBox schema（`bots.generated.ts`，提交进仓库）。生成物带漂移断言，class 改了没重新生成会编译报错。
+
+已经有 `new Hono()` 实例时，用 `apiRoute("api/apc", handler)` 单独包 handler。
 
 **rid 是 ULID**：入站带 `x-rid`（或 `x-request-id`）就沿用，没带才由 `@needle/got` 的 `nextUlid()` 生成。128 位 = 48 位绝对毫秒 + 80 位随机，对外是**定长 26 位大写 Crockford Base32 字符串**（`0-9A-Z` 去掉 `I L O U`）。不需要配纪元、也不需要配机器号：多实例、多进程、容器重建都不会重号，这是 rid 选 ULID 而不是 Snowflake 的原因（Snowflake 的机器号只有 10 位）。定长保证字典序 = 时间序；同一毫秒内不保证递增（随机段是乱的），rid 不需要。
 
 业务实体 id 要紧凑、严格递增时用 `@needle/got` 的 `nextSnowflakeId({ nodeId })`：13 位小写 Crockford Base32，`41 毫秒 | 10 机器号 | 12 序列`，多实例必须传不同 `nodeId`。
 
-**uid 与请求日志是自动的**：`createHonox()` 装配的中间件链是 `rid → 请求日志 → JWT 鉴权`，所有 `app/api/` 里的路由都挂在它后面。于是每条请求都会：
+**uid 是自动的，请求日志不是**：`createHonox()` 装配的中间件链是 `rid → 兜底日志 → JWT 鉴权`，所有 `app/api/` 里的路由都挂在它后面。于是每条请求：
 
 - 由 JWT 中间件写入 `c.get("uid")`（没带 token 就是 `null`，受保护路由直接被 401 短路）；
-- 打两行日志，进 `-->`、出 `<--`，结束行带 `status`、`durationMs`、`uid`、`req`：
+- **不写请求日志**。打不打、打什么由业务决定：
+
+```ts
+import { traceOf } from "@needle/honox";
+
+botsApi.post("/bots", BotsBody, (ctx, body) => {
+  traceOf(ctx).info({ ids: body.ids });   // 只记想看的字段；密码/超大 body 不传就是不打
+  ...
+});
+```
 
 ```
-[I] middleware.ts:71 [requestLog()] {"rid":"02zcgfqmyyw00","path":"/me"}
-[I] me.ts:7 {"rid":"02zcgfqmyyw00","path":"/me","status":200,"durationMs":1.9,"uid":"u1"}
+[I] bots.ts:37 [handler()] {"rid":"01M5Q4VBM312ET9MKN9RRYB40N","uid":"u1","method":"POST","path":"/bots","module":"api/bots","ids":[1,99]}
 ```
+
+库只补业务补不了的四种：401（门禁）、404（未命中）、500（含未捕获异常）、慢请求（默认 >1000ms）。`/health` 这种不写日志的接口就是零日志。
 
 日志走 `@needle/logo` 的批处理，进程被杀前可能还没刷出来——本地验证时给它 1~2 秒。
 
