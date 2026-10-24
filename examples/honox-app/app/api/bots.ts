@@ -1,9 +1,8 @@
 import { Hono } from "hono";
 import { ResponseX } from "@needle/shell";
-import type { AppEnv } from "../env";
 import { getBotTemplate, getBotTemplates } from "../md/bot-template";
 
-export const botsApi = new Hono<AppEnv>();
+export const botsApi = new Hono();
 
 /**
  * `?id=1` 取单条；不带 id 取全表。
