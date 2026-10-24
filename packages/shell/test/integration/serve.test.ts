@@ -61,11 +61,15 @@ describe("serve", () => {
     }
   });
 
-  test("close 之后端口不再可连", async () => {
+  test("close 之后端口能被重新绑定", async () => {
     const server = await serve(async () => new Response("x"), { port: 0 });
     const { port } = server;
     await server.close();
 
-    expect(fetch(`http://127.0.0.1:${port}/`)).rejects.toThrow();
+    // 不用 fetch 断言端口不可连：ephemeral 端口可能被并发的其它测试服务立刻复用，
+    // 那样 fetch 会连到别人的服务上挂住（曾把整条门禁拖到超时）。重新 listen 同一
+    // 端口是确定的：旧监听没释放就会 EADDRINUSE。
+    const probe = await serve(async () => new Response("free"), { port });
+    await probe.close();
   });
 });
