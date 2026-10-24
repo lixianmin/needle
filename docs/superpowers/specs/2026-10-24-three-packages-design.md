@@ -22,7 +22,7 @@
 
 ## 2. 目标
 
-1. 三个独立 package（各自 `package.json`、`tsconfig.build.json`、`dist/`、版本号），bun workspaces 管理。
+1. 三个独立 package（各自 `package.json`、`tsconfig.build.json`、`dist/`），bun workspaces 管理；版本号统一由根 `package.json` 提供（见 §11）。
 2. 删掉伞包 `@needle/needle`，不保留兼容入口。
 3. `core` 只含 Collections（`SortedTable`），不含任何 `web/` 工具。
 4. 依赖方向严格：`core` 无依赖，`logo` 无依赖，`shell` → `logo`。
@@ -57,7 +57,7 @@
 
 本轮由实现者决定、人类未反对：
 
-- 三个包初始版本号都取 `0.3.7`，保持与当前 `0.3.6` 连续。
+- 版本号单源：根 `package.json` 的 `version` 是唯一来源，三个包的 `version` 由脚本同步成同一个值（2026-10-24 修订，见 §11）。
 - 包内目录去掉重复层级：`packages/logo/src/*.ts`（不再有 `src/logo/`），`packages/shell/src/*.ts`（不再有 `src/shell/`）。
 - `@needle/core` 只导出 `SortedTable`、`Comparer`、`defaultComparer`，只有 `.` 一个入口。
 - `web/body.ts`、`web/responsex.ts` 搬进 `packages/shell/src/web/`，不对外导出（外部拿不到，也不需要）。
@@ -143,9 +143,9 @@ packages/
 - 测试发现：根目录 `bun test` 递归收集 `packages/*/test` 与 `test/`，不需要额外配置。
 - 验收命令（写入 `docs/01.memory.md`，替换旧值）：
   `bun install && bun run build && bunx tsc --noEmit && bun test && node test/smoke/node.mjs`
-- `test/smoke/node.mjs` 改读三份 dist：`packages/logo/dist/index.js`、`packages/shell/dist/index.js`、`packages/shell/dist/node.js`；版本号改读 `packages/shell/package.json`。
-- `examples/demo.ts`：`logo` / `createFileSink` / `createLogFiles` 用包名（`@needle/logo`、`@needle/logo/node`，解析到 dist），Shell 侧引 `../packages/shell/src/*` 源码。理由是**单例**：shell 源码内部 import `@needle/logo`，demo 必须拿同一个 dist 实例，否则 sink 加在另一个 logger 上、页面看不到日志。版本号读 `packages/shell/package.json`。根脚本 `demo` = `bun run build:logo && bun examples/demo.ts`：改 logo 后要重建，改 shell/UI 不必。
-- `.githooks/pre-commit`：`bun run build` 后 `git add packages/*/dist packages/shell/src/ui/script.generated.ts`。
+- `test/smoke/node.mjs` 改读三份 dist：`packages/logo/dist/index.js`、`packages/shell/dist/index.js`、`packages/shell/dist/node.js`；版本号读根 `package.json`。
+- `examples/demo.ts`：`logo` / `createFileSink` / `createLogFiles` 用包名（`@needle/logo`、`@needle/logo/node`，解析到 dist），Shell 侧引 `../packages/shell/src/*` 源码。理由是**单例**：shell 源码内部 import `@needle/logo`，demo 必须拿同一个 dist 实例，否则 sink 加在另一个 logger 上、页面看不到日志。版本号读根 `package.json`。根脚本 `demo` = `bun run build:logo && bun examples/demo.ts`：改 logo 后要重建，改 shell/UI 不必。
+- `.githooks/pre-commit`：先 `bun run version:sync`（把根版本写进三个包），再 `bun run build`，最后 `git add packages/*/package.json packages/*/dist packages/shell/src/ui/script.generated.ts`。
 
 ## 10. 跨包与 dist 的代价（必须写进文档，不准藏）
 
@@ -158,10 +158,13 @@ packages/
 
 ## 11. 版本号与提交规则
 
-- 每个包独立版本号，当前统一从 `0.3.7` 起步。根 `package.json` 是 `private: true` 的工作区根，**不带 `version`**。
-- 产品版本 = `packages/shell/package.json` 的版本。`examples/demo.ts` 与 `test/smoke/node.mjs` 都读它。
-- §14「每次合并进 main 把 `package.json` patch +1」按包执行：一次合并里三个包的 patch 都 +1，仍然只 bump 一次。
-- `AGENTS.md` §14 与 §13.3 `VERIFY` 的措辞需要人类改（agent 不自行改 AGENTS.md）：§14 的「`package.json` 一个来源」改成「三个包的 `package.json`，产品版本看 shell」；`VERIFY` 取值按第 9 节。
+- **单一来源：根 `package.json` 的 `version`。** 根是 `private: true` 的工作区根，但保留 `version` 字段；三个包的 `version` 必须与它完全相等。
+- `package.json` 不支持字段引用（没有 `version: "workspace:root"` 这类写法），所以用机械同步：`bun run version:sync` 读根版本、写进 `packages/{core,logo,shell}/package.json`，只在不一致时改文件。
+- 同步挂在 `.githooks/pre-commit` 里、构建之前；产物与三个 `package.json` 一起进同一个 commit。
+- 兜底测试 `test/version-lock.test.ts`：根必须有 `version`，且三包版本与根逐字相等。忘了跑同步，测试直接红。
+- 改版本只改根一处，按 §14「每次合并进 main 把 patch +1」执行（`0.3.7` → `0.3.8` 是本次修订的 bump）。
+- `examples/demo.ts` 与 `test/smoke/node.mjs` 都读根 `package.json`。
+- `AGENTS.md` §14 与 §13.3 `VERIFY` 的措辞仍需人类改（agent 不自行改 AGENTS.md）：§14 明确「根 `package.json` 是唯一来源，三包由 `bun run version:sync` 同步」；`VERIFY` 取值按第 9 节。
 
 ## 12. 迁移映射
 
@@ -212,6 +215,7 @@ packages/
 3. 三个 `package.json` 的 `exports` 指向的文件真实存在，且用包名 import 能拿到对应 API。
 4. 浏览器打包产物检查：`@needle/logo` 与 `@needle/shell` 的 `.` 入口无 `node:`。
 5. 仓库里不再出现 `@needle/needle`、`src/logo`、`src/shell`、`src/core`、根 `dist/` 的残留引用。
+6. 根 `package.json` 有 `version`，三个包的 `version` 与它相等（`test/version-lock.test.ts` 钉住）。
 
 ## 17. 评审后修订（2026-10-24）
 
@@ -223,5 +227,5 @@ packages/
 | 2 | logo `.` 漏了 `createLarkSink`（它今天由伞包根入口单独转出） | logo `.` = 今天 `.` 减去 `SortedTable`，显式包含 lark 三件套，见 §7 |
 | 3 | dist 已提交，单跑 `build:shell` 不会失败，§16.2 是假门禁 | 改为先 `rm -rf packages/logo/dist packages/shell/dist` 再跑，见 §16.2 |
 | 4 | 产物过期只给 logo 上保险不够 | `build-fresh.test.ts` 放宽到三包 + UI 脚本，放根 `test/`，见 §10 |
-| 5 | 版本号唯一来源在拆包后指谁 | 根 `package.json` 不带 version；产品版本看 shell 包，见 §11 |
+| 5 | 版本号唯一来源在拆包后指谁 | 2026-10-24 再修订：根 `package.json` 拥有 version，三包由脚本同步，见 §11 |
 | 6 | core 无依赖者，按包名 import 能否解析 | 靠包自引用，bun 实测通过；不加额外 workspace 依赖，见 §7 |
