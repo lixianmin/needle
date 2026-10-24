@@ -29,28 +29,27 @@ Shell 面板的账号在 `res/config/app_dev.yml` 的 `server.shell_users` 里�
 2. `res/config/app_<env>.yml`（只写差异项，**必须存在**）
 3. `APP_*` 环境变量（`__` 分隔层级，如 `APP_SERVER__WEB_PORT=9000`）
 
-`ENV` 决定第 2 步加载哪个文件，只认 **dev / fat / pro**（默认 dev，写错直接报错）。这是整个示例里唯一读 `process.env` 的地方——**业务代码一律用 `config.getXxx("点分路径")`**，不再自己去看环境变量。
+`ENV` 决定第 2 步加载哪个文件，只认 **dev / fat / pro**（默认 dev，写错直接报错）。这是整个示例里唯一读 `process.env` 的地方——**业务代码一律用 `viper.getXxx("点分路径")`**，不再自己去看环境变量。
 
-配置实例在 `app/env.ts` 里加载并导出，全进程只有一份：
+配置实例在 `app/viper.ts` 里加载并导出，全进程只有一份：
 
 ```ts
-// app/env.ts
-export const config = loadConfig({ dir: "res/config", required: ["auth.secret", "metadata.base_url", "server.web_port"] });
-export type AppEnv = HonoxEnv<typeof config>;
+// app/viper.ts
+export const viper = loadConfig({ dir: "res/config", required: ["auth.secret", "metadata.base_url", "server.web_port"] });
 ```
 
-两处拿法：
+两处拿法，拿到的是同一个实例：
 
-- **请求内（`app/api/*.ts`）**：`c.get("config").getInt("server.web_port")`。读 `c.get(...)` 的文件要写 `new Hono<AppEnv>()`（纯类型参数，运行时无成本；不写的话 `c.get("uid")` 直接编译不过）；只用 import 的接口写 `new Hono()` 就够了——示例里只有 `me.ts` 需要 `AppEnv`。
-- **请求外（`app/main.ts`、`app/md/*`、服务层）**：`import { config } from "../env"`。模块只求值一次，`loadConfig` 也只跑一次。
+- **请求外**（`app/main.ts`、`app/md/*`、服务层）：`import { viper } from "../viper"`。
+- **请求内**（`app/api/*.ts`）：`c.get("config")`。键的类型在 `app/viper.ts` 里用 `declare module "hono" { interface ContextVariableMap { ... } }` 声明一次，所以接口文件写 `new Hono()` 就够了，不用 import 任何 env 类型。
 
 ```ts
-config.getInt("server.web_port")           // 8001
-config.getString("server.host", "0.0.0.0") // 缺省值给了就不抛
-config.getStringMap("server.shell_users")  // { xmli: "123456" }（YAML 数字转字符串）
-config.getBool("feature.on")
-config.has("server.host")                  // 路径上有值
-config.env / config.isDev() / config.isFat() / config.isPro()
+viper.getInt("server.web_port")           // 8001
+viper.getString("server.host", "0.0.0.0") // 缺省值给了就不抛
+viper.getStringMap("server.shell_users")  // { xmli: "123456" }（YAML 数字转字符串）
+viper.getBool("feature.on")
+viper.has("server.host")                  // 路径上有值
+viper.env / viper.isDev() / viper.isFat() / viper.isPro()
 ```
 
 取值语义比 viper 严一点：缺值又没给 fallback 就抛，不会静默变成 `""` / `0`。`required` 里的点分路径在启动时检查，缺了或空字符串都直接报错（所以 `app_pro.yml` 刻意不写 `auth.secret`，生产必须用 `APP_AUTH__SECRET` 注入）。
@@ -87,10 +86,10 @@ app/api/
   bots.ts        # GET /bots?id=
   apc.ts         # GET /apc?id=
   select-apc.ts  # GET /select-apc
-app/env.ts       # AppConfig（配置形状）+ AppEnv（createHonox 的 Env）
+app/viper.ts     # 配置实例（viper 风格取值器）+ c.get 的键声明
 ```
 
-新增一个接口：在 `app/api/` 加一个文件（`new Hono<AppEnv>()` + `xxxApi.get(...)`），再到 `index.ts` 里 `app.route("/", xxxApi)` 一行。`app/main.ts` 不用动。
+新增一个接口：在 `app/api/` 加一个文件（`new Hono()` + `xxxApi.get(...)`），再到 `index.ts` 里 `app.route("/", xxxApi)` 一行。`app/main.ts` 不用动。
 
 **uid 与请求日志是自动的**：`createHonox()` 装配的中间件链是 `reqId → 请求日志 → JWT 鉴权`，所有 `app/api/` 里的路由都挂在它后面。于是每条请求都会：
 

@@ -1,5 +1,4 @@
-import type { Hono } from "hono";
-import type { AppEnv } from "../env";
+import type { Env, Hono } from "hono";
 import { apcApi } from "./apc";
 import { botsApi } from "./bots";
 import { healthApi } from "./health";
@@ -13,7 +12,7 @@ import { selectApcApi } from "./select-apc";
  * 中间件（reqId → 请求日志 → JWT 鉴权）由 createHonox 统一装好，这些路由挂在
  * 它后面，所以每条请求都会自动带上 uid，并打出 `-->` / `<--` 两行日志。
  */
-export function registerApis(app: Hono<AppEnv>): void {
+export function registerApis<E extends Env>(app: Hono<E>): void {
   app.route("/", homeApi);
   app.route("/", healthApi);
   app.route("/", meApi);
