@@ -127,7 +127,7 @@ export function createHonox<C extends Record<string, unknown>>(
 ): Hono<HonoxEnv>;
 ```
 
-`HonoxEnv` 的 Variables：`uid: string | null`、`user: JwtPayload | null`、`authError: "missing" | "invalid" | "expired" | null`、`rid: string`、`api?: { site, fn }`（由 `apiRoute` 写）。
+`HonoxEnv` 的 Variables：`uid: string | null`、`user: JwtPayload | null`、`authError: "missing" | "invalid" | "expired" | null`、`rid: string`、`api?: { site, fn }`（由 `api()` / `apiRoute()` 写）。
 
 **只放每个请求独有的东西**：配置是进程级单例（viper 取值器），日志是进程级单例（`logo`），两者都直接 import，不按请求复制进 context——少一份可变的副本，也少一层"配置从哪来"的追问。
 
@@ -162,7 +162,7 @@ export function createHonox<C extends Record<string, unknown>>(
 2026-10-24T16:52:34 [I] health.ts:7 {"rid":"02zcgfqmyyw00","path":"/health","status":200,"durationMs":1.3,"uid":null}
 ```
 
-- **结束行的位置是 API 文件**，不是中间件：由 `apiRoute()`（见 8.4.2）在路由注册时抓下 `文件:行` 存进 context。进的那一行在 handler 之前，拿不到这个位置，所以仍是中间件行。
+- **结束行的位置是 API 文件**，不是中间件：由 `api()` / `apiRoute()`（见 8.4.2）在路由注册时抓下 `文件:行` 存进 context。进的那一行在 handler 之前，拿不到这个位置，所以仍是中间件行。
 
 - 行格式照 rim.server 的 Go 版 logo：`日期T时间 [级别] 文件:行 [函数()] 载荷`。`site` / `fn` 只在前缀里，不进 JSON。
 - 前端不带 `method`：路径已经能定位接口，动词在 `-->` 用例里是噪音（删过一版，见 memory）。需要区分时看业务日志或网关侧。
@@ -190,17 +190,23 @@ export function createHonox<C extends Record<string, unknown>>(
 - **时钟回拨**：照原版 Snowflake 直接抛错，不静默产生更小的 id——B 树回头插正是要避免的页分裂。等时钟追上来会让请求卡住，所以不选等待。
 - 用途不限于 rid：业务实体 id 直接 `createSnowflake({ epoch, nodeId })`，两个进程只要 nodeId 不同就不会撞。
 
-### 8.4.2 `apiRoute()`：把日志位置挪到 API 文件
+### 8.4.2 `api()` / `apiRoute()`：把日志位置挪到 API 文件
 
 请求日志是在中间件里打的，那一刻栈上只有 Hono 的 `dispatch`（compose.js），**handler 根本不在栈上**——进的时候还没跑，出的时候已经返回。所以调多大的 callerDepth 都指不到 `app/api/apc.ts`。位置只能在**注册时**抓：
 
 ```ts
-app.get("/apc", apiRoute((c) => { ... }));   // 捕获 apc.ts 的行号
+// 一个文件一个接口时的默认写法：建子应用 + 登记路由 + 记位置，一行做完
+export const apcApi = api("/apc", (c) => { ... });
+
+// 已经有自己的 Hono 实例、或一条路径挂多个方法时，单独包 handler
+app.get("/apc", apiRoute((c) => { ... }));
 ```
 
-`apiRoute` 用 `captureCallSite(1)`（跳过自己那一帧）拿到 `{ site, fn }`，handler 里 `c.set("api", where)`；请求日志在 finally 里读它，作为 `site`/`fn` 传给 logger。logo 的 `buildRecord` 里，**调用方显式给的 `site`/`fn` 优先**于自动抓的（与 `stack` 同一规则）。
+两者都用 `captureCallSite(1)`（跳过自己那一帧）拿到 `{ site, fn }`，handler 里 `c.set("api", where)`；请求日志在 finally 里读它，作为 `site`/`fn` 传给 logger。logo 的 `buildRecord` 里，**调用方显式给的 `site`/`fn` 优先**于自动抓的（与 `stack` 同一规则）。
 
-没包 `apiRoute` 的路由不会崩：拿不到 `api`，退回自动抓的中间件行。
+`api(path, handler, method = "GET")` 返回一个只有这条路由的子应用——省掉 `new Hono()` + `.get()` + `apiRoute()` 三行例行代码；以后再有例行代码（比如统一的参数解析）往这里收。
+
+没包 `api` / `apiRoute` 的路由不会崩：拿不到 `api`，退回自动抓的中间件行。
 
 ### 8.4.3 调用点（`site` / `fn`）与 callerDepth
 

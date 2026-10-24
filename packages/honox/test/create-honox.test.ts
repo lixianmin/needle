@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { newLogger, type LogRecord } from "@needle/logo";
 import { sign } from "hono/jwt";
 import { createHonox } from "../src/index.js";
-import { apiRoute } from "../src/middleware.js";
+import { api, apiRoute } from "../src/route.js";
 
 const SECRET = "test-secret";
 
@@ -97,6 +97,18 @@ describe("createHonox", () => {
     const end = records.at(-1)!;
     expect(end.site).toMatch(/^create-honox\.test\.ts:\d+$/);
     expect(end.fn).not.toBe("requestLog");
+  });
+
+  test("api()：一条路由 + 位置，省掉 new Hono", async () => {
+    const records: LogRecord[] = [];
+    const log = newLogger({ sinks: [(batch) => records.push(...batch)], batch: false });
+    const app = createHonox({ log, auth: { secret: SECRET, public: ["/sub"] } });
+    app.route("/", api("/sub", (c) => c.json({ ok: true })));
+
+    const res = await app.request("/sub");
+
+    expect(res.status).toBe(200);
+    expect(records.at(-1)?.site).toMatch(/^create-honox\.test\.ts:\d+$/);
   });
 
   test("Shell 面板挂到 /shell，且不被门禁拦", async () => {

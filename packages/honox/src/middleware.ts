@@ -1,5 +1,5 @@
-import { captureCallSite, type Logger } from "@needle/logo";
-import type { Handler, Hono, MiddlewareHandler } from "hono";
+import type { Logger } from "@needle/logo";
+import type { Hono, MiddlewareHandler } from "hono";
 import { createAuth, type AuthOptions } from "./auth.js";
 import type { HonoxEnv, PublicEntry } from "./types.js";
 import type { Snowflake } from "./id.js";
@@ -25,27 +25,6 @@ function resolveRid(
   }
   // 自己生成时是 13 位 Snowflake 字符串：定长、字典序 = 生成顺序。
   return ids.next();
-}
-
-/**
- * 给路由登记一个"这是哪个 API 文件"的位置。
- *
- * 请求日志是在中间件里打的，那一刻栈上只有 Hono 的 dispatch（handler 还没跑 /
- * 已经返回），再怎么调 callerDepth 也指不到 handler 所在的文件。所以位置在
- * **注册时**抓一次，存进 context，日志行直接用它。
- *
- * 用法：`app.get("/apc", apiRoute((c) => { ... }))`。
- */
-export function apiRoute(handler: Handler<HonoxEnv>): Handler<HonoxEnv> {
-  // 跳 1 帧：第 0 帧是 apiRoute 自己。
-  const where = captureCallSite(1);
-  if (where === undefined) {
-    return handler;
-  }
-  return (c, next) => {
-    c.set("api", where);
-    return handler(c, next);
-  };
 }
 
 /** 保留 1 位小数：毫秒精度够定位慢请求，也不会让日志字段变成浮点长尾。 */

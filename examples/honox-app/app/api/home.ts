@@ -1,11 +1,5 @@
-import { Hono } from "hono";
-import { apiRoute } from "@needle/honox";
+import { api } from "@needle/honox";
 
-export const homeApi = new Hono();
-
-homeApi.get(
-  "/",
-  apiRoute((c) =>
-    c.text("honox-app: GET /health、GET /me、GET /bots?id=、GET /apc?id=、GET /select-apc"),
-  ),
+export const homeApi = api("/", (c) =>
+  c.text("honox-app: GET /health、GET /me、GET /bots?id=、GET /apc?id=、GET /select-apc"),
 );
