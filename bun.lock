@@ -17,15 +17,15 @@
     },
     "packages/core": {
       "name": "@needle/core",
-      "version": "0.3.9",
+      "version": "0.3.10",
     },
     "packages/logo": {
       "name": "@needle/logo",
-      "version": "0.3.9",
+      "version": "0.3.10",
     },
     "packages/shell": {
       "name": "@needle/shell",
-      "version": "0.3.9",
+      "version": "0.3.10",
       "dependencies": {
         "@needle/logo": "workspace:*",
       },
