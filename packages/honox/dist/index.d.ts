@@ -1,7 +1,7 @@
 import { type Logger } from "@needle/logo";
 import { type ServerShellOptions } from "@needle/shell";
 import { Hono } from "hono";
-import { type AuthOptions } from "./auth.js";
+import type { AuthOptions } from "./auth.js";
 import type { HonoxEnv } from "./types.js";
 export interface HonoxOptions<C extends object> {
     config: C;
@@ -12,10 +12,9 @@ export interface HonoxOptions<C extends object> {
     shell?: ServerShellOptions;
 }
 /**
- * 装配一个 Hono app：rid → 请求日志 → JWT → 门禁，顺序由库固定。
+ * 装配一个 Hono app：建实例 → 装中间件链（见 middleware.ts）→ 挂 Shell 面板。
  *
- * 顺序不能交给业务：日志排在门禁前面，401 才有结束行；JWT 排在门禁前面，
- * 门禁才看得到 uid。这两个顺序错一个，症状都很隐蔽（"日志偶尔少一行"）。
+ * 业务路由挂在返回值上，所以自动继承中间件链。
  */
 export declare function createHonox<C extends object>(options: HonoxOptions<C>): Hono<HonoxEnv<C>>;
 export type { Config } from "./config.js";

@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { Hono } from "hono";
 import { newLogger, type LogRecord } from "@needle/logo";
-import { createRequestLog } from "../src/request-log.js";
+import { createRequestLog } from "../src/middleware.js";
 import type { HonoxEnv } from "../src/types.js";
 
 function setup() {
