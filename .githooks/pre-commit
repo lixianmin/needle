@@ -5,5 +5,7 @@
 set -e
 
 bun run version:sync
+# bun.lock 也记录 workspace 包的版本：同步后刷新它，否则锁文件与 package.json 漂移。
+bun install --silent
 bun run build
-git add packages/*/package.json packages/*/dist packages/shell/src/ui/script.generated.ts
+git add bun.lock packages/*/package.json packages/*/dist packages/shell/src/ui/script.generated.ts

@@ -272,8 +272,8 @@ bun test                    # 全部用例
 # 每次提交都会自动重建三份 dist 并 stage 进同一个 commit。
 git config core.hooksPath .githooks
 
-# 版本号只改根 `package.json`；`bun run version:sync` 负责写进三个包，
-# pre-commit 会自动跑，`test/version-lock.test.ts` 在不一致时直接红。
+# 版本号只改根 `package.json`；`bun run version:sync` 负责写进三个包并刷新 bun.lock，
+# pre-commit 会自动跑，`test/version-lock.test.ts` 在包或锁文件不一致时直接红。
 ```
 
 跨包只走包名（`@needle/logo` 解析到 `dist`），所以**改了 logo 源码后先跑 `bun run build:logo`**，否则 shell 的测试与 demo 跑的是旧产物。`test/build-fresh.test.ts` 会在产物过期时直接报错。
