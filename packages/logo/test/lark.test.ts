@@ -71,6 +71,19 @@ describe("createLarkSink", () => {
     expect(typeof body.sign).toBe("string");
   });
 
+  test("secret 传空串等同于没配：不签名，照常推送", async () => {
+    // 空字符串当 HMAC key 会抛 DataError: Zero-length key is not supported，
+    // 而 send 的失败在 flush 里被静默吞掉——告警一条都发不出去，还没任何提示。
+    const { sink, calls } = setup({ secret: "" });
+    sink([record("error", "a")]);
+    await sink.flush();
+
+    expect(calls).toHaveLength(1);
+    const body = JSON.parse(calls[0]?.body as string);
+    expect(body.sign).toBeUndefined();
+    expect(body.timestamp).toBeUndefined();
+  });
+
   test("fetch 失败时不抛", async () => {
     const { sink } = setup({
       fetch: (() => Promise.reject(new Error("network down"))) as unknown as typeof fetch,
