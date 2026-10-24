@@ -12,7 +12,7 @@ function setup() {
   const log = newLogger({ sinks: [(batch) => records.push(...batch)], batch: false });
   const app = createHonox({
     logger: log,
-    auth: { secret: SECRET, public: ["/health"] },
+    auth: { secret: SECRET },
     shell: {
       basePath: "/shell",
       user: "local",
@@ -21,6 +21,7 @@ function setup() {
       version: "0.0.0",
     },
   });
+  app.allowAnonymous(["/health"]);
   app.get("/health", (c) => c.json({ ok: true }));
   app.get("/me", (c) => c.json({ uid: c.get("uid") }));
   return { app, records };
@@ -103,8 +104,9 @@ describe("createHonox", () => {
     const log = newLogger({ sinks: [(batch) => records.push(...batch)], batch: false });
     const app = createHonox({
       logger: log,
-      auth: { secret: SECRET, public: ["/where"] },
+      auth: { secret: SECRET },
     });
+    app.allowAnonymous(["/where"]);
     app.get("/where", apiRoute((c) => c.json({ ok: true })));
 
     await app.request("/where");
@@ -117,7 +119,8 @@ describe("createHonox", () => {
   test("createApi()：一个组挂多条路由，每条都记住自己的注册位置", async () => {
     const records: LogRecord[] = [];
     const log = newLogger({ sinks: [(batch) => records.push(...batch)], batch: false });
-    const app = createHonox({ logger: log, auth: { secret: SECRET, public: ["/one", "/two"] } });
+    const app = createHonox({ logger: log, auth: { secret: SECRET } });
+    app.allowAnonymous(["/one", "/two"]);
 
     const group = createApi();
     group.get("/one", (c) => c.json({ ok: 1 }));
@@ -155,5 +158,53 @@ describe("createHonox", () => {
         shell: { basePath: "/", auth: { users: { admin: "pw" } } },
       }),
     ).toThrow(/basePath/);
+  });
+});
+
+describe("allowAnonymous", () => {
+  test("挂载完之后声明，门禁按声明放行；没声明的仍然 401", async () => {
+    const app = createHonox({ auth: { secret: SECRET } });
+    app.get("/health", (c) => c.json({ ok: true }));
+    app.get("/me", (c) => c.json({ uid: c.get("uid") }));
+    expect((await app.request("/health")).status).toBe(401);
+
+    app.allowAnonymous(["/health"]);
+
+    expect((await app.request("/health")).status).toBe(200);
+    expect((await app.request("/me")).status).toBe(401);
+  });
+
+  test("多次调用是累加，不是覆盖", async () => {
+    const app = createHonox({ auth: { secret: SECRET } });
+    app.get("/a", (c) => c.text("a"));
+    app.get("/b", (c) => c.text("b"));
+    app.allowAnonymous(["/a"]);
+    app.allowAnonymous(["/b"]);
+    expect((await app.request("/a")).status).toBe(200);
+    expect((await app.request("/b")).status).toBe(200);
+  });
+
+  test("方法限定条目与尾通配都按 8.3 的语义生效", async () => {
+    const app = createHonox({ auth: { secret: SECRET } });
+    app.post("/login", (c) => c.text("in"));
+    app.get("/assets/x", (c) => c.text("asset"));
+    app.allowAnonymous([{ method: "POST", path: "/login" }, "/assets/*"]);
+    expect((await app.request("/login", { method: "POST" })).status).toBe(200);
+    expect((await app.request("/login")).status).toBe(401);
+    expect((await app.request("/assets/x")).status).toBe(200);
+  });
+
+  test("返回实例本身，可以与 route() 链式接", async () => {
+    const app = createHonox({ auth: { secret: SECRET } });
+    app.allowAnonymous(["/health"]).get("/health", (c) => c.text("ok"));
+    expect((await app.request("/health")).status).toBe(200);
+  });
+
+  test("Shell 面板照旧自动放行，不依赖 allowAnonymous", async () => {
+    const app = createHonox({
+      auth: { secret: SECRET },
+      shell: { basePath: "/shell", user: "local", auth: { users: {} }, title: "t", version: "0.0.0" },
+    });
+    expect((await app.request("/shell")).status).toBe(200);
   });
 });

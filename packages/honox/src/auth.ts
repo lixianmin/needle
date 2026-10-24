@@ -14,8 +14,6 @@ export interface AuthOptions {
   header?: string;
   /** 可选：header 里没 token 时从这个 cookie 兜底 */
   cookie?: string;
-  /** 白名单；空 = 全部要登录 */
-  public?: readonly PublicEntry[];
 }
 
 function matchesPattern(pattern: string, path: string): boolean {
@@ -77,8 +75,14 @@ function messageFor(reason: AuthErrorReason): string {
 /**
  * 解 token + 门禁，一个中间件做完：解析失败不抛错，只把 uid 留空，
  * 让门禁统一决定 401。这样公开接口上带了个坏 token 也不会被拒。
+ *
+ * 白名单是第二个参数而不是 options 的字段：它是策略，不是「怎么解 token」的配置。
+ * 传数组引用（不是拷贝），调用方后续往里 append 的条目对每个请求都生效。
  */
-export function createAuth(options: AuthOptions): MiddlewareHandler<HonoxEnv> {
+export function createAuth(
+  options: AuthOptions,
+  entries: readonly PublicEntry[],
+): MiddlewareHandler<HonoxEnv> {
   const claim = options.claim ?? "sub";
   const headerName = options.header ?? "authorization";
 
@@ -111,7 +115,7 @@ export function createAuth(options: AuthOptions): MiddlewareHandler<HonoxEnv> {
       c.set("authError", "missing");
     }
 
-    if (matchesPublic(options.public ?? [], c.req.method, c.req.path)) {
+    if (matchesPublic(entries, c.req.method, c.req.path)) {
       return next();
     }
 

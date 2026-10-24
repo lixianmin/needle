@@ -41,11 +41,13 @@ const metadata = createMetadata();
 await metadata.load(viper.getString("metadata.base_url")); // *Template 按 id 建表，*Config 单例
 
 const app = createHonox({
-  auth: { secret: viper.getString("auth.secret"), public: ["/health"] },
-  // /shell 对匿名网络可达（在 JWT 白名单里），账号从配置来，不要写默认值
+  auth: { secret: viper.getString("auth.secret") },
+  // /shell 对匿名网络可达（自动进白名单），账号从配置来，不要写默认值
   shell: { basePath: "/shell", auth: { users: viper.getStringMap("server.shell_users") } },
 });
+app.get("/health", (c) => c.json({ ok: true }));
 app.get("/orders", (c) => c.json({ uid: c.get("uid") })); // 不声明 = 要登录
+app.allowAnonymous(["/health"]);                          // 免 JWT 门禁的路径集中写在这
 ```
 
 
