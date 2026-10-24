@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "build": "bun build app/main.ts --target=bun --outfile=dist/index.js",
-    "start": "bun dist/index.js"
+    "start": "bun dist/index.js",
+    "dev": "bun --watch app/main.ts"
   },
   "dependencies": {
     "@needle/honox": "link:../../packages/honox",

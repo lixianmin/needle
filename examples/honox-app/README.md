@@ -8,8 +8,9 @@
 
 ```bash
 bun install     # 装 hono / typescript 等
+SHELL_PASSWORD=dev bun run dev     # 开发：bun --watch 直接跑 app/main.ts，改代码自动重启
 bun run build   # bun build → dist/index.js（自包含产物）
-SHELL_PASSWORD=dev bun run start   # 默认 8213 端口（res/config/common.yml），PORT 可改
+SHELL_PASSWORD=dev bun run start   # 跑构建产物；默认 8213 端口（res/config/common.yml），PORT 可改
 ```
 
 ## 为什么不是 HonoX
