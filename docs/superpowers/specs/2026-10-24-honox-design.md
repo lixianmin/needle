@@ -353,7 +353,7 @@ examples/honox-app/
   README.md              # 怎么跑、怎么打镜像
 ```
 
-**日志在 `app/logo.ts` 里初始化**：读 `logger.filter_level`（写错启动即报错，不静默回退）→ `logo.setLevel` → 挂 `createFileSink({ dir: logger.dir ?? "res/logs" })` → 配了 `logger.lark_token` 才挂飞书 → 返回 `createLogFiles({ dir })` 交给 Shell 的 `logFiles`。挂的是全局 `logo` 实例而不是新建一个：项目里到处 `import { logo }`，两套实例等于一半日志进不了文件也进不了右栏。`minLevel` 跟着 `filter_level` 走，级别不开 debug 就不会凭空多一个空的 `debug.log`。
+**日志在 `app/logo.ts` 里初始化**：读 `logger.filter_level`（写错启动即报错，不静默回退）→ `logo.setLevel` → 挂 `createFileSink({ dir: "log" })` → 配了 `logger.lark_url` 才挂飞书 → 返回 `createLogFiles({ dir: "log" })` 交给 Shell 的 `logFiles`。日志目录固定是工作目录下的 `log/`，不做配置项（它在仓库里是 gitignore 的产物，没有“每个环境不一样”的理由）。挂的是全局 `logo` 实例而不是新建一个：项目里到处 `import { logo }`，两套实例等于一半日志进不了文件也进不了右栏。`minLevel` 跟着 `filter_level` 走，级别不开 debug 就不会凭空多一个空的 `debug.log`。飞书用群机器人的 webhook 地址，地址本身是密钥，仓库里留空、本地用 `APP_LOGGER__LARK_URL` 覆盖。
 
 构建只有一步：`bun build app/main.ts --target=bun --outfile=dist/index.js`。Bun 认得 `export default { port, hostname, fetch }` 并在启动时自己 serve，所以 `dist/index.js` 是自包含产物（npm 依赖已打进去），运行镜像不带 `node_modules`；`res/` 走运行时 fs 读取（配置 + 模板表都在里面），需整目录拷进镜像。配置目录不是库默认的 `config`，示例显式传 `dir: "res/config"`。取值一律走 `config.getInt("server.web_port")` 这类访问器（§8.5），`shell_users` 直接喂给 Shell 面板；没配 `shell_users` 就不挂面板。镜像里 `ENV=pro`，`app_pro.yml` 缺 `auth.secret` → 不传 `APP_AUTH__SECRET` 启动即失败。
 

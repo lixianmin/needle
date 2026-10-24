@@ -19,11 +19,11 @@
     },
     "packages/got": {
       "name": "@needle/got",
-      "version": "0.3.48",
+      "version": "0.3.49",
     },
     "packages/honox": {
       "name": "@needle/honox",
-      "version": "0.3.48",
+      "version": "0.3.49",
       "dependencies": {
         "@needle/got": "workspace:*",
         "@needle/logo": "workspace:*",
@@ -45,11 +45,11 @@
     },
     "packages/logo": {
       "name": "@needle/logo",
-      "version": "0.3.48",
+      "version": "0.3.49",
     },
     "packages/shell": {
       "name": "@needle/shell",
-      "version": "0.3.48",
+      "version": "0.3.49",
       "dependencies": {
         "@needle/logo": "workspace:*",
       },

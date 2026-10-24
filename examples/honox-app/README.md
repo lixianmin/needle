@@ -59,7 +59,7 @@ viper.env / viper.isDev() / viper.isFat() / viper.isPro()
 
 取值语义比 viper 严一点：缺值又没给 fallback 就抛，不会静默变成 `""` / `0`。`required` 里的点分路径在启动时检查，缺了或空字符串都直接报错（所以 `app_pro.yml` 刻意不写 `auth.secret`，生产必须用 `APP_AUTH__SECRET` 注入）。
 
-`logger` / `redis` 几段当前示例不读（`@needle/logo` 的 lark sink 没接线），留着给业务扩展；`lark_token` 在仓库里是空字符串，真实值用 `APP_LOGGER__LARK_TOKEN` 注入。
+`logger` 由 `app/logo.ts` 读：`filter_level` 定级别，`lark_url` 是飞书群机器人的 webhook 地址（**地址本身就是密钥**，仓库里留空，真实值用 `APP_LOGGER__LARK_URL` 注入）。`redis` 段当前示例不读，留着给业务扩展。
 
 ## 接口
 

@@ -3,10 +3,13 @@ import { createFileSink, createLogFiles } from "@needle/logo/node";
 import { viper } from "./viper.js";
 
 /**
- * 日志落盘的目录。跟 `res/metadata` 一样放在 `res/` 下：它和配置、模板表
- * 同属「运行时读写的文件」，镜像里整目录拷贝的口径也一致。
+ * 日志目录固定是进程工作目录下的 `log/`，不做配置项。
+ *
+ * 日志目录没有"每个环境不一样"的理由：它在仓库里是被 gitignore 的产物，
+ * 部署时跟着工作目录走。多一个配置项只会多一处能配错、也多一处要在
+ * Dockerfile 和 .gitignore 里对齐。
  */
-const LOG_DIR = viper.getString("logger.dir", "res/logs");
+const LOG_DIR = "log";
 
 /** 单文件上限：10MB 够放好几天的请求日志，再大就是 grep 不动了。 */
 const DEFAULT_MAX_BYTES = 10 * 1024 * 1024;
@@ -34,8 +37,9 @@ function readLevel(path: string, fallback: Level): Level {
  * 挂在全局 `logo` 上而不是另建实例：项目里到处 `import { logo } from "@needle/logo"`，
  * 两套实例等于一半日志进不了右栏、也进不了文件。
  *
- * 飞书只在配了 `logger.lark_token` 时才挂——空字符串是"不推"的显式写法，
- * 不是缺配置，所以不报错。
+ * 飞书用群机器人的 webhook 地址（`logger.lark_url`），不是 token。空字符串是
+ * "不推"的显式写法，不是缺配置，所以不报错。地址是密钥，仓库里留空，本地用
+ * `APP_LOGGER__LARK_URL=... ` 覆盖，别提交进来。
  */
 export function initLog(): LogFiles {
   const level = readLevel("logger.filter_level", "info");
@@ -52,11 +56,11 @@ export function initLog(): LogFiles {
     }),
   );
 
-  const larkToken = viper.getString("logger.lark_token", "");
-  if (larkToken !== "") {
+  const larkUrl = viper.getString("logger.lark_url", "");
+  if (larkUrl !== "") {
     logo.addSink(
       createLarkSink({
-        webhook: larkToken,
+        webhook: larkUrl,
         secret: viper.getString("logger.lark_secret", ""),
       }),
     );

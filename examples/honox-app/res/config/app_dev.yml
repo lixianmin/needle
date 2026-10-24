@@ -1,10 +1,11 @@
 # DEV 环境配置 - 只包含与 common.yml 不同的配置
 
-# 日志配置：写进 res/logs，Shell 的 log.list 读的就是这个目录
+# 日志配置：写进工作目录下的 log/（gitignored），Shell 的 log.list 读的就是这个目录
 logger:
   filter_level: debug          # debug / info / warn / error；写错启动就报错
-  dir: res/logs                # 不写就用这个默认值
-  lark_token: ""               # 飞书群机器人 webhook；留空 = 不推
+  # 飞书群机器人的 webhook 地址。地址就是密钥，仓库里留空；
+  # 本地要推用环境变量覆盖：APP_LOGGER__LARK_URL=https://open.feishu.cn/...
+  lark_url: ""
   # lark_secret: ""            # 机器人开了「签名校验」才要
 
 # 元数据配置

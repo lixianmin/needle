@@ -89,6 +89,10 @@ export function createLarkSink(options: LarkSinkOptions): LarkSink {
   const minLevel = LEVELS[options.minLevel ?? "error"];
   const doFetch = options.fetch ?? fetch;
   const now = options.now ?? Date.now;
+  // `secret: ""`（配置里留空）等同于没配：空字符串作为 HMAC key 进 WebCrypto 会抛
+  // `DataError: Zero-length key is not supported`，而 send 的失败在 flush 里被静默
+  // 吞掉——告警一条都发不出去，还没有任何提示。
+  const secret = options.secret === undefined || options.secret === "" ? undefined : options.secret;
 
   let queue: string[] = [];
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -117,9 +121,9 @@ export function createLarkSink(options: LarkSinkOptions): LarkSink {
     const text = truncate(lines.join("\n"));
     const timestamp = String(Math.floor(now() / 1000));
     const body: Record<string, unknown> = { msg_type: "text", content: { text } };
-    if (options.secret !== undefined) {
+    if (secret !== undefined) {
       body.timestamp = timestamp;
-      body.sign = await sign(options.secret, Number(timestamp));
+      body.sign = await sign(secret, Number(timestamp));
     }
 
     const response = await doFetch(options.webhook, {
