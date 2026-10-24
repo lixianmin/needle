@@ -107,7 +107,7 @@ botsApi.get("/health", (ctx) => ctx.json({ ok: true }));       // 不校验参�
 
 `createApi(module)` 返回的是真正的 `Hono`，所以 `app.route("/", botsApi)` 照常挂。`module` 会写进 context，业务日志里因此带 `"module":"api/bots"`——打包、压缩后 `文件:行` 会变成 bundle 坐标，这个字符串才是生产环境唯一还活着的定位信息。
 
-参数模型见 `app/beans/`：手写 class（`bots.ts`），`scripts/gen-models.ts` 生成 TypeBox schema（`bots.generated.ts`，提交进仓库）；`beans/index.ts` 把两边一起 `export *` 出去，业务只 import 这一个入口。生成物带漂移断言，class 改了没重新生成会编译报错。
+参数模型见 `app/beans/`：手写 class（`bots.ts`），`scripts/gen-models.ts` 生成 TypeBox schema（`bots.generated.ts`，提交进仓库）。bean 文件顶部 `import "./bots.generated.js"`，所以业务 import 这个 bean 文件时 schema 就注册好了，不需要额外的 barrel。生成物带漂移断言，class 改了没重新生成会编译报错。
 
 handler 的参数不用写类型注解：`botsApi.post("/bots", BotsBody, (ctx, body) => …)` 已经推断出 `ctx: Context<HonoxEnv>` 和 `body: BotsBody`，再写一遍就是同一信息写两次。
 

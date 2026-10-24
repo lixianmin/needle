@@ -10,7 +10,7 @@ export function registerModel(name, schema) {
 export function modelSchema(model) {
     const schema = registry.get(model.name);
     if (schema === undefined) {
-        throw new Error(`没有为 ${model.name} 注册 schema：生成的 *.generated.ts 没有被 import（先 import 汇总它们的 barrel，示例是 app/beans/index.js）`);
+        throw new Error(`没有为 ${model.name} 注册 schema：生成的 *.generated.ts 没有被 import（先 import 那个 bean 文件，示例是 app/beans/bots.js）`);
     }
     return schema;
 }

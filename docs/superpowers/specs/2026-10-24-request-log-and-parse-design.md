@@ -172,7 +172,7 @@ type _BotsBodyInSync = Assert<Equals<Static<typeof BotsBodySchema>, BotsBody>>;
   - **硬报错**（不静默降级）：方法/getter/装饰器/泛型/任意联合/未声明的类型/字段缺类型标注/循环引用/跨文件重名。
   - 同文件内按依赖拓扑排序（`const` 有 TDZ，顺序错了模块初始化就炸）；跨文件自动 `import { XSchema } from "./x.generated.js"`。
 - 解析器用 `typescript-6`（npm 别名 `npm:typescript@6.0.3`，只进 devDependencies，23MB，不进产物）。项目编译器仍是 7.0.2。
-- schema 注册：生成物调 `registerModel("BotsBody", BotsBodySchema)`（用类名，不用类值，避免与 model 文件形成运行时环）。路由拿到 class 后按 `class.name` 懒查注册表；查不到就抛一条带修复提示的错误（「先 import app/beans/index.js」）。
+- schema 注册：生成物调 `registerModel("BotsBody", BotsBodySchema)`（用类名，不用类值，避免与 bean 文件形成运行时环）。谁 import 手写的 bean 文件，谁就顺带把 schema 注册好——bean 文件顶部有一行 `import "./bots.generated.js"`，所以不需要额外的 barrel。路由拿到 class 后按 `class.name` 懒查注册表；查不到就抛一条带修复提示的错误（「先 import 那个 bean 文件」）。
 - `additionalProperties: false` 只作用在 body；`parseQuery` 先按 schema 声明的键过滤，再校验——query 上多带的参数（`_t` 之类）不会 400。
 
 ### 5.6 参数解析
@@ -196,11 +196,11 @@ type _BotsBodyInSync = Assert<Equals<Static<typeof BotsBodySchema>, BotsBody>>;
 
 ## 6 示例改动
 
-- `app/beans/bots.ts` + `app/beans/bots.generated.ts` + `app/beans/index.ts`（barrel：`export * from "./bots.js"` 出手写 class，`export * from "./bots.generated.js"` 出 schema 并完成注册）。业务只 import `../beans/index.js`，记忆负担是一行路径而不是一堆文件名。
-- `app/api/bots.ts`：`createApi("api/bots")` + `(ctx, query)` / `(ctx, body)`；handler 开头 `const trace = traceOf(ctx)` 取一次，后续多个出口复用同一个对象（日志不是一次性消耗品）。
+- `app/beans/bots.ts`（手写 class，顶部 `import "./bots.generated.js"` 完成 schema 注册）+ `app/beans/bots.generated.ts`（生成物）。业务只 import `../beans/bots.js`——一个 bean 一对文件，没有 barrel：多一个 `index.js` 只是把 `bots.js` 换成 `index.js`，路径长度没变，却多一处要维护的汇总。
+- `app/api/bots.ts`：`createApi("api/bots")` + `(ctx, request)`；`const trace = traceOf(ctx).info(request)` 一行建 trace 并落第一条日志，之后每个出口 `trace.json` / `trace.notFound`。
 - **handler 参数不写类型注解**：模型参数 + 推断已经给全了 `ctx: Context<HonoxEnv>` 与 `body: BotsBody`；再写一遍既是同一信息出现两次，也会在模型改名时留下第二处要改的地方。
 - `app/api/health.ts`：`createApi("api/health")`，handler 不写日志——零日志正是要的效果。
-- `app/main.ts` 启动前 import `./beans/index.js`。
+- `app/main.ts` 不需要 import beans：注册随 bean 文件本身传播。
 
 ## 7 测试
 
