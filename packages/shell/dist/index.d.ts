@@ -38,6 +38,7 @@ export declare function createBrowserShell(options: BrowserShellOptions): Browse
 export { createShellSource } from "./source.js";
 export { table } from "./table.js";
 export type { Column, TableOutput } from "./table.js";
+export { ResponseX } from "./web/responsex.js";
 export { mountShell } from "./ui/view.js";
 export { createLocalAdapter } from "./ui/local.js";
 export { createFetchAdapter } from "./ui/fetch-adapter.js";

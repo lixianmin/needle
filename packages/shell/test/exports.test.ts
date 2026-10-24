@@ -30,6 +30,16 @@ describe("@needle/shell 的导出映射", () => {
     expect(typeof shell.table).toBe("function");
   });
 
+  test("按包名能拿到 ResponseX：宿主应用复用同一套错误契约", async () => {
+    const shell = await import("@needle/shell");
+    expect(typeof shell.ResponseX.fail).toBe("function");
+    expect(typeof shell.ResponseX.notFound).toBe("function");
+
+    const res = shell.ResponseX.fail(403, "forbidden", "没有权限");
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({ code: "forbidden", message: "没有权限" });
+  });
+
   test("./node 按包名能拿到 serve / attach", async () => {
     const node = await import("@needle/shell/node");
     expect(typeof node.serve).toBe("function");

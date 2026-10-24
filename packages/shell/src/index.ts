@@ -183,6 +183,8 @@ export function createBrowserShell(options: BrowserShellOptions): BrowserShell {
 export { createShellSource } from "./source.js";
 export { table } from "./table.js";
 export type { Column, TableOutput } from "./table.js";
+// 宿主应用可复用同一套错误契约（spec §8.2），不用自己再拼一份 {code, message}
+export { ResponseX } from "./web/responsex.js";
 export { mountShell } from "./ui/view.js";
 export { createLocalAdapter } from "./ui/local.js";
 export { createFetchAdapter } from "./ui/fetch-adapter.js";
