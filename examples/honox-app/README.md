@@ -61,10 +61,8 @@ viper.env / viper.isDev() / viper.isFat() / viper.isPro()
 | 路径 | 鉴权 | 说明 |
 |---|---|---|
 | `GET /health` | 公开 | `{"ok":true}` |
-| `GET /me` | 需要 JWT | 返回 `{ uid }`（取自 token 的 `sub`） |
-| `GET /bots?id=1` | 需要 JWT | 读 `BotTemplate` 表的那一行；不带 `id` 返回全表 |
-| `GET /apc?id=1` | 需要 JWT | 读 `ApcTemplate` 表的那一行；不带 `id` 返回全表 |
-| `GET /select-apc` | 需要 JWT | 返回 `SelectApcConfig` 这份全局配置 |
+| `GET /bots?id=1` | 需要 JWT | 命中返回 `{ baseUrl, bot }`；不带 `id` 返回 `{ baseUrl, bots }`（全表）；`id` 非数字 → 400，查不到 → 404 |
+| `POST /bots` | 需要 JWT | body `{"ids":[1,99]}`，命中放 `bots`、找不到放 `missing`（批量里部分不存在不算失败）；body 不合规 → 400 |
 | `GET /shell` | 公开（面板自己用 `server.shell_users` 里的账号登录） | 调试面板 |
 
 生成一个测试 token：
@@ -80,14 +78,12 @@ bun -e 'import { sign } from "hono/jwt"; console.log(await sign({ sub: "u1", exp
 ```
 app/api/
   index.ts       # registerApis(app)：逐个 app.route("/", xxx)
-  home.ts        # GET /
   health.ts      # GET /health（JWT 白名单，匿名可访问）
-  me.ts          # GET /me      → { uid }
-  bots.ts        # GET /bots?id=
-  apc.ts         # GET /apc?id=
-  select-apc.ts  # GET /select-apc
+  bots.ts        # 一个路由组：GET /bots?id= + POST /bots
 app/viper.ts     # 配置实例（viper 风格取值器）+ c.get 的键声明
 ```
+
+文件数量不是目的：一个领域一个文件就够了，同文件里挂多条路由（`botsApi.get` / `.post`）。要覆盖更多情况就加路由，不要一个新接口开一个新文件。
 
 新增接口：在 `app/api/` 加一个文件，建一个组，把该领域的所有路由挂上去，再到 `index.ts` 里 `app.route("/", xxxApi)`。`app/main.ts` 不用动。
 
