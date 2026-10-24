@@ -44,16 +44,25 @@ bun -e 'import { sign } from "hono/jwt"; console.log(await sign({ sub: "u1", exp
 
 ## Excel
 
-两张表直接维护在 `res/metadata/` 下，用 Excel 改完保存即可，没有生成脚本。声明在 `app/lib/templates.ts`，启动时 `loadSheets()` 一次预载：
+`res/metadata/` 下一张表对应 `app/md/` 下一个文件，初始化逻辑全收在 `app/md/` 里：
+
+```
+app/md/
+  bot-template.ts   # BotTemplate.xlsx 的 BotTemplate 表
+  apc-template.ts   # ApcTemplate.xlsx 的 ApcTemplate 表
+  index.ts          # initTemplates()：启动时一次预载；并转出各 getter
+```
 
 | 文件 | sheet | 列 |
 |---|---|---|
 | `BotTemplate.xlsx` | `BotTemplate` | `id`、`name`、`prompt` |
 | `ApcTemplate.xlsx` | `ApcTemplate` | `id`、`equips`、`gender`、`name`、`buy_money`、`buy_price` |
 
+启动时 `await initTemplates()` 一次读完，之后 `getBotTemplate(id)` / `getApcTemplate(id)` 同步、零 IO。**新增一张表**：在 `app/md/` 加一个文件（`defineSheet` + `getXxxTemplate`），再把它加进 `index.ts` 的 `loadSheets([...])`；`server.ts` 不用动。表直接用 Excel 维护，没有生成脚本。
+
 `equips` 是 `|` 分隔的装备 id 串，`0` 表示该槽位空；库原样返回字符串，拆分交给业务。`ApcTemplate.xlsx` 里另有一张 `SelectApcConfig`，没有 `id` 列，不归 `defineSheet` 管，未加载。
 
-规则：首行表头（小写 + trim），每行必须有数字 `id`；缺 id、非数字 id、重复 id 都会在 `loadSheets()` 时报错并给出行号。换表时改 `templates.ts` 里的文件名与 sheet 名，两边必须一致。
+规则：首行表头（小写 + trim），每行必须有数字 `id`；缺 id、非数字 id、重复 id 都会在 `loadSheets()` 时报错并给出行号。改文件名或 sheet 名时，`app/md/` 里对应的声明要同步改。
 
 ## Docker
 

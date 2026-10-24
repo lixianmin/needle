@@ -1,8 +1,7 @@
 import { createHonox } from "@needle/honox";
-import { loadSheets } from "@needle/honox/excel";
 import { loadConfig } from "@needle/honox/node";
 import { ResponseX } from "@needle/shell";
-import { apcSheet, botSheet } from "./lib/templates";
+import { getApcTemplate, getBotTemplate, initTemplates } from "./md";
 
 // 用 type 而不是 interface：createHonox 的泛型约束是 Record<string, unknown>，
 // interface 没有隐式索引签名，TS 7 会直接报 TS2344。
@@ -31,8 +30,8 @@ if (shellPassword === undefined || shellPassword === "") {
   throw new Error("SHELL_PASSWORD 未设置：Shell 面板需要一个口令");
 }
 
-// hucre 只能异步读：预载一次，之后 getter 同步、零 IO。
-await loadSheets([botSheet, apcSheet]);
+// 模板表的加载全在 app/md：这里只要一行，新增表不用改 server.ts。
+await initTemplates();
 
 // createHonox 返回现成的 Hono 实例，路由直接挂在它上面，类型从实例上就带着
 // （env 里的 uid / reqId / config 因此不需要手写 ContextVariableMap）。
@@ -55,7 +54,7 @@ app.get("/me", (c) => c.json({ uid: c.get("uid") }));
 
 app.get("/bots/:id", (c) => {
   const id = Number(c.req.param("id"));
-  const bot = Number.isFinite(id) ? botSheet.get(id) : undefined;
+  const bot = Number.isFinite(id) ? getBotTemplate(id) : undefined;
   if (bot === undefined) {
     return ResponseX.notFound("bot 不存在");
   }
@@ -64,7 +63,7 @@ app.get("/bots/:id", (c) => {
 
 app.get("/apc/:id", (c) => {
   const id = Number(c.req.param("id"));
-  const apc = Number.isFinite(id) ? apcSheet.get(id) : undefined;
+  const apc = Number.isFinite(id) ? getApcTemplate(id) : undefined;
   if (apc === undefined) {
     return ResponseX.notFound("apc 不存在");
   }
