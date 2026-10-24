@@ -13,7 +13,8 @@ import type { HonoxEnv } from "./types.js";
  * const trace = traceOf(ctx).info(request);
  * ```
  *
- * `json` / `notFound` 是响应出口：先记一条 info，再把响应返回给调用方。
+ * `json` / `notFound` 是响应出口：记的那一行就是它返回的响应（`{status, result}`），
+ * 只有一个参数。业务想额外记什么，用 `.info(...)` 显式加——链式天然支持。
  */
 export interface Trace {
   debug(...args: unknown[]): Trace;
@@ -26,8 +27,8 @@ export interface Trace {
    * "每个出口都留一行"成为默认动作，而不是要剥夺选择。
    */
   json(body: unknown, status?: ContentfulStatusCode): Response;
-  /** 记一条 info（`{status: 404, ...fields}`）并返回 404。 */
-  notFound(fields?: unknown, message?: string): Response;
+  /** 记一条 info（`{status: 404, result: {code, message}}`）并返回 404。 */
+  notFound(message?: string): Response;
 }
 
 const LEVELS = ["debug", "info", "warn", "error"] as const;
@@ -70,8 +71,9 @@ export function traceOf(ctx: Context<HonoxEnv>, log?: Logger): Trace {
     return ctx.json(body as never, status);
   };
 
-  trace.notFound = (fields, message = DEFAULT_NOT_FOUND) => {
-    trace.info({ status: 404 }, ...(fields === undefined ? [] : [fields]));
+  trace.notFound = (message = DEFAULT_NOT_FOUND) => {
+    // 与 json 同一条规则：记的就是返回的响应体。
+    trace.info({ status: 404, result: { code: "not_found", message } });
     return ResponseX.notFound(message);
   };
 

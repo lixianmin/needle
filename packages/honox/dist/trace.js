@@ -35,8 +35,9 @@ export function traceOf(ctx, log) {
         trace.info({ status: status ?? 200, result: body });
         return ctx.json(body, status);
     };
-    trace.notFound = (fields, message = DEFAULT_NOT_FOUND) => {
-        trace.info({ status: 404 }, ...(fields === undefined ? [] : [fields]));
+    trace.notFound = (message = DEFAULT_NOT_FOUND) => {
+        // 与 json 同一条规则：记的就是返回的响应体。
+        trace.info({ status: 404, result: { code: "not_found", message } });
         return ResponseX.notFound(message);
     };
     return trace;
