@@ -23,8 +23,8 @@ function resolveRid(
       return value;
     }
   }
-  // 自查生成时是 Snowflake（十进制字符串）：定长、单调，日志按 rid 排序 = 发生顺序。
-  return ids.next().toString();
+  // 自己生成时是 13 位 Snowflake 字符串：定长、字典序 = 生成顺序。
+  return ids.next();
 }
 
 /** 保留 1 位小数：毫秒精度够定位慢请求，也不会让日志字段变成浮点长尾。 */

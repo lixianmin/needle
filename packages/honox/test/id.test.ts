@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { createSnowflake, parseSnowflake } from "../src/id.js";
 
 const EPOCH = Date.UTC(2026, 0, 1);
+const ID_PATTERN = /^[0-9a-hjkmnp-tv-z]{13}$/;
 
 /** 可控时钟：每次取值都从数组里拿下一个，耗尽后停在最后一个。 */
 function clockOf(...stamps: number[]): () => number {
@@ -13,26 +14,76 @@ function clockOf(...stamps: number[]): () => number {
   };
 }
 
+const ALPHABET = "0123456789abcdefghjkmnpqrstvwxyz";
+
+/** 参考实现：纯 bigint 逐位算。热路径不用它（会分配大量临时对象），只用来对答案。 */
+function reference(elapsed: number, node: number, sequence: number): string {
+  let value = (BigInt(elapsed) << 22n) | (BigInt(node) << 12n) | BigInt(sequence);
+  let out = "";
+  for (let index = 0; index < 13; index += 1) {
+    out = ALPHABET[Number(value % 32n)]! + out;
+    value /= 32n;
+  }
+  return out;
+}
+
 describe("createSnowflake", () => {
-  test("位布局：41 位毫秒（相对 epoch）+ 10 位机器号 + 12 位序列", () => {
+  test("与 bigint 参考实现逐位一致（number 位运算拆分没写错）", () => {
+    for (const elapsed of [0, 1, 1023, 1024, 1025, 2 ** 20 + 7, 2 ** 41 - 1]) {
+      for (const node of [0, 1, 1023]) {
+        const ids = createSnowflake({ epoch: EPOCH, nodeId: node, now: () => EPOCH + elapsed });
+        expect(ids.next()).toBe(reference(elapsed, node, 0));
+      }
+    }
+  });
+
+  test("序列 4095（同一毫秒的最后一个号）也与参考实现一致", () => {
+    const elapsed = 4096;
+    const ids = createSnowflake({ epoch: EPOCH, nodeId: 7, now: () => EPOCH + elapsed });
+    let last = "";
+    for (let i = 0; i < 4096; i += 1) {
+      last = ids.next();
+    }
+    expect(last).toBe(reference(elapsed, 7, 4095));
+  });
+
+  test("返回定长 13 位 Crockford Base32 字符串", () => {
     const ids = createSnowflake({ epoch: EPOCH, nodeId: 37, now: () => EPOCH + 1234 });
     const id = ids.next();
-    expect(parseSnowflake(id)).toEqual({ elapsedMs: 1234, nodeId: 37, sequence: 0 });
-    // 63 位：signed 64 位装得下，MySQL BIGINT / Mongo Long 不会溢出
-    expect(id > 0n && id <= (1n << 63n) - 1n).toBe(true);
+    expect(id).toMatch(ID_PATTERN);
+    expect(id).toHaveLength(13);
+    // 全小写；不许出现大写，也不许出现容易看混的 i / l / o / u
+    expect(/[A-Z]/.test(id)).toBe(false);
+    expect(/[ilou]/.test(id)).toBe(false);
+  });
+
+  test("位布局：41 位毫秒（相对 epoch）+ 10 位机器号 + 12 位序列", () => {
+    const ids = createSnowflake({ epoch: EPOCH, nodeId: 37, now: () => EPOCH + 1234 });
+    expect(parseSnowflake(ids.next())).toEqual({ elapsedMs: 1234, nodeId: 37, sequence: 0 });
+  });
+
+  test("字典序 = 生成顺序（定长的意义所在）", () => {
+    const ids = createSnowflake({
+      epoch: EPOCH,
+      nodeId: 1,
+      now: clockOf(EPOCH, EPOCH, EPOCH + 1, EPOCH + 1000),
+    });
+    const generated = [ids.next(), ids.next(), ids.next(), ids.next()];
+    const sorted = [...generated].sort();
+    expect(sorted).toEqual(generated);
+    // 跨位数也不会倒退：1 毫秒与 1000 毫秒的 id 前缀不同，但顺序仍然对
+    expect(generated[3]! > generated[2]!).toBe(true);
   });
 
   test("同一毫秒内序列递增", () => {
     const ids = createSnowflake({ epoch: EPOCH, nodeId: 1, now: () => EPOCH + 5 });
     const first = ids.next();
     const second = ids.next();
-    const third = ids.next();
-    expect(second).toBe(first + 1n);
-    expect(third).toBe(second + 1n);
-    expect(parseSnowflake(third).sequence).toBe(2);
+    expect(parseSnowflake(second).sequence).toBe(1);
+    expect(second > first).toBe(true);
   });
 
-  test("跨毫秒：序列归零，但整体仍然递增", () => {
+  test("跨毫秒：序列归零，整体仍然递增", () => {
     const ids = createSnowflake({
       epoch: EPOCH,
       nodeId: 1,
@@ -41,19 +92,18 @@ describe("createSnowflake", () => {
     const first = ids.next();
     const second = ids.next();
     const third = ids.next();
-    expect(second).toBe(first + 1n);
     expect(parseSnowflake(third)).toEqual({ elapsedMs: 2, nodeId: 1, sequence: 0 });
+    expect(second > first).toBe(true);
     expect(third > second).toBe(true);
   });
 
   test("同一毫秒超过 4096 个：等下一毫秒，不重复不丢号", () => {
     const stamps = [EPOCH, ...Array.from({ length: 4096 }, () => EPOCH), EPOCH + 1];
     const ids = createSnowflake({ epoch: EPOCH, nodeId: 1, now: clockOf(...stamps) });
-    const generated: bigint[] = [];
+    const generated: string[] = [];
     for (let i = 0; i < 4097; i += 1) {
       generated.push(ids.next());
     }
-    // 前 4096 个都在第 0 毫秒，第 4097 个落到第 1 毫秒、序列回到 0
     expect(parseSnowflake(generated[4095]!)).toEqual({ elapsedMs: 0, nodeId: 1, sequence: 4095 });
     expect(parseSnowflake(generated[4096]!)).toEqual({ elapsedMs: 1, nodeId: 1, sequence: 0 });
     for (let i = 1; i < generated.length; i += 1) {
@@ -84,10 +134,20 @@ describe("createSnowflake", () => {
     expect(() => ids.next()).toThrow(/早于 epoch/);
   });
 
-  test("id 转字符串是十进制且定长 19 位（JSON 里只能这么传）", () => {
-    const ids = createSnowflake({ epoch: EPOCH, nodeId: 1, now: () => EPOCH + 1234 });
-    const text = ids.next().toString();
-    expect(text).toMatch(/^\d+$/);
-    expect(BigInt(text).toString()).toBe(text);
+  test("解析不区分大小写（抄写/透传变大写也认得）", () => {
+    const ids = createSnowflake({ epoch: EPOCH, nodeId: 37, now: () => EPOCH + 1234 });
+    const id = ids.next();
+    expect(parseSnowflake(id.toUpperCase())).toEqual(parseSnowflake(id));
+  });
+
+  test("parseSnowflake 拒绝畸形输入", () => {
+    expect(() => parseSnowflake("too-short")).toThrow(/必须是 13 位/);
+    expect(() => parseSnowflake("000000000000i")).toThrow(/非法字符 i/);
+  });
+
+  test("id 直接进 JSON：不需要任何转换（这是只给字符串的意义）", () => {
+    const ids = createSnowflake({ epoch: EPOCH, nodeId: 1, now: () => EPOCH + 1 });
+    const id = ids.next();
+    expect(JSON.parse(JSON.stringify({ id }))).toEqual({ id });
   });
 });
