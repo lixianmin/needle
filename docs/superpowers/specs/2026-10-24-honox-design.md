@@ -289,11 +289,16 @@ export interface MetadataReport {
   readonly skipped: readonly string[];
 }
 
+export interface TemplateOptions {
+  /** 这些列在读取时按 `|` 拆成 string[]；空单元格 → []，`"0"` 保留。 */
+  readonly split?: readonly string[];
+}
+
 export interface Metadata {
   /** 扫描 dir（不递归），整体替换已加载的元数据。 */
   load(dir: string): Promise<MetadataReport>;
-  template<T extends Record<string, unknown>>(name: string): Template<T>;
-  config<T extends Record<string, unknown>>(name: string): Config<T>;
+  template<T extends Record<string, unknown>>(name: string, options?: TemplateOptions): Template<T>;
+  config<T extends Record<string, unknown>>(name: string, options?: TemplateOptions): Config<T>;
 }
 
 export function createMetadata(): Metadata;
@@ -307,6 +312,7 @@ export function createMetadata(): Metadata;
 - 同一文件只解析一次 zip，按绝对路径缓存 workbook。
 - 表头：首行 `trim().toLowerCase()`；`id` 只接受数字：缺 `id` 或非数字 → 抛错，消息带 `文件#sheet`、Excel 行号（1 基，含表头）与原始值；重复 `id` → 抛错；**同名 sheet 出现在两个文件里 → 抛错**（第一层索引只能用 sheet 名，必须唯一）。行对象原样保留多余列。
 - `Config` 取第一个非空数据行（与 go-excel 读单结构体同口径）；整张表没有数据行 → 抛错。
+- **拆列**：`{ split: ["equips"] }` 让库按 `|` 把该列拆成 `string[]`，业务侧不用每次 `split("|")` 再处理空值。`"0"` 保留（配置表里它是"该槽位空"的占位），元素 `trim()`，空单元格给 `[]`；列名写错（表里没这列）不动它，不造幽灵字段。拆列视图按句柄缓存，`load()` 递增版本号让缓存失效——同一张表可以有多个句柄各写各的 split。
 - 扫描只认 `.xlsx` / `.xlsm`，按文件名排序遍历（报错与日志稳定）。
 
 ### 8.11 示例里的 Excel
@@ -316,14 +322,14 @@ export function createMetadata(): Metadata;
 | 文件 | sheet | 类型 | 列 |
 |---|---|---|---|
 | `BotTemplate.xlsx` | `BotTemplate` | Template | `id` / `name` / `prompt` |
-| `ApcTemplate.xlsx` | `ApcTemplate` | Template | `id` / `equips` / `gender` / `name` / `buy_money` / `buy_price` |
-| `ApcTemplate.xlsx` | `SelectApcConfig` | Config | `select_apc1..4`（`|` 分隔的候选 id 串） |
+| `ApcTemplate.xlsx` | `ApcTemplate` | Template | `id` / `equips`（split → `string[]`）/ `gender` / `name` / `buy_money` / `buy_price` |
+| `ApcTemplate.xlsx` | `SelectApcConfig` | Config | `select_apc1..4`（各自 split → `string[]`） |
 
 布局照 rim.server：一张表对应 `app/md/` 下一个文件（kebab-case），文件里只声明**类型 + sheet 名**，没有文件名也没有注册清单。
 
 - `app/md/index.ts`：`export const metadata = createMetadata()` + `initTemplates(dir)`（调用 `metadata.load(dir)` 并按 report 打一行启动日志）。
-- `app/md/bot-template.ts` / `apc-template.ts`：`metadata.template<Xxx>("BotTemplate")` + `getXxx(id)`。
-- `app/md/select-apc-config.ts`：`metadata.config<SelectApcConfig>("SelectApcConfig")` + `getSelectApcConfig()`。
+- `app/md/bot-template.ts` / `apc-template.ts`：`metadata.template<Xxx>("BotTemplate")` + `getXxx(id)`；`apc-template` 带 `{ split: ["equips"] }`。
+- `app/md/select-apc-config.ts`：`metadata.config<SelectApcConfig>("SelectApcConfig", { split: [...] })` + `getSelectApcConfig()`。
 - `app/server.ts`：`await initTemplates(config.metadata.base_url)`（示例配置里是 `res/metadata`）。
 
 **新增一张表 = 在 `app/md/` 加一个文件**（需要路由就再加一个 `app.get`）；`index.ts` 与 `server.ts` 的模板相关代码都不用动。
@@ -354,7 +360,7 @@ export function createMetadata(): Metadata;
 | `config.test.ts` | `common.yml` 缺失时跳过；`app_<env>.yml` 缺失时报错带路径与 ENV 值；深合并（对象递归、数组整体替换）；`APP_*` 覆盖嵌套字段；true/false/数字转换；`required` 缺失报错带字段路径 |
 | `mongo.test.ts` | `db()` 透传库名（不传时用连接串默认）；`withTransaction` 把 session 传给回调；`close()` 幂等；注入的 client 不被 close |
 | `shell-mount.test.ts` | `/shell` 返回 HTML；`/shell/*` 可用；白名单生效（不带 token 也能访问） |
-| `excel.test.ts` | 后缀分派（Template / Config / 跳过）与 `report`；表头大小写/空格归一；空行跳过；`get` / `all`；缺 id、非数字 id、重复 id 各自抛错且消息带 `文件#sheet` + 行号；同名 sheet 跨文件冲突；未加载时 getter 抛；名字写错列已加载项；句柄先于 `load()` 建立；重复 `load()` 整体替换；目录不存在；同一文件多 sheet || `entry.test.ts` | `exports` 四个入口都指向真实 dist 文件；按包名能拿到 `createHonox` / `loadConfig` / `createMongo` / `createMetadata` |
+| `excel.test.ts` | 后缀分派（Template / Config / 跳过）与 `report`；表头大小写/空格归一；空行跳过；`get` / `all`；缺 id、非数字 id、重复 id 各自抛错且消息带 `文件#sheet` + 行号；同名 sheet 跨文件冲突；未加载时 getter 抛；名字写错列已加载项；句柄先于 `load()` 建立；重复 `load()` 整体替换；目录不存在；同一文件多 sheet；拆列（trim、保留 0、空单元格 → `[]`、未声明的列不动、Config 也拆、重新 load 后视图刷新） || `entry.test.ts` | `exports` 四个入口都指向真实 dist 文件；按包名能拿到 `createHonox` / `loadConfig` / `createMongo` / `createMetadata` |
 | `browser-safety.test.ts` | `./` 入口 `Bun.build({ target: "browser" })` 产物不含 `node:` / `require(` / `import(`（照抄 shell 的写法） |
 
 Mongo 测试用结构化 fake（`as unknown as MongoClient`），不依赖真实 mongod，不引 `mongodb-memory-server`。`mongodb` 进 devDependencies 供类型检查。

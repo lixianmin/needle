@@ -12,6 +12,19 @@ const TEMPLATE_SUFFIX = "Template";
 const CONFIG_SUFFIX = "Config";
 const SPREADSHEET_EXTENSIONS: readonly string[] = [".xlsx", ".xlsm"];
 
+/** 拆列的默认分隔符：配置表里 `503048|508012|0|0` 这种形态。 */
+const SPLIT_SEPARATOR = "|";
+
+export interface TemplateOptions {
+  /**
+   * 这些列在读取时按 `|` 拆成 `string[]`。
+   *
+   * 不拆的话业务侧每次都得自己 `split("|")`，还得处理空单元格；
+   * 拆列结果里 `"0"` 保留（它是有含义的占位），空单元格是 `[]`。
+   */
+  readonly split?: readonly string[];
+}
+
 export interface Template<T> {
   readonly name: string;
   get(id: number): T | undefined;
@@ -34,9 +47,9 @@ export interface Metadata {
   /** 扫描 dir（不递归），整体替换已加载的元数据。 */
   load(dir: string): Promise<MetadataReport>;
   /** 按 sheet 名取一个 Template 句柄；真正的数据在 load() 之后可读。 */
-  template<T extends Record<string, unknown>>(name: string): Template<T>;
+  template<T extends Record<string, unknown>>(name: string, options?: TemplateOptions): Template<T>;
   /** 按 sheet 名取一个 Config 句柄；真正的数据在 load() 之后可读。 */
-  config<T extends Record<string, unknown>>(name: string): Config<T>;
+  config<T extends Record<string, unknown>>(name: string, options?: TemplateOptions): Config<T>;
 }
 
 interface TemplateTable {
@@ -46,6 +59,8 @@ interface TemplateTable {
 
 interface State {
   loaded: boolean;
+  /** 每次 load() 成功 +1；句柄据此丢弃缓存的行视图。 */
+  version: number;
   templates: ReadonlyMap<string, TemplateTable>;
   configs: ReadonlyMap<string, Record<string, CellValue>>;
 }
@@ -105,6 +120,35 @@ function classify(sheetName: string): "template" | "config" | null {
   return null;
 }
 
+/** 列名统一按小写比较：表头在 toRecords 里已经 lowercase 了。 */
+function normalizeColumns(columns: readonly string[] | undefined): readonly string[] {
+  return (columns ?? []).map((column) => column.trim().toLowerCase());
+}
+
+/**
+ * 按 `|` 拆列：原始值 `"a|b|0"` → `["a", "b", "0"]`。
+ * 空单元格给 `[]`；列名写错（表里没这列）就不动它，避免造出幽灵字段。
+ */
+function applySplit(
+  row: Record<string, CellValue>,
+  columns: readonly string[],
+): Record<string, unknown> {
+  const shaped: Record<string, unknown> = { ...row };
+  for (const column of columns) {
+    if (!(column in shaped)) {
+      continue;
+    }
+    const value = row[column];
+    shaped[column] =
+      value === null || value === undefined || value === ""
+        ? []
+        : String(value)
+            .split(SPLIT_SEPARATOR)
+            .map((part) => part.trim());
+  }
+  return shaped;
+}
+
 function listOf(names: Iterable<string>): string {
   const all = [...names];
   return all.length === 0 ? "(无)" : all.join("、");
@@ -157,7 +201,7 @@ function toConfig(path: string, sheetName: string, rows: CellValue[][]): Record<
  * 用显式实例而不是模块级全局：测试各建一个，互不串状态。
  */
 export function createMetadata(): Metadata {
-  const state: State = { loaded: false, templates: new Map(), configs: new Map() };
+  const state: State = { loaded: false, version: 0, templates: new Map(), configs: new Map() };
 
   function requireLoaded(): void {
     if (!state.loaded) {
@@ -220,6 +264,7 @@ export function createMetadata(): Metadata {
 
     // 全部成功才替换：半加载状态会让下一次 load 读到混合数据。
     state.loaded = true;
+    state.version += 1;
     state.templates = templates;
     state.configs = configs;
 
@@ -230,19 +275,58 @@ export function createMetadata(): Metadata {
     };
   }
 
-  function template<T extends Record<string, unknown>>(name: string): Template<T> {
+  function template<T extends Record<string, unknown>>(
+    name: string,
+    options: TemplateOptions = {},
+  ): Template<T> {
+    const columns = normalizeColumns(options.split);
+    let cachedVersion = -1;
+    let byId: ReadonlyMap<number, T> = new Map();
+    let list: readonly T[] = [];
+
+    /**
+     * 拆列视图按句柄缓存：同一张表可以有几个句柄各写各的 split。
+     * version 变了（重新 load）就重建，避免拿到上一份数据的视图。
+     */
+    function view(): { byId: ReadonlyMap<number, T>; list: readonly T[] } {
+      const table = requireTemplate(name);
+      if (cachedVersion === state.version) {
+        return { byId, list };
+      }
+      if (columns.length === 0) {
+        byId = table.byId as ReadonlyMap<number, T>;
+        list = table.list as readonly T[];
+      } else {
+        const shaped = table.list.map((row) => applySplit(row, columns) as T);
+        // id 在 toTemplateTable 里已经校验成数字，这里只是从视图里取回来当 key。
+        byId = new Map(
+          shaped.map((row) => [(row as unknown as { id: number }).id, row] as const),
+        );
+        list = shaped;
+      }
+      cachedVersion = state.version;
+      return { byId, list };
+    }
+
     return {
       name,
       get(id: number): T | undefined {
-        return requireTemplate(name).byId.get(id) as T | undefined;
+        return view().byId.get(id);
       },
       all(): readonly T[] {
-        return requireTemplate(name).list as readonly T[];
+        return view().list;
       },
     };
   }
 
-  function config<T extends Record<string, unknown>>(name: string): Config<T> {
+  function config<T extends Record<string, unknown>>(
+    name: string,
+    options: TemplateOptions = {},
+  ): Config<T> {
+    const columns = normalizeColumns(options.split);
+    let cachedVersion = -1;
+    let shaped: T | undefined;
+
     return {
       name,
       get(): T {
@@ -253,7 +337,11 @@ export function createMetadata(): Metadata {
             `没有 Config 表：${name}（sheet 名要原样、且以 ${CONFIG_SUFFIX} 结尾；已加载：${listOf(state.configs.keys())}）`,
           );
         }
-        return value as T;
+        if (cachedVersion !== state.version) {
+          shaped = (columns.length === 0 ? value : applySplit(value, columns)) as T;
+          cachedVersion = state.version;
+        }
+        return shaped as T;
       },
     };
   }

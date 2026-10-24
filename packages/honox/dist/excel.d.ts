@@ -1,3 +1,12 @@
+export interface TemplateOptions {
+    /**
+     * 这些列在读取时按 `|` 拆成 `string[]`。
+     *
+     * 不拆的话业务侧每次都得自己 `split("|")`，还得处理空单元格；
+     * 拆列结果里 `"0"` 保留（它是有含义的占位），空单元格是 `[]`。
+     */
+    readonly split?: readonly string[];
+}
 export interface Template<T> {
     readonly name: string;
     get(id: number): T | undefined;
@@ -17,9 +26,9 @@ export interface Metadata {
     /** 扫描 dir（不递归），整体替换已加载的元数据。 */
     load(dir: string): Promise<MetadataReport>;
     /** 按 sheet 名取一个 Template 句柄；真正的数据在 load() 之后可读。 */
-    template<T extends Record<string, unknown>>(name: string): Template<T>;
+    template<T extends Record<string, unknown>>(name: string, options?: TemplateOptions): Template<T>;
     /** 按 sheet 名取一个 Config 句柄；真正的数据在 load() 之后可读。 */
-    config<T extends Record<string, unknown>>(name: string): Config<T>;
+    config<T extends Record<string, unknown>>(name: string, options?: TemplateOptions): Config<T>;
 }
 /**
  * 创建一个元数据管理器。第一个 key 是 sheet 名（`BotTemplate` 这种大写原样），
