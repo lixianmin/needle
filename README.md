@@ -2,9 +2,9 @@
 
 Web Shell，支持命令查看当前系统状态，如进程状态、业务数据等。
 
-零运行时依赖：只导入日志 1.8 KB，连 shell 25.4 KB（min+gzip，`bun run size` 可复现）。
+零运行时依赖：只导入日志 1.8 KB，连 shell 25.4 KB（min+gzip，`bun run size` 可复现）。`@needle/honox` 的根入口同样零依赖；`./node` 与 `./excel` 各带一个（`yaml`、`hucre`）。
 
-三个包，按需要取用：
+四个包，按需要取用：
 
 | 你要什么 | 从哪 import | 能跑在哪 |
 |---|---|---|
@@ -13,8 +13,33 @@ Web Shell，支持命令查看当前系统状态，如进程状态、业务数�
 | Shell：`createServerShell` / `createBrowserShell` / `mountShell` / `createFetchAdapter` | `@needle/shell` | 任何地方（含浏览器、Chrome 扩展） |
 | 日志的 Node 专属能力：`createFileSink` / `createLogFiles` | `@needle/logo/node` | 仅 Node / Bun（`node:fs`） |
 | Shell 的 Node 专属能力：`serve` / `attach` | `@needle/shell/node` | 仅 Node / Bun（`node:http`） |
+| Hono 底座：`createHonox` | `@needle/honox` | 有 Hono 的运行时（Node / Bun / Workers） |
+| 配置加载：`loadConfig` | `@needle/honox/node` | 仅 Node / Bun（`node:fs`） |
+| Mongo：`createMongo` / `withTransaction` | `@needle/honox/mongo` | Node / Bun（要装 `mongodb`，选装） |
+| Excel 配置：`defineSheet` / `loadSheets` | `@needle/honox/excel` | Node / Bun |
 
-`@needle/got` / `@needle/logo` / `@needle/shell` 的根入口都不 import 任何 `node:` 模块，所以浏览器和 Workers 打包时不会把 Node 代码带进来。依赖是单向的：`shell` → `logo`，`got` 不依赖任何包。
+
+`@needle/got` / `@needle/logo` / `@needle/shell` / `@needle/honox` 的根入口都不 import 任何 `node:` 模块，所以浏览器和 Workers 打包时不会把 Node 代码带进来。依赖是单向的：`honox` → `shell` → `logo`，`got` 不依赖任何包；`hono` 只在 `@needle/honox` 的 peerDependencies 里。
+
+## 〇、Hono 底座（@needle/honox）
+
+新项目起步用：配置（`common.yml` + `app_<env>.yml` + `APP_*` 环境变量）、每请求日志、JWT 鉴权（默认拒绝，公开接口走白名单）、可选 Mongo、Excel 配置表、调试面板。行为细则与设计理由见 `docs/superpowers/specs/2026-10-24-honox-design.md`；可跑的例子在 `examples/honox-app`（HonoX + Dockerfile）。
+
+```ts
+import { createHonox } from "@needle/honox";
+import { loadConfig } from "@needle/honox/node";
+import { loadSheets } from "@needle/honox/excel";
+
+const config = loadConfig<{ auth: { secret: string } }>({ required: ["auth.secret"] });
+await loadSheets([botSheet]);              // Excel 预载后，getter 同步
+const app = createHonox({
+  config,
+  auth: { secret: config.auth.secret, public: ["/health"] },
+  shell: { basePath: "/shell", auth: { users: { admin: process.env.SHELL_PASSWORD ?? "local" } } },
+});
+app.get("/orders", (c) => c.json({ uid: c.get("uid") })); // 不声明 = 要登录
+```
+
 
 ## 一、Shell
 
