@@ -76,16 +76,21 @@
 ### 5.2 `traceOf(ctx)`
 
 ```ts
-export function traceOf(ctx: Context<AppEnv>, log: Logger = logo): Trace;
+export function traceOf(ctx: Context<AppEnv>, log?: Logger): Trace;
 export interface Trace {
-  debug(...args: unknown[]): void;
-  info(...args: unknown[]): void;
-  warn(...args: unknown[]): void;
-  error(...args: unknown[]): void;
+  debug(...args: unknown[]): Trace;
+  info(...args: unknown[]): Trace;
+  warn(...args: unknown[]): Trace;
+  error(...args: unknown[]): Trace;
+  json(body: unknown, status?: ContentfulStatusCode): Response;
+  notFound(fields?: unknown, message?: string): Response;
 }
 ```
 
-- 生成时把 `rid` / `uid` / `method` / `path` / `module` / `site` / `fn` 从 `ctx` 取干净，之后打日志不再碰 `ctx`。
+- 四个级别方法**返回 trace 自己**，所以「建 trace + 打第一条日志」一行写完：`const trace = traceOf(ctx).info(request)`。
+- `json` / `notFound` 是响应出口：先落一行 info（`json` 记 `{status, result}`，`notFound` 记 `{status:404, ...fields}`），再把响应返回。
+  每个出口都留一行因此是默认动作；不想记就直接用 `ctx.json`。
+- 生成时把 `rid` / `uid` / `method` / `path` / `module` / `site` / `fn` 从 `ctx` 取干净，之后打日志不再碰 `ctx`（`json` / `notFound` 要造响应，仍要用它）。
 - 每次调用等价于 `log[level](base, ...args)`：**绑定字段在前、业务参数在后**，同名时业务覆盖（与 logo「后写的赢」一致）。
 - 不往 `Context` 上挂任何东西（`c.error` 已被 Hono 占用；挂 `c.log` 又要声明合并污染所有 `Context`）。
 - 用装配时注入的 logger：`installMiddleware` 把 `log` 写进 `ctx`（`HonoxEnv.Variables.log`），
@@ -113,10 +118,12 @@ export interface Trace {
 ### 5.4 `createApi(module)` 与路由注册
 
 ```ts
-botsApi.get("/bots", BotsQuery, (ctx, query) => …);     // GET/DELETE → query
-botsApi.post("/bots", BotsBody, (ctx, body) => …);      // POST/PUT/PATCH → body
-botsApi.get("/health", (ctx) => ctx.json({ ok: true })); // 不校验参数
+botsApi.get("/bots", BotsQuery, (ctx, request) => …);     // GET/DELETE → query
+botsApi.post("/bots", BotsBody, (ctx, request) => …);     // POST/PUT/PATCH → body
+botsApi.get("/health", (ctx) => ctx.json({ ok: true }));  // 不校验参数
 ```
+
+第二个参数统一叫 `request`：GET 时是 query 参数、其余是 body，业务只关心「这次请求的参数」。
 
 - `module` 必填（`"api/bots"` 形态）：`traceOf(ctx)` 的 `module` 只能从注册处来。
 - 注册时 `captureCallSite(1)` 抓 `site`/`fn`（dev-only，见 §8），连同 `module` 一起 `c.set("api", …)`。

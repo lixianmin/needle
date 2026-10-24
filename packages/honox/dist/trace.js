@@ -1,10 +1,12 @@
 import { logo } from "@needle/logo";
+import { ResponseX } from "@needle/shell";
 const LEVELS = ["debug", "info", "warn", "error"];
+const DEFAULT_NOT_FOUND = "接口不存在";
 /**
  * 把当前请求的上下文绑成一个 trace 对象。
  *
- * 在生成的那一刻把 `ctx` 里的东西取干净，之后打日志不再碰 `ctx`——所以业务
- * 可以在 handler 顶部 `const trace = traceOf(ctx)`，也可以每次现取。
+ * 在生成的那一刻把 `ctx` 里的东西取干净：之后打日志不再碰 `ctx`（`json` /
+ * `notFound` 要返回响应，仍要用它）。取一次放变量里复用，别每个出口都现取。
  *
  * 为什么不挂在 `Context` 上：`c.error` 已经是 Hono 的公开字段（compose 每次
  * Error 抛出都会写它），挂同名方法会在类型层冲突、运行期被覆盖。
@@ -26,7 +28,16 @@ export function traceOf(ctx, log) {
     for (const level of LEVELS) {
         trace[level] = (...args) => {
             write[level](base, ...args);
+            return trace;
         };
     }
+    trace.json = (body, status) => {
+        trace.info({ status: status ?? 200, result: body });
+        return ctx.json(body, status);
+    };
+    trace.notFound = (fields, message = DEFAULT_NOT_FOUND) => {
+        trace.info({ status: 404 }, ...(fields === undefined ? [] : [fields]));
+        return ResponseX.notFound(message);
+    };
     return trace;
 }

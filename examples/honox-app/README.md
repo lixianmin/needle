@@ -100,9 +100,9 @@ import { createApi } from "@needle/honox";
 
 export const botsApi = createApi("api/bots");   // 参数是日志里的模块名，必填
 
-botsApi.get("/bots", BotsQuery, (ctx, query) => { ... });   // GET/DELETE：解析 query
-botsApi.post("/bots", BotsBody, (ctx, body) => { ... });    // POST/PUT/PATCH：解析 body
-botsApi.get("/health", (ctx) => ctx.json({ ok: true }));    // 不校验参数
+botsApi.get("/bots", BotsQuery, (ctx, request) => { ... });   // GET/DELETE：解析 query
+botsApi.post("/bots", BotsBody, (ctx, request) => { ... });    // POST/PUT/PATCH：解析 body
+botsApi.get("/health", (ctx) => ctx.json({ ok: true }));       // 不校验参数
 ```
 
 `createApi(module)` 返回的是真正的 `Hono`，所以 `app.route("/", botsApi)` 照常挂。`module` 会写进 context，业务日志里因此带 `"module":"api/bots"`——打包、压缩后 `文件:行` 会变成 bundle 坐标，这个字符串才是生产环境唯一还活着的定位信息。
@@ -125,9 +125,12 @@ handler 的参数不用写类型注解：`botsApi.post("/bots", BotsBody, (ctx, 
 ```ts
 import { traceOf } from "@needle/honox";
 
-botsApi.post("/bots", BotsBody, (ctx, body) => {
-  traceOf(ctx).info({ ids: body.ids });   // 只记想看的字段；密码/超大 body 不传就是不打
+botsApi.post("/bots", BotsBody, (ctx, request) => {
+  // 一行：建 trace + 打第一条日志（四个级别方法都返回 trace 自己）
+  const trace = traceOf(ctx).info(request);
   ...
+  // 出口：先记一条 info，再把响应返回
+  return trace.json({ bots, missing });
 });
 ```
 
