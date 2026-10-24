@@ -1,4 +1,4 @@
-import { metadata } from "./index";
+import { metadata } from "./index.js";
 
 /**
  * 机器人模板。类就是 schema：字段默认值决定类型，数组默认值（`[]`）表示该列

@@ -1,6 +1,6 @@
 import type { Env, Hono } from "hono";
-import { botsApi } from "./bots";
-import { healthApi } from "./health";
+import { botsApi } from "./bots.js";
+import { healthApi } from "./health.js";
 
 /**
  * 挂载所有 HTTP 接口：一个领域一个文件，这里只做登记。

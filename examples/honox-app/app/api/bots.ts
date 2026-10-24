@@ -1,7 +1,7 @@
 import { createApi } from "@needle/honox";
 import { ResponseX } from "@needle/shell";
-import { getBotTemplate, getBotTemplates, type BotTemplate } from "../md/bot-template";
-import { viper } from "../viper";
+import { getBotTemplate, getBotTemplates, type BotTemplate } from "../md/bot-template.js";
+import { viper } from "../viper.js";
 
 export const botsApi = createApi();
 

@@ -15,6 +15,11 @@ bun run start      # 跑构建产物；端口取自 res/config，ENV 默认 dev
 
 Shell 面板的账号在 `res/config/app_dev.yml` 的 `server.shell_users` 里（本仓库是 `xmli / 123456`，只用于本地）。
 
+## 相对导入一律带 `.js`
+
+`import { viper } from "../viper.js"`、`import { registerApis } from "./api/index.js"`：
+本示例虽然用 `moduleResolution: bundler`（扩展名可省），但各包是 `nodenext`（tsc 不改写说明符、Node ESM 也不解析无扩展名与目录导入），仓库统一成 `.js` 这一种写法，避免"在这里能跑、搬过去就报 ERR_MODULE_NOT_FOUND"。
+
 ## 为什么不是 HonoX
 
 `@needle/honox` 和 npm 上的 `honox`（HonoX）只是名字撞了：前者是本仓库的 Hono 底座（配置/鉴权/日志/Excel/Shell），后者是文件路由 + islands 的元框架。底座返回的就是 `Hono` 实例，这几个接口直接 `.get()` 挂上去，用不上文件路由。
