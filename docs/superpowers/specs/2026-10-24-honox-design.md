@@ -259,7 +259,7 @@ examples/honox-app/
 
 ### 8.10 Excel 元数据（`@needle/honox/excel`）
 
-来源是 rim.proxy 的 `app/unicorn/excel-utils.ts` 与 rim.server 的 `app/md/init_md.go`。取两边的共识，再修掉 rim.proxy 的四处 bug（`constructor.name` 压缩后失效、`size === 0` 当未加载哨兵、`Number(id)` 变 NaN 静默覆盖、同名 sheet 静默覆盖）。
+来源是 rim.proxy 的 `app/unicorn/excel-utils.ts` 与 rim.server 的 `app/md/init_md.go`。取两边的共识，修掉 rim.proxy 的 `size === 0` 当未加载哨兵、`Number(id)` 变 NaN 静默覆盖、同名 sheet 静默覆盖三处 bug。第四处（`constructor.name` 压缩后失效）反过来用了：sheet 名取类名，代价是构建产物必须保留类名，压缩环境要显式传名字——见下面的 bullet。
 
 **目录约定**：启动时扫描一个目录（示例是 `res/metadata`，不递归），按 **sheet 名后缀**分派：
 
@@ -289,19 +289,18 @@ export interface MetadataReport {
   readonly skipped: readonly string[];
 }
 
-/** 数组写法：这些列按默认分隔符 `|` 拆；对象写法：逐列指定分隔符。 */
-export type SplitColumns = readonly string[] | Readonly<Record<string, string>>;
-
-export interface TemplateOptions {
-  /** 这些列在读取时拆成 string[]；空单元格 → []，`"0"` 保留。 */
-  readonly split?: SplitColumns;
-}
+/** 模板类就是 schema：字段默认值决定类型，`[]` 默认值表示该列要拆。 */
+export type TemplateClass<T extends object> = new () => T;
 
 export interface Metadata {
   /** 扫描 dir（不递归），整体替换已加载的元数据。 */
   load(dir: string): Promise<MetadataReport>;
-  template<T extends Record<string, unknown>>(name: string, options?: TemplateOptions): Template<T>;
-  config<T extends Record<string, unknown>>(name: string, options?: TemplateOptions): Config<T>;
+  /** 用类当 schema；sheet 名默认取类名。 */
+  template<T extends object>(type: TemplateClass<T>, name?: string): Template<T>;
+  /** 不带 schema 的重载：Excel 里的值原样返回。 */
+  template<T extends Record<string, unknown>>(name: string): Template<T>;
+  config<T extends object>(type: TemplateClass<T>, name?: string): Config<T>;
+  config<T extends Record<string, unknown>>(name: string): Config<T>;
 }
 
 export function createMetadata(): Metadata;
@@ -315,7 +314,9 @@ export function createMetadata(): Metadata;
 - 同一文件只解析一次 zip，按绝对路径缓存 workbook。
 - 表头：首行 `trim().toLowerCase()`；`id` 只接受数字：缺 `id` 或非数字 → 抛错，消息带 `文件#sheet`、Excel 行号（1 基，含表头）与原始值；重复 `id` → 抛错；**同名 sheet 出现在两个文件里 → 抛错**（第一层索引只能用 sheet 名，必须唯一）。行对象原样保留多余列。
 - `Config` 取第一个非空数据行（与 go-excel 读单结构体同口径）；整张表没有数据行 → 抛错。
-- **拆列**：`{ split: ["equips"] }` 让库按 `|` 把该列拆成 `string[]`，业务侧不用每次 `split("|")` 再处理空值。分隔符可逐列指定：`{ split: { tags: ",", equips: "|" } }`（写 `""` 等同默认 `|`）。Go 有 struct tag（`xlsx:"equips;split(|)"`），TS 没有运行时类型信息，所以分隔符只能跟句柄一起声明——位置就是 `app/md/<名>-template.ts` 里那一行。`"0"` 保留（配置表里它是"该槽位空"的占位），元素 `trim()`，空单元格给 `[]`；列名写错（表里没这列）不动它，不造幽灵字段。拆列视图按句柄缓存，`load()` 递增版本号让缓存失效——同一张表可以有多个句柄各写各的 split。
+- **类即 schema（拆列）**：TS 的类型在运行时全被擦掉，`equips: string[]` 编译后什么都不剩，所以"数组就拆"必须落在运行时可读的地方——模板类字段的默认值正好是。`equips: string[] = []` 表示该列按 `|` 拆成 `string[]`；非数组字段原样返回（值里带 `|` 也不动）。逐列换分隔符用静态字段 `static separators = { tags: "," }`（写 `""` 等同默认 `|`）。`"0"` 保留（配置表里它是"该槽位空"的占位），元素 `trim()`，空单元格给 `[]`；表里没这列就跳过，不造幽灵字段。
+- **sheet 名取类名**：`metadata.template(ApcTemplate)` 对应 sheet `ApcTemplate`，与 rim.proxy / Go 的反射取类型名同构。代价是压缩产物里 `class.name` 会被抹平——**示例的 `bun build` 不开 `--minify`**；真要在压缩环境用，显式补第二个参数 `metadata.template(ApcTemplate, "ApcTemplate")`，或者退回只传 sheet 名的重载（不做拆列）。
+- 拆列视图按句柄缓存，`load()` 递增版本号让缓存失效。
 - 扫描只认 `.xlsx` / `.xlsm`，按文件名排序遍历（报错与日志稳定）。
 
 ### 8.11 示例里的 Excel
@@ -331,8 +332,8 @@ export function createMetadata(): Metadata;
 布局照 rim.server：一张表对应 `app/md/` 下一个文件（kebab-case），文件里只声明**类型 + sheet 名**，没有文件名也没有注册清单。
 
 - `app/md/index.ts`：`export const metadata = createMetadata()` + `initTemplates(dir)`（调用 `metadata.load(dir)` 并按 report 打一行启动日志）。
-- `app/md/bot-template.ts` / `apc-template.ts`：`metadata.template<Xxx>("BotTemplate")` + `getXxx(id)`；`apc-template` 带 `{ split: ["equips"] }`。
-- `app/md/select-apc-config.ts`：`metadata.config<SelectApcConfig>("SelectApcConfig", { split: [...] })` + `getSelectApcConfig()`。
+- `app/md/bot-template.ts` / `apc-template.ts`：类（`id = 0`、`name = ""`…）+ `metadata.template(XxxTemplate)` + `getXxx(id)`；`apc-template` 的 `equips: string[] = []` 就是拆列声明。
+- `app/md/select-apc-config.ts`：类（四个 `string[] = []` 字段）+ `metadata.config(SelectApcConfig)` + `getSelectApcConfig()`。
 - `app/server.ts`：`await initTemplates(config.metadata.base_url)`（示例配置里是 `res/metadata`）。
 
 **新增一张表 = 在 `app/md/` 加一个文件**（需要路由就再加一个 `app.get`）；`index.ts` 与 `server.ts` 的模板相关代码都不用动。
@@ -363,7 +364,7 @@ export function createMetadata(): Metadata;
 | `config.test.ts` | `common.yml` 缺失时跳过；`app_<env>.yml` 缺失时报错带路径与 ENV 值；深合并（对象递归、数组整体替换）；`APP_*` 覆盖嵌套字段；true/false/数字转换；`required` 缺失报错带字段路径 |
 | `mongo.test.ts` | `db()` 透传库名（不传时用连接串默认）；`withTransaction` 把 session 传给回调；`close()` 幂等；注入的 client 不被 close |
 | `shell-mount.test.ts` | `/shell` 返回 HTML；`/shell/*` 可用；白名单生效（不带 token 也能访问） |
-| `excel.test.ts` | 后缀分派（Template / Config / 跳过）与 `report`；表头大小写/空格归一；空行跳过；`get` / `all`；缺 id、非数字 id、重复 id 各自抛错且消息带 `文件#sheet` + 行号；同名 sheet 跨文件冲突；未加载时 getter 抛；名字写错列已加载项；句柄先于 `load()` 建立；重复 `load()` 整体替换；目录不存在；同一文件多 sheet；拆列（trim、保留 0、空单元格 → `[]`、未声明的列不动、Config 也拆、重新 load 后视图刷新） || `entry.test.ts` | `exports` 四个入口都指向真实 dist 文件；按包名能拿到 `createHonox` / `loadConfig` / `createMongo` / `createMetadata` |
+| `excel.test.ts` | 后缀分派（Template / Config / 跳过）与 `report`；表头大小写/空格归一；空行跳过；`get` / `all`；缺 id、非数字 id、重复 id 各自抛错且消息带 `文件#sheet` + 行号；同名 sheet 跨文件冲突；未加载时 getter 抛；名字写错列已加载项；句柄先于 `load()` 建立；重复 `load()` 整体替换；目录不存在；同一文件多 sheet；类 schema 拆列（数组字段才拆、非数组字段不动、trim、保留 0、空单元格 → `[]`、static separators、Config 也拆、重新 load 后视图刷新、只传 sheet 名时不拆） || `entry.test.ts` | `exports` 四个入口都指向真实 dist 文件；按包名能拿到 `createHonox` / `loadConfig` / `createMongo` / `createMetadata` |
 | `browser-safety.test.ts` | `./` 入口 `Bun.build({ target: "browser" })` 产物不含 `node:` / `require(` / `import(`（照抄 shell 的写法） |
 
 Mongo 测试用结构化 fake（`as unknown as MongoClient`），不依赖真实 mongod，不引 `mongodb-memory-server`。`mongodb` 进 devDependencies 供类型检查。

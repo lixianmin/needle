@@ -1,21 +1,11 @@
 /**
- * 拆列的声明，两种写法：
- * - `["equips", "tags"]`：这些列按默认分隔符 `|` 拆；
- * - `{ equips: "|", tags: "," }`：逐列指定分隔符（写 `""` 等同默认）。
+ * 模板类就是 schema：字段默认值写 `[]` 的列会被拆成 `string[]`。
  *
- * TS 没有 Go 那样的 struct tag，运行时也没有类型信息，所以分隔符只能这样
- * 跟句柄一起声明——位置就是 `app/md/<名>-template.ts` 里那一行。
+ * TS 的类型在运行时全被擦掉，所以"数组就拆"必须落在运行时可读的地方——
+ * 类的字段默认值正好是这样一个地方，写起来又跟 Go 的 struct 一样直白。
+ * 逐列换分隔符用静态字段：`static separators = { tags: "," }`。
  */
-export type SplitColumns = readonly string[] | Readonly<Record<string, string>>;
-export interface TemplateOptions {
-    /**
-     * 这些列在读取时拆成 `string[]`。
-     *
-     * 不拆的话业务侧每次都得自己 `split("|")`，还得处理空单元格；
-     * 拆列结果里 `"0"` 保留（它是有含义的占位），空单元格是 `[]`。
-     */
-    readonly split?: SplitColumns;
-}
+export type TemplateClass<T extends object> = new () => T;
 export interface Template<T> {
     readonly name: string;
     get(id: number): T | undefined;
@@ -34,10 +24,14 @@ export interface MetadataReport {
 export interface Metadata {
     /** 扫描 dir（不递归），整体替换已加载的元数据。 */
     load(dir: string): Promise<MetadataReport>;
-    /** 按 sheet 名取一个 Template 句柄；真正的数据在 load() 之后可读。 */
-    template<T extends Record<string, unknown>>(name: string, options?: TemplateOptions): Template<T>;
-    /** 按 sheet 名取一个 Config 句柄；真正的数据在 load() 之后可读。 */
-    config<T extends Record<string, unknown>>(name: string, options?: TemplateOptions): Config<T>;
+    /** 用类当 schema：字段默认值是 `[]` 的列按 `|` 拆；sheet 名默认取类名。 */
+    template<T extends object>(type: TemplateClass<T>, name?: string): Template<T>;
+    /** 不带 schema 的重载：按 sheet 名取，Excel 里的值原样返回。 */
+    template<T extends Record<string, unknown>>(name: string): Template<T>;
+    /** 用类当 schema 的 Config 句柄。 */
+    config<T extends object>(type: TemplateClass<T>, name?: string): Config<T>;
+    /** 不带 schema 的重载。 */
+    config<T extends Record<string, unknown>>(name: string): Config<T>;
 }
 /**
  * 创建一个元数据管理器。第一个 key 是 sheet 名（`BotTemplate` 这种大写原样），

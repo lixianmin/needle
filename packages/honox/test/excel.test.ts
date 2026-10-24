@@ -127,32 +127,41 @@ describe("Template：按 sheet 名 + id 两级取数", () => {
   });
 });
 
-describe("拆列：按 | 拆成 string[]", () => {
-  test("声明的列被拆开，trim 后保留 0", async () => {
+describe("类即 schema：数组字段自动拆列", () => {
+  class ApcTemplate {
+    id = 0;
+    equips: string[] = [];
+    name = "";
+  }
+
+  test("默认值写 [] 的字段按 | 拆成 string[]", async () => {
     const dir = await oneFile("ApcTemplate", [
       ["id", "equips", "name"],
       [1, "503048| 508012 |0", "哪里桃"],
     ]);
     const metadata = createMetadata();
     await metadata.load(dir);
-    const apc = metadata.template<{ id: number; equips: string[]; name: string }>("ApcTemplate", {
-      split: ["equips"],
+    const apc = metadata.template(ApcTemplate);
+    expect(apc.get(1)).toEqual({
+      id: 1,
+      equips: ["503048", "508012", "0"],
+      name: "哪里桃",
     });
-    expect(apc.get(1)?.equips).toEqual(["503048", "508012", "0"]);
     expect(apc.all()[0]?.equips).toEqual(["503048", "508012", "0"]);
   });
 
-  test("没声明的列保持原样（同一个值还是带 | 的字符串）", async () => {
+  test("不是数组的字段不拆（值里带 | 也原样）", async () => {
     const dir = await oneFile("ApcTemplate", [
-      ["id", "equips", "note"],
+      ["id", "equips", "name"],
       [1, "1|2", "a|b"],
     ]);
     const metadata = createMetadata();
     await metadata.load(dir);
-    const apc = metadata.template<{ id: number; equips: string[]; note: string }>("ApcTemplate", {
-      split: ["equips"],
+    expect(metadata.template(ApcTemplate).get(1)).toEqual({
+      id: 1,
+      equips: ["1", "2"],
+      name: "a|b",
     });
-    expect(apc.get(1)).toEqual({ id: 1, equips: ["1", "2"], note: "a|b" });
   });
 
   test("空单元格拆成空数组", async () => {
@@ -163,14 +172,32 @@ describe("拆列：按 | 拆成 string[]", () => {
     ]);
     const metadata = createMetadata();
     await metadata.load(dir);
-    const apc = metadata.template<{ id: number; equips: string[] }>("ApcTemplate", {
-      split: ["equips"],
-    });
+    const apc = metadata.template(ApcTemplate);
     expect(apc.get(1)?.equips).toEqual([]);
     expect(apc.get(2)?.equips).toEqual([]);
   });
 
-  test("不声明 split 时原样返回字符串", async () => {
+  test("static separators 逐列换分隔符", async () => {
+    class BotTemplate {
+      static separators = { tags: "," };
+      id = 0;
+      tags: string[] = [];
+      prompt = "";
+    }
+    const dir = await oneFile("BotTemplate", [
+      ["id", "tags", "prompt"],
+      [1, "a,b, c", "x|y"],
+    ]);
+    const metadata = createMetadata();
+    await metadata.load(dir);
+    expect(metadata.template(BotTemplate).get(1)).toEqual({
+      id: 1,
+      tags: ["a", "b", "c"],
+      prompt: "x|y",
+    });
+  });
+
+  test("只传 sheet 名（不带 schema）时原样返回字符串", async () => {
     const dir = await oneFile("ApcTemplate", [
       ["id", "equips"],
       [1, "1|2"],
@@ -180,50 +207,28 @@ describe("拆列：按 | 拆成 string[]", () => {
     expect(metadata.template("ApcTemplate").get(1)).toEqual({ id: 1, equips: "1|2" });
   });
 
-  test("Config 也能拆列", async () => {
+  test("Config 类同样按 [] 拆", async () => {
+    class SelectApcConfig {
+      select_apc1: string[] = [];
+      select_apc2: string[] = [];
+    }
     const dir = await oneFile("SelectApcConfig", [
       ["select_apc1", "select_apc2"],
       ["10|11|26", "1|9"],
     ]);
     const metadata = createMetadata();
     await metadata.load(dir);
-    const config = metadata.config<{ select_apc1: string[]; select_apc2: string[] }>(
-      "SelectApcConfig",
-      { split: ["select_apc1", "select_apc2"] },
-    );
-    expect(config.get()).toEqual({ select_apc1: ["10", "11", "26"], select_apc2: ["1", "9"] });
-  });
-
-  test("逐列指定分隔符（对象写法），没写的列不动", async () => {
-    const dir = await oneFile("BotTemplate", [
-      ["id", "tags", "prompt"],
-      [1, "a,b, c", "x|y"],
-    ]);
-    const metadata = createMetadata();
-    await metadata.load(dir);
-    const bots = metadata.template<{ id: number; tags: string[]; prompt: string }>("BotTemplate", {
-      split: { tags: "," },
+    expect(metadata.config(SelectApcConfig).get()).toEqual({
+      select_apc1: ["10", "11", "26"],
+      select_apc2: ["1", "9"],
     });
-    expect(bots.get(1)).toEqual({ id: 1, tags: ["a", "b", "c"], prompt: "x|y" });
-  });
-
-  test("分隔符写空字符串时退回默认 |", async () => {
-    const dir = await oneFile("BotTemplate", [["id", "tags"], [1, "a|b"]]);
-    const metadata = createMetadata();
-    await metadata.load(dir);
-    const bots = metadata.template<{ id: number; tags: string[] }>("BotTemplate", {
-      split: { tags: "" },
-    });
-    expect(bots.get(1)?.tags).toEqual(["a", "b"]);
   });
 
   test("重新 load 后句柄的拆列视图跟着换", async () => {
     const first = await oneFile("ApcTemplate", [["id", "equips"], [1, "1|2"]]);
     const second = await oneFile("ApcTemplate", [["id", "equips"], [1, "9|8|7"]]);
     const metadata = createMetadata();
-    const apc = metadata.template<{ id: number; equips: string[] }>("ApcTemplate", {
-      split: ["equips"],
-    });
+    const apc = metadata.template(ApcTemplate);
     await metadata.load(first);
     expect(apc.get(1)?.equips).toEqual(["1", "2"]);
     await metadata.load(second);

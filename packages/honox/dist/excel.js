@@ -57,22 +57,16 @@ function classify(sheetName) {
     }
     return null;
 }
-/**
- * 归一成 列名 → 分隔符 的表。列名按小写比较（表头在 toRecords 里已经 lowercase 了），
- * 分隔符写空字符串时退回默认的 `|`。
- */
-function normalizeSplit(split) {
+/** 从类实例的字段默认值里读出"哪些列是数组"，顺带取各自的分隔符。 */
+function arrayColumnsOf(type) {
+    const overrides = type
+        .separators;
     const columns = new Map();
-    if (split === undefined) {
-        return columns;
-    }
-    if (Array.isArray(split)) {
-        for (const column of split) {
-            columns.set(column.trim().toLowerCase(), SPLIT_SEPARATOR);
+    for (const [column, value] of Object.entries(new type())) {
+        if (!Array.isArray(value)) {
+            continue;
         }
-        return columns;
-    }
-    for (const [column, separator] of Object.entries(split)) {
+        const separator = overrides?.[column] ?? overrides?.[column.toLowerCase()] ?? SPLIT_SEPARATOR;
         columns.set(column.trim().toLowerCase(), separator === "" ? SPLIT_SEPARATOR : separator);
     }
     return columns;
@@ -96,6 +90,18 @@ function applySplit(row, columns) {
                     .map((part) => part.trim());
     }
     return shaped;
+}
+/** `template(类, name?)` 与 `template("sheet 名")` 两种调用归一。 */
+function resolveSelector(selector, name) {
+    if (typeof selector === "string") {
+        return { sheetName: selector, type: undefined };
+    }
+    const sheetName = name ?? selector.name;
+    if (sheetName === "") {
+        // 压缩后 class.name 会被抹平，那时必须显式补第二个参数。
+        throw new Error("模板类没有类名：压缩产物里请显式传 sheet 名，metadata.template(Xxx, \"XxxTemplate\")");
+    }
+    return { sheetName, type: selector };
 }
 function listOf(names) {
     const all = [...names];
@@ -206,17 +212,18 @@ export function createMetadata() {
             skipped,
         };
     }
-    function template(name, options = {}) {
-        const columns = normalizeSplit(options.split);
+    function template(selector, name) {
+        const { sheetName, type } = resolveSelector(selector, name);
+        const columns = type === undefined ? new Map() : arrayColumnsOf(type);
         let cachedVersion = -1;
         let byId = new Map();
         let list = [];
         /**
-         * 拆列视图按句柄缓存：同一张表可以有几个句柄各写各的 split。
-         * version 变了（重新 load）就重建，避免拿到上一份数据的视图。
+         * 拆列视图按句柄缓存；version 变了（重新 load）就重建，
+         * 免得拿到上一份数据的视图。
          */
         function view() {
-            const table = requireTemplate(name);
+            const table = requireTemplate(sheetName);
             if (cachedVersion === state.version) {
                 return { byId, list };
             }
@@ -234,7 +241,7 @@ export function createMetadata() {
             return { byId, list };
         }
         return {
-            name,
+            name: sheetName,
             get(id) {
                 return view().byId.get(id);
             },
@@ -243,17 +250,18 @@ export function createMetadata() {
             },
         };
     }
-    function config(name, options = {}) {
-        const columns = normalizeSplit(options.split);
+    function config(selector, name) {
+        const { sheetName, type } = resolveSelector(selector, name);
+        const columns = type === undefined ? new Map() : arrayColumnsOf(type);
         let cachedVersion = -1;
         let shaped;
         return {
-            name,
+            name: sheetName,
             get() {
                 requireLoaded();
-                const value = state.configs.get(name);
+                const value = state.configs.get(sheetName);
                 if (value === undefined) {
-                    throw new Error(`没有 Config 表：${name}（sheet 名要原样、且以 ${CONFIG_SUFFIX} 结尾；已加载：${listOf(state.configs.keys())}）`);
+                    throw new Error(`没有 Config 表：${sheetName}（sheet 名要原样、且以 ${CONFIG_SUFFIX} 结尾；已加载：${listOf(state.configs.keys())}）`);
                 }
                 if (cachedVersion !== state.version) {
                     shaped = (columns.size === 0 ? value : applySplit(value, columns));
