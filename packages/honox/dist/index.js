@@ -15,7 +15,7 @@ function normalizeBasePath(basePath) {
  * 业务路由挂在返回值上，所以自动继承中间件链。
  */
 export function createHonox(options) {
-    const log = options.log ?? logo;
+    const log = options.logger ?? logo;
     const app = new Hono();
     const shellBasePath = options.shell === undefined ? null : normalizeBasePath(options.shell.basePath ?? "/shell");
     if (shellBasePath === "") {

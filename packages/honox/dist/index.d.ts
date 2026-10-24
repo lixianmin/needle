@@ -6,7 +6,7 @@ import { type SnowflakeOptions } from "./id.js";
 import type { HonoxEnv } from "./types.js";
 export interface HonoxOptions {
     /** 请求日志用哪个 logger；默认 `@needle/logo` 的全局 `logo`。 */
-    log?: Logger;
+    logger?: Logger;
     /** rid 的 Snowflake 配置；epoch 与 nodeId 都该显式给（多实例必须不同 nodeId）。 */
     id?: SnowflakeOptions;
     auth: AuthOptions;
