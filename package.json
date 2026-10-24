@@ -29,11 +29,13 @@
     "@needle/honox": "workspace:*",
     "@needle/logo": "workspace:*",
     "@needle/shell": "workspace:*",
+    "@sinclair/typebox": "^0.34.52",
     "@stryker-mutator/core": "^10.1.1",
     "@types/bun": "^1.4.3",
     "fake-indexeddb": "^6.2.6",
     "happy-dom": "^21.0.4",
     "miniflare": "^4.20260730.0",
-    "typescript": "7.0.2"
+    "typescript": "7.0.2",
+    "typescript-6": "npm:typescript@6.0.3"
   }
 }
