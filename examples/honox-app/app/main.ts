@@ -1,15 +1,11 @@
 import { createHonox } from "@needle/honox";
-import { loadConfig } from "@needle/honox/node";
 import { registerApis } from "./api";
+import { config } from "./env";
 import { initTemplates } from "./md";
 
-// 配置跟模板表一起放在 res/ 下，与镜像里的目录结构一致。
-// ENV 决定读 res/config/app_<env>.yml（只认 dev / fat / pro），
-// 之后所有取值都走 config.getXxx("点分路径")，不再碰 process.env。
-const config = loadConfig({
-  dir: "res/config",
-  required: ["auth.secret", "metadata.base_url", "server.web_port"],
-});
+// 配置在 app/env.ts 里加载（ENV 决定读 res/config/app_<env>.yml，只认
+// dev / fat / pro）。别的文件直接 `import { config } from "../env"`，
+// 请求内则是 `c.get("config")`；两者是同一个实例。
 
 // /shell 在 JWT 白名单里，对匿名网络可达；口令是它唯一的门。
 // 没配 shell_users 就不挂面板，免得留一个没人能管的入口。

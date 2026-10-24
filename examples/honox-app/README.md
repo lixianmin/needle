@@ -29,16 +29,27 @@ Shell 面板的账号在 `res/config/app_dev.yml` 的 `server.shell_users` 里�
 2. `res/config/app_<env>.yml`（只写差异项，**必须存在**）
 3. `APP_*` 环境变量（`__` 分隔层级，如 `APP_SERVER__WEB_PORT=9000`）
 
-`ENV` 决定第 2 步加载哪个文件，只认 **dev / fat / pro**（默认 dev，写错直接报错）。这是整个示例里唯一读 `process.env` 的地方——**业务代码一律用 `config.getXxx("点分路径")`**，不再自己去看环境变量：
+`ENV` 决定第 2 步加载哪个文件，只认 **dev / fat / pro**（默认 dev，写错直接报错）。这是整个示例里唯一读 `process.env` 的地方——**业务代码一律用 `config.getXxx("点分路径")`**，不再自己去看环境变量。
+
+配置实例在 `app/env.ts` 里加载并导出，全进程只有一份：
 
 ```ts
-const config = loadConfig({ dir: "res/config", required: ["auth.secret", "metadata.base_url", "server.web_port"] });
+// app/env.ts
+export const config = loadConfig({ dir: "res/config", required: ["auth.secret", "metadata.base_url", "server.web_port"] });
+export type AppEnv = HonoxEnv<typeof config>;
+```
 
-config.getInt("server.web_port")          // 8001
+两处拿法：
+
+- **请求内（`app/api/*.ts`）**：`c.get("config").getInt("server.web_port")`，类型由 `AppEnv` 带出来，不用 import。
+- **请求外（`app/main.ts`、`app/md/*`、服务层）**：`import { config } from "../env"`。模块只求值一次，`loadConfig` 也只跑一次。
+
+```ts
+config.getInt("server.web_port")           // 8001
 config.getString("server.host", "0.0.0.0") // 缺省值给了就不抛
-config.getStringMap("server.shell_users") // { xmli: "123456" }（YAML 数字转字符串）
+config.getStringMap("server.shell_users")  // { xmli: "123456" }（YAML 数字转字符串）
 config.getBool("feature.on")
-config.has("server.host")                 // 路径上有值
+config.has("server.host")                  // 路径上有值
 config.env / config.isDev() / config.isFat() / config.isPro()
 ```
 
