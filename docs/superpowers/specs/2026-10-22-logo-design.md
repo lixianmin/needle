@@ -196,6 +196,10 @@ sink 是同步函数。抛错被捕获并忽略（一条坏 sink 不能拖垮业
 
 **飞书**（根入口）：把 batch 推到群机器人 webhook。默认只推 `error` 级别，超出窗口的记录合并成一条消息（按 UTF-8 字节截到 24KB），令牌桶限流（默认 20 条/分钟，按时间比例补充），支持可选签名密钥。用 `fetch`，Workers 可用。
 
+消息格式照 Go 版 logo（`github.com/lixianmin/logo`）：用 `post` 而不是 `text`，标题 `[<Level>(<batch>) <titlePrefix>] <title>`，正文是各条记录 + 末尾一行发送时间（东八区、秒级）。`batch` 是这条消息合并了几条，标题的级别取这一批里最高的那个。`titlePrefix` 由宿主给（`DEV fly.server 192.168.31.182:6001` 这个形状），不传就只剩 `[Info(1)]`。
+
+`notify(level, title, text)` 是一次性发送：不进队列、不受 `minLevel` 约束，但过令牌桶。启动通知用它——为了发一条 info 把 `minLevel` 降下来，会把所有请求日志都推到群里。
+
 ## 8. Shell
 
 ### 8.1 挂载

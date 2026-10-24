@@ -1,6 +1,13 @@
-import { LEVELS, createLarkSink, logo, type Level, type LogFiles } from "@needle/logo";
+import { LEVELS, createLarkSink, logo, type LarkSink, type Level, type LogFiles } from "@needle/logo";
 import { createFileSink, createLogFiles } from "@needle/logo/node";
+import { networkInterfaces } from "node:os";
 import { viper } from "./viper.js";
+
+/** 应用名，写进飞书标题。 */
+const APP_NAME = "honox-app";
+
+/** 版本号：Shell 面板与启动通知共用一处。 */
+export const APP_VERSION = "0.1.0";
 
 /**
  * 日志目录固定是进程工作目录下的 `log/`，不做配置项。
@@ -32,16 +39,57 @@ function readLevel(path: string, fallback: Level): Level {
 }
 
 /**
+ * 本机第一个非回环 IPv4。
+ *
+ * 飞书标题里写 IP:端口 是为了多实例时能分清是哪一台——照 Go 版 logo 的
+ * `NewLark(titlePrefix, token)` 用法（`DEV fly.server 192.168.31.182:6003`）。
+ */
+function localIp(): string {
+  for (const list of Object.values(networkInterfaces())) {
+    for (const item of list ?? []) {
+      if (item.family === "IPv4" && !item.internal) {
+        return item.address;
+      }
+    }
+  }
+  return "127.0.0.1";
+}
+
+function endpoint(): string {
+  return `${localIp()}:${viper.getInt("server.web_port")}`;
+}
+
+/** 启动通知的内容：能真拿到的才写，不编造构建信息。 */
+function startupInfo(): Record<string, unknown> {
+  const where = endpoint();
+  return {
+    version: APP_VERSION,
+    runtime: `bun ${Bun.version}`,
+    env: viper.env,
+    endpoint: where,
+    shell: `http://${where}/shell`,
+    pid: process.pid,
+    startedAt: new Date().toISOString(),
+  };
+}
+
+export interface LogInit {
+  /** 交给 Shell 的 `logFiles`，`log.list` 读的就是这个目录。 */
+  logFiles: LogFiles;
+  /** 往飞书发一条启动通知；没配 `logger.lark_url` 时是空操作。 */
+  notifyStartup(): void;
+}
+
+/**
  * 初始化日志：定级别、挂文件 sink、按需挂飞书，最后把 `logFiles` 交给 Shell。
  *
  * 挂在全局 `logo` 上而不是另建实例：项目里到处 `import { logo } from "@needle/logo"`，
  * 两套实例等于一半日志进不了右栏、也进不了文件。
  *
  * 飞书用群机器人的 webhook 地址（`logger.lark_url`），不是 token。空字符串是
- * "不推"的显式写法，不是缺配置，所以不报错。地址是密钥，仓库里留空，本地用
- * `APP_LOGGER__LARK_URL=... ` 覆盖，别提交进来。
+ * "不推"的显式写法，不是缺配置，所以不报错。
  */
-export function initLog(): LogFiles {
+export function initLog(): LogInit {
   const level = readLevel("logger.filter_level", "info");
   logo.setLevel(level);
 
@@ -56,16 +104,27 @@ export function initLog(): LogFiles {
     }),
   );
 
+  let lark: LarkSink | undefined;
   const larkUrl = viper.getString("logger.lark_url", "");
   if (larkUrl !== "") {
-    logo.addSink(
-      createLarkSink({
-        webhook: larkUrl,
-        secret: viper.getString("logger.lark_secret", ""),
-      }),
-    );
+    lark = createLarkSink({
+      webhook: larkUrl,
+      secret: viper.getString("logger.lark_secret", ""),
+      // 标题前缀照 Go 版：`DEV fly.server 192.168.31.182:6003`
+      titlePrefix: `${viper.env.toUpperCase()} ${APP_NAME} ${endpoint()}`,
+    });
+    logo.addSink(lark);
   }
 
-  // Shell 的 log.list 读的就是这个目录；不传它，面板里只有实时流没有历史。
-  return createLogFiles({ dir: LOG_DIR });
+  return {
+    // Shell 的 log.list 读的就是这个目录；不传它，面板里只有实时流没有历史。
+    logFiles: createLogFiles({ dir: LOG_DIR }),
+    notifyStartup(): void {
+      if (lark === undefined) {
+        return;
+      }
+      // 标题空着，跟 Go 版那个例子一致：级别 + 前缀已经说明了来源，内容全放正文。
+      void lark.notify("info", "", JSON.stringify(startupInfo()));
+    },
+  };
 }

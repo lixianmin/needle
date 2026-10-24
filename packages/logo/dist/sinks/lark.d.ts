@@ -1,8 +1,13 @@
 import { type Level, type Sink } from "../types.js";
 export interface LarkSinkOptions {
     webhook: string;
-    /** 群机器人开启"签名校验"时填。 */
+    /** 群机器人开启"签名校验"时填。地址里的空串等同于没配。 */
     secret?: string;
+    /**
+     * 标题前缀，照 Go 版 logo 的 `NewLark(titlePrefix, token)`：
+     * 一般写成 `DEV fly.server 192.168.31.182:8001`。
+     */
+    titlePrefix?: string;
     /** 低于这个级别不推送，默认 error。 */
     minLevel?: Level;
     /** 合并窗口，默认 1 秒。 */
@@ -14,6 +19,13 @@ export interface LarkSinkOptions {
 }
 export type LarkSink = Sink & {
     flush(): Promise<void>;
+    /**
+     * 立即发一条，不进队列、不受 minLevel 与限流约束。
+     *
+     * 对应 Go 版 logo 的 `Lark.SendMessage`：启动通知这类"就一次"的消息
+     * 不该为了绕过 error 级别把过滤关掉——那会把所有 info 都推出去。
+     */
+    notify(level: Level, title: string, text: string): Promise<void>;
     close(): void;
 };
 /**
