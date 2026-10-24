@@ -8,9 +8,10 @@ function elapsedMs(start) {
  * 结束行放在 finally 里，并读 `c.res.status`——这样门禁短路、404、抛错
  * 三种情况都有结束行；没有它，日志里会出现"有进无出"，看不出请求是卡住还是失败。
  *
- * 错误从 `c.error` 取，而不是 try/catch：Hono 的 compose 在每一层就把异常交给
- * onError 消化掉，`await next()` 永远不会抛——写 catch 只会是一段永不执行的代码。
- * 500 长什么样仍由业务的 app.onError 决定，本库不插手。
+ * 错误有两个来源：`c.error`（Error 抛出被 compose 就地交给 onError）和 catch
+ * （非 Error 抛出、onError 自身抛错、自定义 notFound 抛错都会真的穿过来）。
+ * 少了 catch 那一路，日志会漏掉错误；而 `c.res` 在没 finalize 时读到的是惰性 200，
+ * 会把 500 记成 200。500 的响应体长什么样仍由业务决定，本库不插手。
  */
 export function createRequestLog(log) {
     return async function requestLog(c, next) {
@@ -25,11 +26,16 @@ export function createRequestLog(log) {
                 reqLog.error(c.error);
             }
         }
+        catch (error) {
+            reqLog.error(error);
+            throw error;
+        }
         finally {
             reqLog.info({
                 method,
                 path,
-                status: c.res.status,
+                // 没 finalize 时 c.res 的 getter 会造一个 200 的空响应，那会把失败记成功。
+                status: c.finalized ? c.res.status : 500,
                 durationMs: elapsedMs(started),
                 uid: c.get("uid"),
             }, "<--");

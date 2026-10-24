@@ -57,6 +57,16 @@ describe("createRequestLog", () => {
     expect(records.at(-1)).toMatchObject({ msg: "<--", status: 500 });
   });
 
+  test("非 Error 抛出：仍记 error 行，结束行 status 500", async () => {
+    const { app, records } = setup();
+    app.get("/weird", () => {
+      throw "boom-string";
+    });
+    await expect(app.request("/weird")).rejects.toBe("boom-string");
+    expect(records.some((r) => r.level === "error")).toBe(true);
+    expect(records.at(-1)).toMatchObject({ msg: "<--", status: 500 });
+  });
+
   test("结束行的 uid 用请求结束时的值", async () => {
     const { app, records } = setup();
     app.use("*", async (c, next) => {

@@ -9,7 +9,7 @@
 ```bash
 bun install     # 装 hono / honox / vite / typescript 5.9.3
 bun run build   # vite build → dist/index.js
-bun run start   # bun dist/index.js（默认 3000 端口，PORT 可改）
+SHELL_PASSWORD=dev bun run start   # 默认 3000 端口，PORT 可改
 ```
 
 ## 配置
@@ -51,7 +51,10 @@ bun scripts/make-plan-xlsx.ts
 
 ```bash
 docker build -f examples/honox-app/Dockerfile -t honox-app .
-docker run --rm -p 3000:3000 honox-app
+docker run --rm -p 3000:3000 \
+  -e APP_AUTH__SECRET="换成你自己的随机串" \
+  -e SHELL_PASSWORD="换成你自己的口令" \
+  honox-app
 ```
 
-`ENV` 与 `SHELL_PASSWORD` 用 `docker run -e` 传。镜像里不带 `node_modules`：`dist/index.js` 是自包含产物。
+镜像里 `NODE_ENV=production`：不传 `APP_AUTH__SECRET` 就启动报错，不会带着仓库里的 dev 密钥裸奔；`SHELL_PASSWORD` 同理（`/shell` 在 JWT 白名单里，对它唯一的门就是这个口令）。`ENV` 默认 `dev`，要换环境再传 `-e ENV=pro`。镜像不带 `node_modules`：`dist/index.js` 是自包含产物。
