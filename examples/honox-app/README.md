@@ -34,8 +34,9 @@ SHELL_PASSWORD=dev bun run start   # 默认 8213 端口（res/config/common.yml�
 |---|---|---|
 | `GET /health` | 公开 | `{"ok":true}` |
 | `GET /me` | 需要 JWT | 返回 `{ uid }`（取自 token 的 `sub`） |
-| `GET /bots/:id` | 需要 JWT | 读 `res/metadata/BotTemplate.xlsx` 里 `BotTemplate` sheet 的那一行 |
-| `GET /apc/:id` | 需要 JWT | 读 `res/metadata/ApcTemplate.xlsx` 里 `ApcTemplate` sheet 的那一行 |
+| `GET /bots/:id` | 需要 JWT | 读 `BotTemplate` 表的那一行 |
+| `GET /apc/:id` | 需要 JWT | 读 `ApcTemplate` 表的那一行 |
+| `GET /select-apc` | 需要 JWT | 返回 `SelectApcConfig` 这份全局配置 |
 | `GET /shell` | 公开（面板自己用 `SHELL_PASSWORD` 登录） | 调试面板 |
 
 生成一个测试 token：
@@ -44,27 +45,37 @@ SHELL_PASSWORD=dev bun run start   # 默认 8213 端口（res/config/common.yml�
 bun -e 'import { sign } from "hono/jwt"; console.log(await sign({ sub: "u1", exp: Math.floor(Date.now()/1000)+3600 }, "dev-secret-change-me", "HS256"))'
 ```
 
-## Excel
+## Excel 元数据
 
-`res/metadata/` 下一张表对应 `app/md/` 下一个文件，初始化逻辑全收在 `app/md/` 里：
+启动时扫 `res/metadata/`（路径来自配置的 `metadata.base_url`），按 **sheet 名后缀**分派。**代码里不写文件名，也没有注册清单**：
+
+| 后缀 | 类型 | 语义 |
+|---|---|---|
+| `XxxTemplate` | Template | 按 id 取单条；第一层 key 就是 sheet 名 |
+| `XxxConfig` | Config | 全局一份，取第一个非空数据行 |
+| 其它 | — | 不是元数据表，跳过（启动日志会列出来） |
 
 ```
 app/md/
-  bot-template.ts   # BotTemplate.xlsx 的 BotTemplate 表
-  apc-template.ts   # ApcTemplate.xlsx 的 ApcTemplate 表
-  index.ts          # initTemplates()：启动时一次预载；并转出各 getter
+  index.ts                 # createMetadata() + initTemplates(dir)
+  bot-template.ts          # metadata.template<BotTemplate>("BotTemplate")
+  apc-template.ts          # metadata.template<ApcTemplate>("ApcTemplate")
+  select-apc-config.ts     # metadata.config<SelectApcConfig>("SelectApcConfig")
 ```
 
-| 文件 | sheet | 列 |
-|---|---|---|
-| `BotTemplate.xlsx` | `BotTemplate` | `id`、`name`、`prompt` |
-| `ApcTemplate.xlsx` | `ApcTemplate` | `id`、`equips`、`gender`、`name`、`buy_money`、`buy_price` |
+现有三张 sheet：
 
-启动时 `await initTemplates()` 一次读完，之后 `getBotTemplate(id)` / `getApcTemplate(id)` 同步、零 IO。**新增一张表**：在 `app/md/` 加一个文件（`defineSheet` + `getXxxTemplate`），再把它加进 `index.ts` 的 `loadSheets([...])`；`server.ts` 不用动。表直接用 Excel 维护，没有生成脚本。
+| 文件 | sheet | 类型 | 列 |
+|---|---|---|---|
+| `BotTemplate.xlsx` | `BotTemplate` | Template | `id`、`name`、`prompt` |
+| `ApcTemplate.xlsx` | `ApcTemplate` | Template | `id`、`equips`、`gender`、`name`、`buy_money`、`buy_price` |
+| `ApcTemplate.xlsx` | `SelectApcConfig` | Config | `select_apc1`..`select_apc4` |
 
-`equips` 是 `|` 分隔的装备 id 串，`0` 表示该槽位空；库原样返回字符串，拆分交给业务。`ApcTemplate.xlsx` 里另有一张 `SelectApcConfig`，没有 `id` 列，不归 `defineSheet` 管，未加载。
+**新增一张表 = 在 `app/md/` 加一个文件**（需要对外就再加一个 `app.get`）；`index.ts` 和 `server.ts` 的模板相关代码都不用动。启动时 `await initTemplates(config.metadata.base_url)` 一次读完，之后 `getBotTemplate(id)` / `getSelectApcConfig()` 同步、零 IO。表直接用 Excel 维护，没有生成脚本。
 
-规则：首行表头（小写 + trim），每行必须有数字 `id`；缺 id、非数字 id、重复 id 都会在 `loadSheets()` 时报错并给出行号。改文件名或 sheet 名时，`app/md/` 里对应的声明要同步改。
+`equips` 是 `|` 分隔的装备 id 串，`0` 表示该槽位空；库原样返回字符串，拆分交给业务。
+
+规则：首行表头（小写 + trim）。Template 每行必须有数字 `id`，缺 id / 非数字 / 重复都会在加载时报错并带 `文件#sheet` 和行号；Config 取第一个非空数据行，一行都没有也报错。同名 sheet 不能出现在两个文件里。`metadata.base_url` 目前只支持本地目录——`app_fat.yml` 里那个 https 地址是 rim.server 的远端元数据用法，本库还没做远端拉取。
 
 ## Docker
 

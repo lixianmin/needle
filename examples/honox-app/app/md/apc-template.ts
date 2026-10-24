@@ -1,4 +1,4 @@
-import { defineSheet } from "@needle/honox/excel";
+import { metadata } from "./index";
 
 /** 玩家（APC）模板。 */
 export type ApcTemplate = {
@@ -11,10 +11,7 @@ export type ApcTemplate = {
   buy_price: number;
 };
 
-export const apcTemplate = defineSheet<ApcTemplate>({
-  file: "res/metadata/ApcTemplate.xlsx",
-  sheet: "ApcTemplate",
-});
+export const apcTemplate = metadata.template<ApcTemplate>("ApcTemplate");
 
 export function getApcTemplate(id: number): ApcTemplate | undefined {
   return apcTemplate.get(id);
