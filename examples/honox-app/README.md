@@ -91,14 +91,16 @@ app/viper.ts     # 配置实例（viper 风格取值器）+ c.get 的键声明
 
 新增一个接口：在 `app/api/` 加一个文件（`new Hono()` + `xxxApi.get(...)`），再到 `index.ts` 里 `app.route("/", xxxApi)` 一行。`app/main.ts` 不用动。
 
+**rid 是 Snowflake**：入站带 `x-rid`（或 `x-request-id`）就沿用，没带才生成。位布局 `41 毫秒 | 10 机器号 | 12 序列`，epoch 取配置里的 `server.epoch_ms`（写死，不能用启动时间），机器号由 `nodeIdFromMac()` 从网卡 MAC 派生。**别把 id 直接当 JS number 用**——63 位超过 2^53，JSON 里必须传字符串。
+
 **uid 与请求日志是自动的**：`createHonox()` 装配的中间件链是 `rid → 请求日志 → JWT 鉴权`，所有 `app/api/` 里的路由都挂在它后面。于是每条请求都会：
 
 - 由 JWT 中间件写入 `c.get("uid")`（没带 token 就是 `null`，受保护路由直接被 401 短路）；
 - 打两行日志，进 `-->`、出 `<--`，结束行带 `status`、`durationMs`、`uid`、`req`：
 
 ```
-[I] request-log.ts:23 [requestLog()] {"rid":"01JB...","path":"/me","msg":"-->"}
-[I] request-log.ts:35 [requestLog()] {"rid":"01JB...","path":"/me","status":200,"durationMs":1.9,"uid":"u1","msg":"<--"}
+[I] request-log.ts:23 [requestLog()] {"rid":"107396354488102912","path":"/me","msg":"-->"}
+[I] request-log.ts:35 [requestLog()] {"rid":"107396354488102912","path":"/me","status":200,"durationMs":1.9,"uid":"u1","msg":"<--"}
 ```
 
 日志走 `@needle/logo` 的批处理，进程被杀前可能还没刷出来——本地验证时给它 1~2 秒。

@@ -2,7 +2,7 @@ import type { Logger } from "@needle/logo";
 import type { Hono, MiddlewareHandler } from "hono";
 import { createAuth, type AuthOptions } from "./auth.js";
 import type { HonoxEnv, PublicEntry } from "./types.js";
-import { ulid } from "./ulid.js";
+import type { Snowflake } from "./id.js";
 
 /** 入站请求可以自带 rid：`x-rid` 优先，其次是网关常见的 `x-request-id`。 */
 const RID_HEADERS = ["x-rid", "x-request-id"] as const;
@@ -13,14 +13,18 @@ const RID_HEADERS = ["x-rid", "x-request-id"] as const;
  */
 const RID_PATTERN = /^[0-9A-Za-z._-]{1,64}$/;
 
-function resolveRid(header: (name: string) => string | undefined): string {
+function resolveRid(
+  header: (name: string) => string | undefined,
+  ids: Snowflake,
+): string {
   for (const name of RID_HEADERS) {
     const value = header(name);
     if (value !== undefined && RID_PATTERN.test(value)) {
       return value;
     }
   }
-  return ulid();
+  // 自查生成时是 Snowflake（十进制字符串）：定长、单调，日志按 rid 排序 = 发生顺序。
+  return ids.next().toString();
 }
 
 /** 保留 1 位小数：毫秒精度够定位慢请求，也不会让日志字段变成浮点长尾。 */
@@ -77,6 +81,8 @@ export function createRequestLog(log: Logger): MiddlewareHandler<HonoxEnv> {
 export interface MiddlewareOptions<C extends object> {
   /** 挂进 context，业务用 `c.get("config")` 取。 */
   config: C;
+  /** rid 生成器（没带 x-rid 时用）。 */
+  ids: Snowflake;
   log: Logger;
   /** 解 token 的密钥、claim、token 来源。 */
   auth: AuthOptions;
@@ -96,7 +102,7 @@ export function installMiddleware<C extends object>(
 ): void {
   app.use("*", async (c, next) => {
     // 调用方带了就用它的（网关/上游的链路 id 才能串起来），没带才自己生成。
-    const rid = resolveRid((name) => c.req.header(name));
+    const rid = resolveRid((name) => c.req.header(name), options.ids);
     c.set("rid", rid);
     c.set("config", options.config);
     c.set("log", options.log);
