@@ -1,7 +1,7 @@
 import { createHonox } from "@needle/honox";
 import { logo } from "@needle/logo";
 import { registerApis } from "./api/index.js";
-import { initLog } from "./logo.js";
+import { APP_VERSION, initLog } from "./logo.js";
 import { viper } from "./viper.js";
 import { initTemplates } from "./md/index.js";
 
@@ -11,7 +11,7 @@ import { initTemplates } from "./md/index.js";
 
 // 日志最先初始化：它给全局 logo 挂文件 / 飞书 sink，晚于业务导入的话，
 // 启动阶段那一批日志就永远进不了文件。
-const logFiles = initLog();
+const { logFiles, notifyStartup } = initLog();
 
 // /shell 在 JWT 白名单里，对匿名网络可达；口令是它唯一的门。
 // 没配 shell_users 就不挂面板，免得留一个没人能管的入口。
@@ -35,7 +35,7 @@ const shell =
           ttlMs: SHELL_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000,
         },
         title: "honox-app",
-        version: "0.1.0",
+        version: APP_VERSION,
         logFiles,
       };
 
@@ -54,6 +54,9 @@ const app = createHonox({
 // 接口全在 app/api：一个接口一个文件，这里只负责挂载。
 // 公开路径也在那儿用 allowAnonymous 声明，不写在这份装配代码里。
 registerApis(app);
+
+// 启动通知：照 Go 版 logo 的 SendMessage，一次就够，不进告警队列。
+notifyStartup();
 
 // Bun 认这个默认导出（{ port, hostname, fetch }）并在启动时自己 Bun.serve，
 // 所以 dist/index.js 不需要额外的启动脚本。

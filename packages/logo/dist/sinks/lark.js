@@ -1,8 +1,16 @@
 import { LEVELS } from "../types.js";
+import { formatTime } from "../line.js";
 const DEFAULT_BATCH_MS = 1000;
 const DEFAULT_MAX_PER_MINUTE = 20;
 /** 飞书单条消息上限 30KB；按 UTF-8 字节算，给信封和 JSON 转义留 6KB 余量。 */
 const MAX_TEXT_BYTES = 24_000;
+/** 级别名照 Go 版 logo 的 `ding.GetLevelName`：首字母大写。 */
+const LEVEL_NAMES = {
+    debug: "Debug",
+    info: "Info",
+    warn: "Warn",
+    error: "Error",
+};
 function truncate(text) {
     const encoder = new TextEncoder();
     if (encoder.encode(text).length <= MAX_TEXT_BYTES) {
@@ -34,6 +42,25 @@ function detailOf(record) {
         parts.push(record.stack);
     }
     return parts.join("\n");
+}
+/**
+ * 消息标题，照 Go 版 logo 的格式：`[<Level>(<batch>) <titlePrefix>] <title>`。
+ *
+ * `(batch)` 是这条消息合并了多少条记录（单发就是 1），一眼能看出刚才刷了多少。
+ */
+function titleOf(level, batch, prefix, title) {
+    const name = LEVEL_NAMES[level];
+    const head = prefix === "" ? `[${name}(${batch})]` : `[${name}(${batch}) ${prefix}]`;
+    return title === "" ? head : `${head} ${title}`;
+}
+function highestLevel(levels) {
+    let top = "debug";
+    for (const level of levels) {
+        if (LEVELS[level] > LEVELS[top]) {
+            top = level;
+        }
+    }
+    return top;
 }
 async function sign(secret, timestamp) {
     const encoder = new TextEncoder();
@@ -77,13 +104,25 @@ export function createLarkSink(options) {
         lastRefill = at;
         tokens = Math.min(maxPerMinute, tokens + (elapsed / 60_000) * maxPerMinute);
     }
-    async function send(lines) {
-        if (lines.length === 0) {
+    async function post(level, batch, text, title) {
+        if (text === "") {
             return;
         }
-        const text = truncate(lines.join("\n"));
         const timestamp = String(Math.floor(now() / 1000));
-        const body = { msg_type: "text", content: { text } };
+        const body = {
+            // 用 post 而不是 text：飞书里 post 才带标题行，才看得出级别与来源。
+            // 结构照 Go 版 logo 的 `lark/internal/message.go`。
+            msg_type: "post",
+            content: {
+                post: {
+                    zh_cn: {
+                        title: titleOf(level, batch, options.titlePrefix ?? "", title),
+                        // 末尾那行发送时间也是 Go 版的写法：一眼知道这批是多久之前发的。
+                        content: [[{ tag: "text", text: truncate(`${text}\n${formatTime(now())}`) }]],
+                    },
+                },
+            },
+        };
         if (secret !== undefined) {
             body.timestamp = timestamp;
             body.sign = await sign(secret, Number(timestamp));
@@ -114,7 +153,7 @@ export function createLarkSink(options) {
         }
         tokens -= 1;
         try {
-            await send(pending);
+            await post(highestLevel(pending.map((item) => item.level)), pending.length, pending.map((item) => item.text).join("\n"), "");
         }
         catch {
             // 网络失败不该让业务日志调用抛错，也不重试——重试会把队列撑爆。
@@ -128,7 +167,7 @@ export function createLarkSink(options) {
             if (LEVELS[record.level] < minLevel) {
                 continue;
             }
-            queue.push(`[${record.level}] ${detailOf(record)}`.trim());
+            queue.push({ level: record.level, text: `[${record.level}] ${detailOf(record)}`.trim() });
         }
         if (queue.length > 0 && timer === undefined) {
             timer = setTimeout(() => {
@@ -139,6 +178,19 @@ export function createLarkSink(options) {
         }
     });
     sink.flush = flush;
+    sink.notify = async (level, title, text) => {
+        refill();
+        if (tokens < 1) {
+            return; // 超出配额：启动通知也不该绕过飞书自己的限流
+        }
+        tokens -= 1;
+        try {
+            await post(level, 1, text, title);
+        }
+        catch {
+            // 启动通知发不出去不该拦住进程启动。
+        }
+    };
     // dispose() 只调用带 close 的 sink。没有它，队列里最后一条 error 会随进程消失。
     sink.close = () => {
         if (closed) {

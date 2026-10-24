@@ -29,6 +29,15 @@ function setup(overrides: Partial<Parameters<typeof createLarkSink>[0]> = {}) {
 
 const record = (level: LogRecord["level"], msg: string): LogRecord => ({ time: 1, level, msg });
 
+/** 飞书 post 消息：标题在 content.post.zh_cn.title，正文在第一段第一项。 */
+function postAt(calls: Array<{ url: string; body: string }>, index = 0): { title: string; text: string } {
+  const body = JSON.parse(calls[index]?.body ?? "{}") as {
+    content: { post: { zh_cn: { title: string; content: Array<Array<{ text: string }>> } } };
+  };
+  const zh = body.content.post.zh_cn;
+  return { title: zh.title, text: zh.content[0]?.[0]?.text ?? "" };
+}
+
 describe("createLarkSink", () => {
   test("默认只推 error", async () => {
     const { sink, calls } = setup();
@@ -36,8 +45,9 @@ describe("createLarkSink", () => {
     await sink.flush();
 
     expect(calls).toHaveLength(1);
-    expect(JSON.parse(calls[0]?.body as string).content.text).toContain("boom");
-    expect(JSON.parse(calls[0]?.body as string).content.text).not.toContain("noise");
+    const { text } = postAt(calls);
+    expect(text).toContain("boom");
+    expect(text).not.toContain("noise");
   });
 
   test("一批里的多条合并成一次请求", async () => {
@@ -46,8 +56,10 @@ describe("createLarkSink", () => {
     await sink.flush();
 
     expect(calls).toHaveLength(1);
-    const text = JSON.parse(calls[0]?.body as string).content.text as string;
-    expect(text.split("\n")).toHaveLength(3);
+    const { text, title } = postAt(calls);
+    // 三条记录 + 末尾一行发送时间
+    expect(text.split("\n").slice(0, 3)).toEqual(["[error] a", "[error] b", "[error] c"]);
+    expect(title).toContain("(3)");
   });
 
   test("超过每分钟配额后丢弃而不是堆积", async () => {
@@ -108,9 +120,9 @@ describe("createLarkSink", () => {
     sink([record("error", "x".repeat(30_000))]);
     await sink.flush();
 
-    const text = JSON.parse(calls[0]?.body as string).content.text as string;
+    const { text } = postAt(calls);
     expect(new TextEncoder().encode(text).length).toBeLessThan(25_000);
-    expect(text.endsWith("…(截断)")).toBe(true);
+    expect(text).toContain("…(截断)");
   });
 });
 
@@ -120,7 +132,7 @@ describe("错误详情与退出", () => {
     sink([{ time: 1, level: "error", message: "card declined", stack: "Error: card declined\n    at pay (x.ts:1:1)" }]);
     await sink.flush();
 
-    const text = JSON.parse(calls[0]?.body as string).content.text;
+    const { text } = postAt(calls);
     expect(text).toContain("card declined");
     expect(text).toContain("at pay");
   });
@@ -132,7 +144,7 @@ describe("错误详情与退出", () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     expect(calls).toHaveLength(1);
-    expect(JSON.parse(calls[0]?.body as string).content.text).toContain("last one");
+    expect(postAt(calls).text).toContain("last one");
   });
 
   test("按 UTF-8 字节截断，中文不会超限", async () => {
@@ -140,9 +152,9 @@ describe("错误详情与退出", () => {
     sink([record("error", "汉".repeat(20_000))]);
     await sink.flush();
 
-    const text = JSON.parse(calls[0]?.body as string).content.text as string;
+    const { text } = postAt(calls);
     expect(new TextEncoder().encode(text).length).toBeLessThan(25_000);
-    expect(text.endsWith("…(截断)")).toBe(true);
+    expect(text).toContain("…(截断)");
   });
 });
 
@@ -158,5 +170,37 @@ describe("close 之后", () => {
     await new Promise((resolve) => setTimeout(resolve, 1100));
 
     expect(calls.length).toBe(sent);
+  });
+});
+
+describe("标题与一次性通知（照 Go 版 logo）", () => {
+  test("标题是 `[Level(batch) titlePrefix]`，正文末尾带发送时间", async () => {
+    const { sink, calls } = setup({ titlePrefix: "DEV honox-app 192.168.31.182:8001" });
+    sink([record("error", "boom")]);
+    await sink.flush();
+
+    const { title, text } = postAt(calls);
+    expect(title).toBe("[Error(1) DEV honox-app 192.168.31.182:8001]");
+    expect(text.split("\n")).toEqual(["[error] boom", "1970-01-01T08:16:40"]);
+  });
+
+  test("没配 titlePrefix 时标题只剩 `[Level(batch)]`", async () => {
+    const { sink, calls } = setup({ minLevel: "warn" });
+    sink([record("warn", "careful")]);
+    sink([record("error", "boom")]);
+    await sink.flush();
+
+    // 一批里混了级别：取最高的那个当标题
+    expect(postAt(calls).title).toBe("[Error(2)]");
+  });
+
+  test("notify 绕过 minLevel 立即发一条，不进队列", async () => {
+    const { sink, calls } = setup({ titlePrefix: "DEV app", minLevel: "error" });
+    await sink.notify("info", "startup", "{\"version\":\"0.3.51\"}");
+
+    expect(calls).toHaveLength(1);
+    const { title, text } = postAt(calls);
+    expect(title).toBe("[Info(1) DEV app] startup");
+    expect(text).toContain('"version":"0.3.51"');
   });
 });
