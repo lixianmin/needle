@@ -1,3 +1,4 @@
+import type { Logger } from "@needle/logo";
 import { ResponseX } from "@needle/shell";
 import { getCookie } from "hono/cookie";
 import { verify } from "hono/jwt";
@@ -82,6 +83,7 @@ function messageFor(reason: AuthErrorReason): string {
 export function createAuth(
   options: AuthOptions,
   entries: readonly PublicEntry[],
+  log: Logger,
 ): MiddlewareHandler<HonoxEnv> {
   const claim = options.claim ?? "sub";
   const headerName = options.header ?? "authorization";
@@ -119,9 +121,17 @@ export function createAuth(
       return next();
     }
 
-    const authError = c.get("authError");
+    const authError = c.get("authError") ?? "missing";
     if (c.get("uid") === null) {
-      return ResponseX.unauthorized(messageFor(authError ?? "missing"));
+      // 门禁是能拦下请求的最后一层，这里不记就没有任何地方会记。
+      log.warn({
+        rid: c.get("rid"),
+        method: c.req.method,
+        path: c.req.path,
+        status: 401,
+        authError,
+      });
+      return ResponseX.unauthorized(messageFor(authError));
     }
     return next();
   };

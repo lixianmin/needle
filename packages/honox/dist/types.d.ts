@@ -1,3 +1,4 @@
+import type { Logger } from "@needle/logo";
 import type { JWTPayload } from "hono/utils/jwt/types";
 /** 取 token 失败的原因。门禁据此选 401 的 message。 */
 export type AuthErrorReason = "missing" | "invalid" | "expired";
@@ -18,6 +19,13 @@ export interface HonoxEnv {
         user: JWTPayload | null;
         authError: AuthErrorReason | null;
         rid: string;
+        /**
+         * 本次请求用的 logger，由 `installMiddleware` 写入。
+         *
+         * 这是「日志不进 request context」那条决策的唯一例外：`traceOf(ctx)` 要拿到
+         * `createHonox({ logger })` 配的那个实例，否则业务日志会绕过装配跑进全局 logo。
+         */
+        log?: Logger;
         /**
          * 由 `createApi()` / `apiRoute()` 写入：这个请求属于哪个模块、注册在哪。
          *

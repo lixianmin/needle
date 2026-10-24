@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { Hono } from "hono";
+import { newLogger } from "@needle/logo";
 import { sign } from "hono/jwt";
 import { createAuth, matchesPublic } from "../src/auth.js";
 import type { HonoxEnv, PublicEntry } from "../src/types.js";
@@ -15,7 +16,8 @@ function appWith(
   extra: { claim?: string; cookie?: string } = {},
 ) {
   const app = new Hono<HonoxEnv>();
-  app.use("*", createAuth({ secret: SECRET, ...extra }, publicEntries));
+  const log = newLogger({ sinks: [], batch: false });
+  app.use("*", createAuth({ secret: SECRET, ...extra }, publicEntries, log));
   app.get("/me", (c) => c.json({ uid: c.get("uid"), err: c.get("authError") }));
   app.get("/health", (c) => c.text("ok"));
   app.post("/login", (c) => c.text("in"));

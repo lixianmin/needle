@@ -1,7 +1,8 @@
 import { logo } from "@needle/logo";
-import { createServerShell } from "@needle/shell";
+import { ResponseX, createServerShell } from "@needle/shell";
 import { Hono } from "hono";
 import { installMiddleware } from "./middleware.js";
+import { isRequestError } from "./request.js";
 function normalizeBasePath(basePath) {
     const trimmed = basePath.replace(/\/+$/, "");
     return trimmed === "" ? "" : trimmed;
@@ -23,11 +24,30 @@ export function createHonox(options) {
         ? null
         : createServerShell({ ...options.shell, basePath: shellBasePath });
     const publicEntries = shellBasePath === null ? [] : [shellBasePath, `${shellBasePath}/*`];
-    // 中间件链（rid → 请求日志 → JWT → 门禁）全在 middleware.ts，顺序由库固定。
+    // 中间件链（rid → 兜底日志 → JWT → 门禁）全在 middleware.ts，顺序由库固定。
     installMiddleware(app, {
         log,
         auth: options.auth,
         public: publicEntries,
+        slowMs: options.slowMs,
+    });
+    // 没命中任何路由：业务补不了，库记。
+    app.notFound((c) => {
+        log.info({
+            rid: c.get("rid"),
+            method: c.req.method,
+            path: c.req.path,
+            status: 404,
+        });
+        return ResponseX.notFound("接口不存在");
+    });
+    // 只做映射，不记日志——500 的日志由中间件的兜底层统一记（业务替换 onError
+    // 也不会丢），这里再记一次就是两条。
+    app.onError((error) => {
+        if (isRequestError(error)) {
+            return ResponseX.fail(error.status, error.code, error.message);
+        }
+        return ResponseX.internalError("服务内部错误");
     });
     if (shell !== null && shellBasePath !== null) {
         const handle = (c) => shell.handler(c.req.raw);
@@ -44,3 +64,6 @@ export function createHonox(options) {
     return honox;
 }
 export { apiRoute, createApi } from "./route.js";
+export { RequestError, isRequestError } from "./request.js";
+export { traceOf } from "./trace.js";
+export { modelSchema, registerModel } from "./model.js";
