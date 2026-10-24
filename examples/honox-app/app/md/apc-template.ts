@@ -11,8 +11,12 @@ export class ApcTemplate {
   buy_price = 0;
 }
 
-export const apcTemplate = metadata.template(ApcTemplate);
+const templates = metadata.template(ApcTemplate);
 
 export function getApcTemplate(id: number): ApcTemplate | undefined {
-  return apcTemplate.get(id);
+  return templates.get(id);
+}
+
+export function getApcTemplates(): readonly ApcTemplate[] {
+  return templates.all();
 }
