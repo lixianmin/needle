@@ -20,24 +20,25 @@ function elapsedMs(start: number): number {
  */
 export function createRequestLog(log: Logger): MiddlewareHandler<HonoxEnv> {
   return async function requestLog(c, next) {
-    const reqLog = log.child({ rid: c.get("rid") });
-    const method = c.req.method;
+    // 直接用传进来的 logger（默认就是全局 logo），不派生子 logger：
+    // rid 作为字段带上就够了，多一个对象只会让「日志从哪来」多一层。
+    const rid = c.get("rid");
     const path = c.req.path;
     const started = performance.now();
 
-    reqLog.info({ method, path }, "-->");
+    log.info({ rid, path }, "-->");
     try {
       await next();
       if (c.error !== undefined) {
-        reqLog.error(c.error);
+        log.error(c.error);
       }
     } catch (error) {
-      reqLog.error(error);
+      log.error(error);
       throw error;
     } finally {
-      reqLog.info(
+      log.info(
         {
-          method,
+          rid,
           path,
           // 没 finalize 时 c.res 的 getter 会造一个 200 的空响应，那会把失败记成功。
           status: c.finalized ? c.res.status : 500,

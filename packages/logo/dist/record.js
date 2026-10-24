@@ -94,7 +94,7 @@ function isPlainObject(value) {
     return proto === Object.prototype || proto === null;
 }
 /** 这几个键由信封填写，业务数据不允许碰。 */
-const ENVELOPE_FIELDS = ["time", "level", "msg", "name"];
+const ENVELOPE_FIELDS = ["time", "level", "msg", "name", "site", "fn"];
 /**
  * 把一次调用的参数变成一条记录。
  *
@@ -103,7 +103,7 @@ const ENVELOPE_FIELDS = ["time", "level", "msg", "name"];
  *   2. Error 展开成 message + stack
  *   3. 其余一切拼成 msg（用空格分隔，与 console 一致）
  *
- * 信封字段（time/level/msg/name/stack）最后写入，因此永远压过同名业务字段。
+ * 信封字段（time/level/msg/name/site/fn/stack）最后写入，因此永远压过同名业务字段。
  */
 export function buildRecord(level, args, options = {}) {
     const fields = {};
@@ -138,6 +138,12 @@ export function buildRecord(level, args, options = {}) {
     }
     if (options.name !== undefined) {
         record.name = options.name;
+    }
+    if (options.site !== undefined) {
+        record.site = options.site;
+    }
+    if (options.fn !== undefined) {
+        record.fn = options.fn;
     }
     // 参数里的 Error 自带调用栈（抛出点），比这里的调用点更准，优先保留。
     if (options.stack !== undefined && record.stack === undefined) {

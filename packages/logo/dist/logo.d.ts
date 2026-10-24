@@ -12,7 +12,7 @@ export interface LoggerOptions {
     flushIntervalMs?: number;
     /** 缓冲上限（条）。默认 10000；写满立刻 flush，不丢记录。 */
     maxBuffer?: number;
-    /** 从哪个级别开始采集调用栈。默认 "error"；设 "off" 关闭。 */
+    /** 从哪个级别开始采集**完整**调用栈（调用点每级都有）。默认 "error"；设 "off" 关闭全栈。 */
     stackLevel?: Level | "off";
     /** 是否启用定时批量。默认取决于能否同步写 stdout。 */
     batch?: boolean;

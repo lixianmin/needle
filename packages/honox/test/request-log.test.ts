@@ -18,13 +18,13 @@ function setup() {
 }
 
 describe("createRequestLog", () => {
-  test("正常请求落两行，结束行带 status / durationMs / uid / rid", async () => {
+  test("正常请求落两行，结束行带 path / status / durationMs / uid / rid（method 已去掉）", async () => {
     const { app, records } = setup();
     app.get("/orders", (c) => c.json({ ok: true }));
     await app.request("/orders");
     expect(records.map((r) => r.msg)).toEqual(["-->", "<--"]);
     const end = records[1]!;
-    expect(end).toMatchObject({ method: "GET", path: "/orders", status: 200, uid: null, rid: "r1" });
+    expect(end).toMatchObject({ path: "/orders", status: 200, uid: null, rid: "r1" });
     expect(typeof end.durationMs).toBe("number");
   });
 

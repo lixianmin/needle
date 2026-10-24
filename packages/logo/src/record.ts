@@ -115,10 +115,14 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 }
 
 /** 这几个键由信封填写，业务数据不允许碰。 */
-const ENVELOPE_FIELDS = ["time", "level", "msg", "name"] as const;
+const ENVELOPE_FIELDS = ["time", "level", "msg", "name", "site", "fn"] as const;
 
 export interface BuildOptions {
   name?: string;
+  /** 调用点，如 `request-log.ts:28`。 */
+  site?: string;
+  /** 调用点所在函数名。 */
+  fn?: string;
   stack?: string;
   /** 注入时间，测试用。默认 `Date.now()`。 */
   time?: number;
@@ -132,7 +136,7 @@ export interface BuildOptions {
  *   2. Error 展开成 message + stack
  *   3. 其余一切拼成 msg（用空格分隔，与 console 一致）
  *
- * 信封字段（time/level/msg/name/stack）最后写入，因此永远压过同名业务字段。
+ * 信封字段（time/level/msg/name/site/fn/stack）最后写入，因此永远压过同名业务字段。
  */
 export function buildRecord(
   level: Level,
@@ -172,6 +176,12 @@ export function buildRecord(
   }
   if (options.name !== undefined) {
     record.name = options.name;
+  }
+  if (options.site !== undefined) {
+    record.site = options.site;
+  }
+  if (options.fn !== undefined) {
+    record.fn = options.fn;
   }
 
   // 参数里的 Error 自带调用栈（抛出点），比这里的调用点更准，优先保留。

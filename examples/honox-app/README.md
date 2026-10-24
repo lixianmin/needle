@@ -97,8 +97,8 @@ app/viper.ts     # 配置实例（viper 风格取值器）+ c.get 的键声明
 - 打两行日志，进 `-->`、出 `<--`，结束行带 `status`、`durationMs`、`uid`、`req`：
 
 ```
-[I] {"rid":"01JB...","method":"GET","path":"/me","msg":"-->"}
-[I] {"rid":"01JB...","method":"GET","path":"/me","status":200,"durationMs":1.9,"uid":"u1","msg":"<--"}
+[I] request-log.ts:23 [requestLog()] {"rid":"01JB...","path":"/me","msg":"-->"}
+[I] request-log.ts:35 [requestLog()] {"rid":"01JB...","path":"/me","status":200,"durationMs":1.9,"uid":"u1","msg":"<--"}
 ```
 
 日志走 `@needle/logo` 的批处理，进程被杀前可能还没刷出来——本地验证时给它 1~2 秒。

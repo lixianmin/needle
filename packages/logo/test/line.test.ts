@@ -28,6 +28,19 @@ describe("formatLine", () => {
   test("没有附加字段时是空对象", () => {
     expect(formatLine({ ...base })).toBe("2026-10-22T08:00:00 [I] {}");
   });
+
+  test("调用点与函数名进前缀（照 Go 版 logo），不进 JSON", () => {
+    const line = formatLine({ ...base, site: "request-log.ts:28", fn: "requestLog", msg: "-->" });
+    expect(line).toBe('2026-10-22T08:00:00 [I] request-log.ts:28 [requestLog()] {"msg":"-->"}');
+    expect(line).not.toContain('"site"');
+    expect(line).not.toContain('"fn"');
+  });
+
+  test("只有 site 没有 fn 时不出 [()]", () => {
+    expect(formatLine({ ...base, site: "main.ts:9", msg: "x" })).toBe(
+      '2026-10-22T08:00:00 [I] main.ts:9 {"msg":"x"}',
+    );
+  });
 });
 
 describe("parseLine", () => {

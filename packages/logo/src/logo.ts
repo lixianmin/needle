@@ -8,26 +8,66 @@ const DEFAULT_FLUSH_INTERVAL_MS = 100;
 /** 缓冲上限。达到就立刻 flush —— 用它兜住内存，而不是丢日志。 */
 const DEFAULT_MAX_BUFFER = 10_000;
 
+/** V8 帧：`    at fn (/a/b/file.ts:12:34)` 或 `    at /a/b/file.ts:12:34`。 */
+const FRAME_PATTERN = /^\s+at\s+(?:(.*?)\s+\()?(.*?):(\d+):(\d+)\)?\s*$/;
+
+interface Frame {
+  file: string;
+  line: number;
+  fn: string;
+}
+
+function parseFrame(line: string): Frame | undefined {
+  const match = FRAME_PATTERN.exec(line);
+  const file = match?.[2];
+  const lineText = match?.[3];
+  if (file === undefined || file === "" || lineText === undefined) {
+    return undefined;
+  }
+  return { file, line: Number(lineText), fn: match?.[1] ?? "" };
+}
+
+/** 只取文件名：与 Go 版 logo 的 FlagShortFile 同口径。不引 node:path，浏览器侧也要跑。 */
+function basename(file: string): string {
+  const slash = Math.max(file.lastIndexOf("/"), file.lastIndexOf("\\"));
+  return slash < 0 ? file : file.slice(slash + 1);
+}
+
 /**
- * 剪掉本库内部的栈帧，只留调用点。
+ * 剪掉本库内部的栈帧，只留调用方的。
  *
  * 不写死路径：本库的目录搬过几次，每搬一次固定正则就失效一次，症状是栈里冒出
- * captureStack 自己。改成拿第一帧（captureStack 所在文件）的目录当基准——同一目录下的帧
- * 都是内部帧，与目录布局无关。
+ * 自己。改成拿第一帧（本函数所在文件）的目录当基准——同一目录下的帧都是内部帧，
+ * 与目录布局无关。
  */
-function captureStack(): string {
-  const stack = new Error().stack ?? "";
-  const lines = stack.split("\n");
-  const self = /\((.*):\d+:\d+\)\s*$/.exec(lines[1] ?? "")?.[1];
-  const dir = self === undefined ? "" : self.slice(0, Math.max(self.lastIndexOf("/"), self.lastIndexOf("\\")));
-  if (dir === "") {
-    return stack;
+function externalFrames(): string[] {
+  const frames = (new Error().stack ?? "").split("\n").slice(1);
+  const origin = parseFrame(frames[0] ?? "");
+  if (origin === undefined) {
+    return frames;
   }
-
+  const file = origin.file;
+  const dir = file.slice(0, Math.max(file.lastIndexOf("/"), file.lastIndexOf("\\")));
+  if (dir === "") {
+    return frames;
+  }
   // Windows 的栈里是反斜杠，两种分隔符都试。
-  const inside = (line: string): boolean => line.includes(`${dir}/`) || line.includes(`${dir}\\`);
-  // 第一行是 "Error" 头，保留。
-  return lines.filter((line, index) => index === 0 || !inside(line)).join("\n");
+  return frames.filter((line) => !line.includes(`${dir}/`) && !line.includes(`${dir}\\`));
+}
+
+/** 调用点：`file.ts:12`。每条日志都要，所以每写一条构造一次 Error，这是明码代价。 */
+function callSiteOf(frames: readonly string[]): string | undefined {
+  const frame = parseFrame(frames[0] ?? "");
+  return frame === undefined ? undefined : `${basename(frame.file)}:${frame.line}`;
+}
+
+function functionOf(frames: readonly string[]): string | undefined {
+  return parseFrame(frames[0] ?? "")?.fn;
+}
+
+/** 完整调用栈：只有达到 stackLevel 的级别才带上，头一行保留 "Error"。 */
+function stackOf(frames: readonly string[]): string {
+  return ["Error", ...frames].join("\n");
 }
 
 export interface LoggerOptions {
@@ -43,7 +83,7 @@ export interface LoggerOptions {
   flushIntervalMs?: number;
   /** 缓冲上限（条）。默认 10000；写满立刻 flush，不丢记录。 */
   maxBuffer?: number;
-  /** 从哪个级别开始采集调用栈。默认 "error"；设 "off" 关闭。 */
+  /** 从哪个级别开始采集**完整**调用栈（调用点每级都有）。默认 "error"；设 "off" 关闭全栈。 */
   stackLevel?: Level | "off";
   /** 是否启用定时批量。默认取决于能否同步写 stdout。 */
   batch?: boolean;
@@ -189,9 +229,13 @@ function buildLogger(options: LoggerOptions, state: LoggerState): Logger {
     }
 
     const withStack = stackLevel !== "off" && LEVELS[recordLevel] >= LEVELS[stackLevel];
+    // 调用点每级都要（info/warn 也带）；全栈只给 stackLevel 及以上。
+    const frames = externalFrames();
     const built = buildRecord(recordLevel, args, {
       name: options.name,
-      stack: withStack ? captureStack() : undefined,
+      site: callSiteOf(frames),
+      fn: functionOf(frames),
+      stack: withStack ? stackOf(frames) : undefined,
       time: now(),
     });
 
