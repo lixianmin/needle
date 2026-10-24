@@ -10,7 +10,7 @@ export { createLarkSink } from "./sinks/lark.js";
 export type { LarkSink, LarkSinkOptions } from "./sinks/lark.js";
 export { buildRecord, safeStringify } from "./record.js";
 export type { BuildOptions } from "./record.js";
-export { LEVEL_HINTS, formatLine, parseLine } from "./line.js";
+export { LEVEL_HINTS, formatLine, formatPayload, parseLine } from "./line.js";
 export { UTC_OFFSET_MINUTES, formatTime } from "./line.js";
 export { displayNumber, formatDuration, toHuman } from "./human.js";
 export { LEVELS } from "./types.js";

@@ -32,7 +32,9 @@ app.all("/shell/*", (c) => shell.handler(c.req.raw));
 const server = serve({ fetch: app.fetch, port: 3000 });
 ```
 
-四处容易写错：
+五处容易写错：
+
+- **Bun 的 HTTP `idleTimeout` 默认只有 10 秒。** `Bun.serve()` 的 `HostnamePortServeOptions.idleTimeout`，实测 10 秒没数据就掐连接，客户端拿到 `ECONNRESET`（Shell 心跳因此定在 2 秒一次，短于它）。改心跳值之前先确认它仍小于链路上最短的 idle 超时。
 
 - **通配要盖住所有子路径。** Shell 的端点都在 `basePath` 下面：`/events`（SSE）、`/exec`（执行命令）、`/auth`（登录）、`/log/:name`（取日志文件）、`/health`。只把页面那一条交给 Shell，登录和命令全 404。
 - **有的框架通配不匹配基路径。** Hono 的 `/shell/*` 连 `/shell` 本身也命中（实测），一条就够；Express 4 的通配不匹配 `/shell`（实测 404），那种框架要再补一条 `app.all("/shell", ...)`。

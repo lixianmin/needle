@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import {
+  DEFAULT_HEARTBEAT_MS,
   createBroadcast,
   createSseResponse,
   parseTopicSpecs,
@@ -183,6 +184,35 @@ describe("createSseResponse", () => {
     const text = await readFor(response, 200);
     const pings = text.split("\n").filter((line) => line.startsWith(":"));
     expect(pings.length).toBeGreaterThanOrEqual(2);
+  });
+
+  test("默认心跳间隔必须短于 Bun 的 HTTP idleTimeout（10 秒）", () => {
+    // 实测（Bun 1.4.4）：默认 idleTimeout=10s，10 秒没数据就掐掉连接，客户端拿到
+    // ECONNRESET，面板表现为「连接失败：TypeError: network error」刷屏。
+    // 心跳比它长，就等于每 10 秒断一次。
+    expect(DEFAULT_HEARTBEAT_MS).toBeLessThan(10_000);
+  });
+
+  test("有日志在推的时候也照常发心跳（不做「空闲才发」的跳过）", async () => {
+    // 「空闲才发」会把实际间隔抖动到 2×heartbeatMs：tick 前脚刚写过就整轮不发，
+    // 正好踩在 10s 的 idleTimeout 线上。这里每 10ms 推一条日志，覆盖那个窗口。
+    const broadcast = createBroadcast();
+    const response = createSseResponse({
+      user: "admin",
+      title: "node",
+      version: TEST_VERSION,
+      commands,
+      topics: [],
+      broadcast,
+      heartbeatMs: 50,
+    });
+
+    const timer = setInterval(() => broadcast.sink([record("busy")]), 10);
+    const text = await readFor(response, 300);
+    clearInterval(timer);
+
+    const pings = text.split("\n").filter((line) => line.startsWith(":"));
+    expect(pings.length).toBeGreaterThanOrEqual(3);
   });
 });
 

@@ -6,8 +6,18 @@ import type { Command, Topic } from "./types.js";
 const MIN_INTERVAL_MS = 1000;
 const MAX_INTERVAL_MS = 60_000;
 
-/** 注释心跳。反向代理会切断长时间无数据的连接，注释行不影响事件流。 */
-const DEFAULT_HEARTBEAT_MS = 15_000;
+/**
+ * 注释心跳间隔（注释行不影响事件流，Shell 里不显示）。
+ *
+ * 必须短于链路上最短的「无数据即断开」超时。最短的那一个是应用服务器自己：
+ * `Bun.serve()` 的 HTTP `idleTimeout` 默认 10 秒（bun-types:
+ * HostnamePortServeOptions.idleTimeout），比 nginx 的 60 秒、多数负载均衡的 30 秒
+ * 都短。2 秒留 5 倍余量，代价是每个打开的面板每 2 秒 8 字节。
+ *
+ * 实测：Bun 1.4.4 + 默认 idleTimeout + 15 秒心跳，连接在第 10 秒被掐，
+ * 客户端拿到 ECONNRESET。
+ */
+export const DEFAULT_HEARTBEAT_MS = 2_000;
 
 /** 单条连接最多订阅多少个主题：`?topics=` 每条约 6 字节，16KB 的头能塞进几千个。 */
 const MAX_TOPIC_SPECS = 16;
@@ -165,15 +175,12 @@ export function createSseResponse(init: SseInit): Response {
 
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
-      let lastWrite = Date.now();
-
       const write = (chunk: string) => {
         if (closed) {
           return;
         }
         try {
           controller.enqueue(encoder.encode(chunk));
-          lastWrite = Date.now();
         } catch {
           // 唯一还绕开 teardown 的出口：不清定时器的话连接关了还在每秒读主题。
           teardown();
@@ -247,15 +254,12 @@ export function createSseResponse(init: SseInit): Response {
         );
       }
 
-      // 只在真正空闲时才发注释心跳：有日志或主题在推的时候不需要它。
-      // 中间层（nginx 默认 60s、多数负载均衡 30s）按"无数据"计算超时，
-      // 这一行是给它们看的，Shell 里不会显示。
+      // 无条件发，不做「空闲才发」：跳过逻辑会把实际间隔抖动到 2×heartbeatMs
+      //（tick 前脚刚写过就整轮不发），正好落到 Bun 的 10 秒 idleTimeout 上。
+      // 中间层（nginx 默认 60s、多数负载均衡 30s）与 Bun 都按「无数据」计时。
       timers.push(
         setInterval(() => {
           if (closed) {
-            return;
-          }
-          if (Date.now() - lastWrite < heartbeatMs) {
             return;
           }
           write(": ping\n\n");

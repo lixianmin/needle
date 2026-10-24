@@ -288,7 +288,7 @@ POST /exec   { "line": "log.list" }
 
 - `/exec` 请求体上限 4KB，超过直接 413。命令是手敲的，不应该有 MB 级请求。
 - 单条命令默认超时 10 秒，超时返回 504 + `{code:"gateway_timeout", message:"timeout"}`，防止一个卡住的命令占死连接。
-- SSE 空闲时才发注释心跳（`: ping`，默认 15 秒一次，期间有数据就不发）。反向代理按"无数据"计超时（nginx 默认 60 秒），这一行是给中间层看的，Shell 里不显示。
+- SSE **无条件**发注释心跳（`: ping`，默认 2 秒一次，有数据在推也发）。链路上每一跳都按“无数据”计超时，最短的那一跳是应用服务器自己：`Bun.serve()` 的 HTTP `idleTimeout` 默认 10 秒（nginx 60 秒、多数负载均衡 30 秒都比它长）。2 秒留 5 倍余量；“空闲才发”会把实际间隔抖动到 2 倍，正好踩在 10 秒线上。这一行是给中间层看的，Shell 里不显示。
 - 页面和接口必须同源（都在 `basePath` 下）。不做 CORS，因为 Shell 本来就不应该跨域暴露。
 - 日志文件链接不带凭证：点击时用 `Authorization` 头取回全文，再用 blob URL 在新窗口打开。把 token 放进 URL 会进地址栏、历史记录和访问日志，而且一旦签发就有时效——用户过一会儿再点就是 401。
 
@@ -458,6 +458,8 @@ interface Topic {
 | 调用栈 | `error` 行内直接展开 | 不用点开，读栈时不用离开上下文；`info` / `warn` 没有 `stack`（`stackLevel` 默认 `error`） |
 
 服务端不存历史：日志栏刷新即空，回看历史仍然用 `log.list`。
+
+**每行按落盘格式渲染**（`formatPayload`）：`[I] 文件:行 [函数()] {"rid":"…","path":"/shell","status":200}`——级别、位置、完整 JSON 三段都不省。只渲染 `msg` 的话，纯对象日志（请求日志就是 `log.info({ rid, path, status })`）在面板里只剩一个时间戳。栈是唯一例外：`error` 行在下面单独铺开，不重复进 JSON。
 
 配色用 Solarized Dark（Ethan Schoonover 那套），不自己调色：
 
