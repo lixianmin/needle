@@ -1,9 +1,21 @@
 import { afterAll, describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { writeXlsxObjects } from "hucre/xlsx";
-import { defineSheet, loadSheets } from "@needle/honox/excel";
+import { dirname, join } from "node:path";
+import { writeXlsx } from "hucre/xlsx";
+import { createMetadata } from "@needle/honox/excel";
+
+type Cell = string | number | null;
+
+interface FakeSheet {
+  name: string;
+  rows: Cell[][];
+}
+
+interface FakeFile {
+  file: string;
+  sheets: FakeSheet[];
+}
 
 const dirs: string[] = [];
 afterAll(() => {
@@ -12,108 +24,223 @@ afterAll(() => {
   }
 });
 
-async function fixture(sheetName: string, rows: Record<string, unknown>[]): Promise<string> {
-  const dir = mkdtempSync(join(tmpdir(), "honox-excel-"));
+/** 造一个元数据目录：每个 file 一个 xlsx，一个 xlsx 里可以有多张 sheet。 */
+async function metadataDir(files: FakeFile[]): Promise<string> {
+  const dir = mkdtempSync(join(tmpdir(), "honox-md-"));
   dirs.push(dir);
-  const file = join(dir, `${sheetName}.xlsx`);
-  writeFileSync(file, await writeXlsxObjects(rows as never, { sheetName }));
-  return file;
+  for (const entry of files) {
+    const output = await writeXlsx({ sheets: entry.sheets });
+    const target = join(dir, entry.file);
+    mkdirSync(dirname(target), { recursive: true });
+    writeFileSync(target, output);
+  }
+  return dir;
 }
 
-describe("defineSheet", () => {
+/** 单文件单表的简写。 */
+async function oneFile(name: string, rows: Cell[][], file = `${name}.xlsx`): Promise<string> {
+  return metadataDir([{ file, sheets: [{ name, rows }] }]);
+}
+
+describe("Template：按 sheet 名 + id 两级取数", () => {
   test("按 id 取单条与全表", async () => {
-    const file = await fixture("PlanA", [
-      { id: 1, name: "basic", quota: 10 },
-      { id: 2, name: "pro", quota: 100 },
+    const dir = await oneFile("BotTemplate", [
+      ["id", "name", "prompt"],
+      [1, "苏苏", "你是苏苏"],
+      [2, "毛毛", "你是大头的"],
     ]);
-    const sheet = defineSheet<{ id: number; name: string; quota: number }>({
-      file,
-      sheet: "PlanA",
-    });
-    await sheet.load();
-    expect(sheet.get(2)).toEqual({ id: 2, name: "pro", quota: 100 });
-    expect(sheet.get(99)).toBeUndefined();
-    expect(sheet.all()).toHaveLength(2);
+    const metadata = createMetadata();
+    await metadata.load(dir);
+
+    const bots = metadata.template<{ id: number; name: string; prompt: string }>("BotTemplate");
+    expect(bots.get(2)).toEqual({ id: 2, name: "毛毛", prompt: "你是大头的" });
+    expect(bots.get(99)).toBeUndefined();
+    expect(bots.all()).toHaveLength(2);
   });
 
   test("表头大写与空格归一成小写 trim", async () => {
-    const file = await fixture("PlanB", [{ id: 1, Name: "x" }]);
-    const sheet = defineSheet<Record<string, unknown>>({ file, sheet: "PlanB" });
-    await sheet.load();
-    expect(Object.keys(sheet.get(1) ?? {})).toContain("name");
+    const dir = await oneFile("BotTemplate", [
+      [" Id ", " Name "],
+      [1, "x"],
+    ]);
+    const metadata = createMetadata();
+    await metadata.load(dir);
+    expect(Object.keys(metadata.template("BotTemplate").get(1) ?? {})).toEqual(["id", "name"]);
   });
 
   test("空行跳过", async () => {
-    const file = await fixture("PlanK", [{ id: 1, name: "a" }, {}, { id: 2, name: "b" }]);
-    const sheet = defineSheet({ file, sheet: "PlanK" });
-    await sheet.load();
-    expect(sheet.all()).toHaveLength(2);
+    const dir = await oneFile("BotTemplate", [
+      ["id", "name"],
+      [1, "a"],
+      [null, null],
+      [2, "b"],
+    ]);
+    const metadata = createMetadata();
+    await metadata.load(dir);
+    expect(metadata.template("BotTemplate").all()).toHaveLength(2);
   });
 
-  test("缺 id 的行抛错并带行号", async () => {
-    const file = await fixture("PlanC", [{ id: 1, name: "a" }, { name: "no-id" }]);
-    const sheet = defineSheet({ file, sheet: "PlanC" });
-    await expect(sheet.load()).rejects.toThrow(/第 3 行/);
+  test("缺 id 的行抛错，带文件#sheet 与行号", async () => {
+    const dir = await oneFile("BotTemplate", [
+      ["id", "name"],
+      [1, "a"],
+      [null, "no-id"],
+    ]);
+    const metadata = createMetadata();
+    await expect(metadata.load(dir)).rejects.toThrow(/BotTemplate\.xlsx#BotTemplate 第 3 行 id 不是数字/);
   });
 
   test("非数字 id 抛错", async () => {
-    const file = await fixture("PlanD", [{ id: "a1", name: "x" }]);
-    const sheet = defineSheet({ file, sheet: "PlanD" });
-    await expect(sheet.load()).rejects.toThrow(/id/);
+    const dir = await oneFile("BotTemplate", [
+      ["id", "name"],
+      ["a1", "x"],
+    ]);
+    const metadata = createMetadata();
+    await expect(metadata.load(dir)).rejects.toThrow(/第 2 行 id 不是数字/);
   });
 
   test("重复 id 抛错", async () => {
-    const file = await fixture("PlanE", [
-      { id: 1, name: "a" },
-      { id: 1, name: "b" },
+    const dir = await oneFile("BotTemplate", [
+      ["id", "name"],
+      [1, "a"],
+      [1, "b"],
     ]);
-    const sheet = defineSheet({ file, sheet: "PlanE" });
-    await expect(sheet.load()).rejects.toThrow(/重复 id/);
+    const metadata = createMetadata();
+    await expect(metadata.load(dir)).rejects.toThrow(/重复 id：1（第 3 行）/);
   });
 
-  test("未加载时 get / all 抛错", async () => {
-    const file = await fixture("PlanF", [{ id: 1 }]);
-    const sheet = defineSheet({ file, sheet: "PlanF" });
-    expect(() => sheet.get(1)).toThrow(/loadSheets/);
-    expect(() => sheet.all()).toThrow(/loadSheets/);
+  test("同一文件里两张 Template 都能读", async () => {
+    const dir = await metadataDir([
+      {
+        file: "Templates.xlsx",
+        sheets: [
+          { name: "BotTemplate", rows: [["id", "name"], [1, "苏苏"]] },
+          { name: "ApcTemplate", rows: [["id", "name"], [7, "哪里桃"]] },
+        ],
+      },
+    ]);
+    const metadata = createMetadata();
+    const report = await metadata.load(dir);
+    expect(report.templates).toEqual(["BotTemplate", "ApcTemplate"]);
+    expect(metadata.template("BotTemplate").get(1)).toEqual({ id: 1, name: "苏苏" });
+    expect(metadata.template("ApcTemplate").get(7)).toEqual({ id: 7, name: "哪里桃" });
+  });
+});
+
+describe("Config：全局一份", () => {
+  test("取第一个非空数据行", async () => {
+    const dir = await oneFile("SelectApcConfig", [
+      ["select_apc1", "select_apc2"],
+      ["10|11", "1|9"],
+      ["不许用第二行", "x"],
+    ]);
+    const metadata = createMetadata();
+    await metadata.load(dir);
+    expect(metadata.config("SelectApcConfig").get()).toEqual({
+      select_apc1: "10|11",
+      select_apc2: "1|9",
+    });
   });
 
-  test("sheet 名默认取文件名", async () => {
-    const file = await fixture("PlanG", [{ id: 1 }]);
-    const sheet = defineSheet({ file });
-    expect(sheet.name).toBe("PlanG");
-    await sheet.load();
-    expect(sheet.get(1)).toBeDefined();
+  test("跳过空行取第一条有内容的", async () => {
+    const dir = await oneFile("GameConfig", [
+      ["online_limit"],
+      [null],
+      [30],
+    ]);
+    const metadata = createMetadata();
+    await metadata.load(dir);
+    expect(metadata.config("GameConfig").get()).toEqual({ online_limit: 30 });
   });
 
-  test("注册不存在的 sheet 抛错", async () => {
-    const file = await fixture("PlanH", [{ id: 1 }]);
-    const sheet = defineSheet({ file, sheet: "NoSuchSheet" });
-    await expect(sheet.load()).rejects.toThrow(/NoSuchSheet/);
+  test("没有数据行抛错", async () => {
+    const dir = await oneFile("EmptyConfig", [["online_limit"]]);
+    const metadata = createMetadata();
+    await expect(metadata.load(dir)).rejects.toThrow(/EmptyConfig.*没有数据行/s);
+  });
+});
+
+describe("目录扫描与后缀分派", () => {
+  test("非 Template/Config 结尾的 sheet 跳过，并出现在 report.skipped", async () => {
+    const dir = await metadataDir([
+      {
+        file: "Mixed.xlsx",
+        sheets: [
+          { name: "BotTemplate", rows: [["id", "name"], [1, "苏苏"]] },
+          { name: "SelectApcConfig", rows: [["select_apc1"], ["10|11"]] },
+          { name: "Readme", rows: [["note"], ["说明文字"]] },
+        ],
+      },
+    ]);
+    const metadata = createMetadata();
+    const report = await metadata.load(dir);
+    expect(report.templates).toEqual(["BotTemplate"]);
+    expect(report.configs).toEqual(["SelectApcConfig"]);
+    expect(report.skipped).toEqual(["Mixed.xlsx#Readme"]);
   });
 
-  test("文件缺失时 load 抛错带路径", async () => {
-    const sheet = defineSheet({ file: join(tmpdir(), "honox-missing.xlsx"), sheet: "Missing" });
-    await expect(sheet.load()).rejects.toThrow(/honox-missing\.xlsx/);
+  test("只扫目录本身，不看子目录里的表", async () => {
+    const dir = await metadataDir([
+      { file: "Top.xlsx", sheets: [{ name: "BotTemplate", rows: [["id"], [1]] }] },
+      { file: "sub/Nested.xlsx", sheets: [{ name: "ApcTemplate", rows: [["id"], [7]] }] },
+    ]);
+    const metadata = createMetadata();
+    const report = await metadata.load(dir);
+    expect(report.templates).toEqual(["BotTemplate"]);
   });
 
-  test("loadSheets 批量预载，任一失败就抛", async () => {
-    const file = await fixture("PlanJ", [{ id: 7, name: "j" }]);
-    const sheet = defineSheet({ file, sheet: "PlanJ" });
-    await loadSheets([sheet]);
-    expect(sheet.get(7)).toBeDefined();
-    await loadSheets([sheet]);
-    const bad = defineSheet({ file: join(tmpdir(), "honox-nope.xlsx"), sheet: "Nope" });
-    await expect(loadSheets([sheet, bad])).rejects.toThrow(/honox-nope\.xlsx/);
+  test("同名 sheet 出现在两个文件里直接报错", async () => {
+    const dir = await metadataDir([
+      { file: "A.xlsx", sheets: [{ name: "BotTemplate", rows: [["id"], [1]] }] },
+      { file: "B.xlsx", sheets: [{ name: "BotTemplate", rows: [["id"], [2]] }] },
+    ]);
+    const metadata = createMetadata();
+    await expect(metadata.load(dir)).rejects.toThrow(/sheet 名重复：BotTemplate/);
   });
 
-  test("同一文件的两个 sheet 都能读", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "honox-excel-"));
-    dirs.push(dir);
-    const file = join(dir, "multi.xlsx");
-    writeFileSync(file, await writeXlsxObjects([{ id: 1, a: "x" }], { sheetName: "First" }));
-    const first = defineSheet({ file, sheet: "First" });
-    await first.load();
-    expect(first.get(1)).toBeDefined();
+  test("目录不存在抛错带路径", async () => {
+    const missing = join(tmpdir(), "honox-md-does-not-exist");
+    const metadata = createMetadata();
+    await expect(metadata.load(missing)).rejects.toThrow(/元数据目录不存在或读不了/);
+  });
+});
+
+describe("句柄", () => {
+  test("未加载时取数据抛错", () => {
+    const metadata = createMetadata();
+    expect(() => metadata.template("BotTemplate").get(1)).toThrow(/尚未加载/);
+    expect(() => metadata.template("BotTemplate").all()).toThrow(/尚未加载/);
+    expect(() => metadata.config("SelectApcConfig").get()).toThrow(/尚未加载/);
+  });
+
+  test("名字写错时抛错，并列出已加载的 sheet", async () => {
+    const dir = await oneFile("BotTemplate", [["id"], [1]]);
+    const metadata = createMetadata();
+    await metadata.load(dir);
+    expect(() => metadata.template("BotTemplates").get(1)).toThrow(/没有 Template 表：BotTemplates.*BotTemplate/s);
+    expect(() => metadata.config("SelectApcConfig").get()).toThrow(/没有 Config 表：SelectApcConfig/);
+  });
+
+  test("句柄可以比 load 先建（md 文件在导入期就定义）", async () => {
+    const dir = await oneFile("BotTemplate", [["id", "name"], [1, "苏苏"]]);
+    const metadata = createMetadata();
+    const bots = metadata.template<{ id: number; name: string }>("BotTemplate");
+    await metadata.load(dir);
+    expect(bots.get(1)?.name).toBe("苏苏");
+  });
+
+  test("重复 load 整体替换，不残留上一份数据", async () => {
+    const first = await oneFile("BotTemplate", [["id", "name"], [1, "旧"]]);
+    const second = await metadataDir([
+      { file: "Other.xlsx", sheets: [{ name: "ApcTemplate", rows: [["id"], [7]] }] },
+    ]);
+    const metadata = createMetadata();
+    const bots = metadata.template("BotTemplate");
+    await metadata.load(first);
+    expect(bots.get(1)).toBeDefined();
+
+    const report = await metadata.load(second);
+    expect(report.templates).toEqual(["ApcTemplate"]);
+    expect(() => bots.get(1)).toThrow(/没有 Template 表：BotTemplate/);
   });
 });

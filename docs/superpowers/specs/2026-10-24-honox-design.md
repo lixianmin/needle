@@ -79,7 +79,7 @@ B 原本被认为和 HonoX 的文件路由冲突（HonoX 自己 `createApp()` �
 |---|---|
 | `xlsx`（SheetJS）同步读、真懒加载 | 调用形态与原项目一致，但 npm 停在 0.18.5 且有已知 CVE；新版只能从官方 CDN 装，锁文件指外链 |
 | `hucre` / `@jetstreamapp/simple-excel` + 真懒加载 | 两个库都只能异步读（zip 解压走 `DecompressionStream` / 流式），getter 必须变 async，每个调用点都要改 |
-| **`hucre` + 启动预载，getter 保持同步** | **选中**：`await loadSheets([...])` 一次，之后同步零 IO，业务侧与 rim.proxy 形态一致；代价是启动时多一次解析 |
+| **`hucre` + 启动预载，getter 保持同步** | **选中**：`await metadata.load(dir)` 一次，之后同步零 IO，业务侧与 rim.proxy 形态一致；代价是启动时多一次解析 |
 
 hucre 选它而不是 simple-excel：配置表就几张、几千行，用不上流式；`hucre/xlsx` 读路径约 34 KB gzip，simple-excel 是 508 KB 的流式引擎。
 
@@ -96,7 +96,7 @@ packages/honox/
   src/config.ts         # 合并/必填检查（纯逻辑，node 入口复用）
   src/node.ts           # loadConfig（读 YAML）
   src/mongo.ts          # createMongo / withTransaction
-  src/excel.ts          # defineSheet / loadSheets（读 Excel）
+  src/excel.ts          # createMetadata / Template / Config（扫目录读 Excel）
   test/*.test.ts
   tsconfig.build.json
 ```
@@ -247,7 +247,7 @@ export function createMongo(options: MongoOptions): Mongo;
 ```
 examples/honox-app/
   app/server.ts          # loadConfig({dir:"res/config"}) → createHonox(...) → 路由直接挂 → export default { port, hostname, fetch }
-  app/md/                # 一表一文件：bot-template.ts / apc-template.ts，index.ts 统一预载
+  app/md/                # 一表一文件（bot / apc / select-apc-config），index.ts 持有 manager
   res/config/common.yml  # 服务器端口/host、redis
   res/config/app_dev.yml # 只写与 common 不同的项（含本示例必填的 auth.secret）
   res/metadata/*.xlsx    # 模板表（见 8.11）
@@ -257,51 +257,80 @@ examples/honox-app/
 
 构建只有一步：`bun build app/server.ts --target=bun --outfile=dist/index.js`。Bun 认得 `export default { port, hostname, fetch }` 并在启动时自己 serve，所以 `dist/index.js` 是自包含产物（npm 依赖已打进去），运行镜像不带 `node_modules`；`res/` 走运行时 fs 读取（配置 + 模板表都在里面），需整目录拷进镜像。配置目录不是库默认的 `config`，示例显式传 `dir: "res/config"`。
 
-### 8.10 Excel 配置（`@needle/honox/excel`）
+### 8.10 Excel 元数据（`@needle/honox/excel`）
 
-来源是 rim.proxy 的 `app/unicorn/excel-utils.ts`：一张 sheet ↔ 一个模型、首行当表头（小写 + trim）、按 `id` 建索引、每个 sheet 一个 `getXxx(id)`。保留这套习惯，修掉它的四处 bug（`constructor.name` 压缩后失效、`size === 0` 当未加载哨兵、`Number(id)` 变 NaN 静默覆盖、同名 sheet 静默覆盖）。
+来源是 rim.proxy 的 `app/unicorn/excel-utils.ts` 与 rim.server 的 `app/md/init_md.go`。取两边的共识，再修掉 rim.proxy 的四处 bug（`constructor.name` 压缩后失效、`size === 0` 当未加载哨兵、`Number(id)` 变 NaN 静默覆盖、同名 sheet 静默覆盖）。
+
+**目录约定**：启动时扫描一个目录（示例是 `res/metadata`，不递归），按 **sheet 名后缀**分派：
+
+| 后缀 | 类型 | 语义 |
+|---|---|---|
+| `XxxTemplate` | `Template` | 按 id 取的单条数据；第一层 key 是 sheet 名，第二层是 id |
+| `XxxConfig` | `Config` | 全局一份的配置，取第一个非空数据行 |
+| 其它 | — | 不是元数据表，跳过并在启动日志里列出 |
+
+两级索引与 rim.server 同构：`routeTable: sheetName → 文件` 是扫描得到的，`templateTable: sheetName → Map<id, row>` 在预载时填好。**代码里不写文件名，也不写加载清单**——新增一张表只要 sheet 名按约定命名，`server.ts` 与 `app/md/index.ts` 都不用改。
 
 ```ts
-export interface SheetOptions {
-  /** xlsx 路径；相对路径按 process.cwd() 解析 */
-  file: string;
-  /** sheet 名；不给就用文件名去掉扩展名 */
-  sheet?: string;
-  /** id 列名，默认 "id" */
-  id?: string;
-}
-
-export interface Sheet<T> {
+export interface Template<T> {
   readonly name: string;
-  /** 未预载时抛错；找不到返回 undefined。 */
   get(id: number): T | undefined;
   all(): readonly T[];
-  /** 幂等；失败不留半加载状态。 */
-  load(): Promise<void>;
 }
 
-export function defineSheet<T extends Record<string, unknown>>(options: SheetOptions): Sheet<T>;
-/** 批量预载：逐个调 load()，任一失败则抛。 */
-export async function loadSheets(sheets: readonly Sheet<unknown>[]): Promise<void>;
+export interface Config<T> {
+  readonly name: string;
+  get(): T;
+}
+
+export interface MetadataReport {
+  readonly templates: readonly string[];
+  readonly configs: readonly string[];
+  readonly skipped: readonly string[];
+}
+
+export interface Metadata {
+  /** 扫描 dir（不递归），整体替换已加载的元数据。 */
+  load(dir: string): Promise<MetadataReport>;
+  template<T extends Record<string, unknown>>(name: string): Template<T>;
+  config<T extends Record<string, unknown>>(name: string): Config<T>;
+}
+
+export function createMetadata(): Metadata;
 ```
 
-- **绑定不用类名**：sheet 名显式写在 `defineSheet` 里（默认取文件名），模型只是泛型参数——运行时不 `new` 任何东西，打包压缩不影响。业务侧是 `const bot = botSheet.get(1)`。
-- **启动预载**：入口处 `await loadSheets([botSheet, textSheet])` 一次（HonoX 的 `app/server.ts` 顶层 await）。之后 getter 同步、零 IO。未预载就调 getter → 抛「Excel 尚未加载：先 await loadSheets()」。原因是 hucre 只能异步读（它用 `DecompressionStream` 解 xlsx 的 zip，见 §10）。
-- **没有全局注册表**：要加载哪些 sheet 由调用方列出来。好处是测试之间不串状态、多一份 sheet 不需隐式约定；代价是入口处多一行清单。
-- 同一文件只读一次：按解析后的绝对路径分组，读一次 workbook 后取各 sheet。
-- 表头：首行，`trim().toLowerCase()`（用 hucre `readXlsxObjects` 的 `transformHeader` + `skipEmptyRows: true`）。
-- `id` 只接受数字：缺 `id` 或非数字 → 抛错，消息带文件、sheet、Excel 行号（1 基，含表头）与原始值；重复 `id` → 抛错。行对象原样保留多余列。
-- sheet 名没写时取文件名；注册的 sheet 不存在 → 抛错。
-- 加载是原子的：任一 sheet 出错就整个 `load()` 抛，已加载状态不变（下次可重试）。
-- 导入用 `import { readXlsxObjects } from "hucre/xlsx"`（子入口，读 xlsx 约 34 KB gzip）。
+- **显式实例，不是模块级全局**：测试各建一个 `createMetadata()`，互不串状态；业务里常见写法是一个模块级 `export const metadata = createMetadata()`，由 `app/md/index.ts` 持有。
+- **句柄可以比 `load()` 先建**：`app/md/*.ts` 在导入期就 `metadata.template("BotTemplate")`，真正的数据在 `load()` 之后可读；未加载就取 → 抛「元数据尚未加载」。
+- **绑定不用类名**：Go 靠反射拿类型名当 sheet 名，TS 拿不到，所以 sheet 名显式写在 `template()` / `config()` 的参数里（大写原样，与文件里的 sheet 名逐字一致）。打包压缩不影响。
+- **启动预载**：`await metadata.load(config.metadata.base_url)` 一次。之后 getter 同步、零 IO。原因是 hucre 只能异步读（`DecompressionStream` 解 zip，见 §10）。
+- **原子加载**：先建新的表，全部成功才替换；任一 sheet 出错整体抛，旧的已加载状态不变（可重试）。
+- 同一文件只解析一次 zip，按绝对路径缓存 workbook。
+- 表头：首行 `trim().toLowerCase()`；`id` 只接受数字：缺 `id` 或非数字 → 抛错，消息带 `文件#sheet`、Excel 行号（1 基，含表头）与原始值；重复 `id` → 抛错；**同名 sheet 出现在两个文件里 → 抛错**（第一层索引只能用 sheet 名，必须唯一）。行对象原样保留多余列。
+- `Config` 取第一个非空数据行（与 go-excel 读单结构体同口径）；整张表没有数据行 → 抛错。
+- 扫描只认 `.xlsx` / `.xlsm`，按文件名排序遍历（报错与日志稳定）。
 
 ### 8.11 示例里的 Excel
 
-示例 app 带两张表：`res/metadata/BotTemplate.xlsx`（sheet `BotTemplate`，列 `id` / `name` / `prompt`）与 `res/metadata/ApcTemplate.xlsx`（sheet `ApcTemplate`，列 `id` / `equips` / `gender` / `name` / `buy_money` / `buy_price`；`equips` 是 `|` 分隔的装备 id 串，原样当字符串返回）。
+`res/metadata/` 下两张 xlsx、三张 sheet，全部靠 sheet 名后缀被自动发现：
 
-布局照 rim.proxy：`res/metadata/` 下一张表对应 `app/md/` 下一个文件，文件名 kebab-case。每个文件导出 `XxxTemplate` 类型、`defineSheet` 句柄和 `getXxxTemplate(id)` getter；`app/md/index.ts` 集中 `initTemplates()`（`await loadSheets([botTemplate, apcTemplate])`）并转出 getter。`app/server.ts` 只调 `await initTemplates()`，新增表不改它。
+| 文件 | sheet | 类型 | 列 |
+|---|---|---|---|
+| `BotTemplate.xlsx` | `BotTemplate` | Template | `id` / `name` / `prompt` |
+| `ApcTemplate.xlsx` | `ApcTemplate` | Template | `id` / `equips` / `gender` / `name` / `buy_money` / `buy_price` |
+| `ApcTemplate.xlsx` | `SelectApcConfig` | Config | `select_apc1..4`（`|` 分隔的候选 id 串） |
 
-`GET /bots/:id` 与 `GET /apc/:id` 各自调 `getXxxTemplate(Number(c.req.param("id")))`；找不到 id 返回 `ResponseX.notFound(...)`。`ApcTemplate.xlsx` 里另有一张 `SelectApcConfig`（无 `id` 列），不归 `defineSheet` 管，不加载。表不用脚本生成，直接用 Excel 维护。
+布局照 rim.server：一张表对应 `app/md/` 下一个文件（kebab-case），文件里只声明**类型 + sheet 名**，没有文件名也没有注册清单。
+
+- `app/md/index.ts`：`export const metadata = createMetadata()` + `initTemplates(dir)`（调用 `metadata.load(dir)` 并按 report 打一行启动日志）。
+- `app/md/bot-template.ts` / `apc-template.ts`：`metadata.template<Xxx>("BotTemplate")` + `getXxx(id)`。
+- `app/md/select-apc-config.ts`：`metadata.config<SelectApcConfig>("SelectApcConfig")` + `getSelectApcConfig()`。
+- `app/server.ts`：`await initTemplates(config.metadata.base_url)`（示例配置里是 `res/metadata`）。
+
+**新增一张表 = 在 `app/md/` 加一个文件**（需要路由就再加一个 `app.get`）；`index.ts` 与 `server.ts` 的模板相关代码都不用动。
+
+路由：`GET /bots/:id`、`GET /apc/:id` 调 `getXxx(Number(c.req.param("id")))`，找不到 id 返回 `ResponseX.notFound(...)`；`GET /select-apc` 返回那份 Config。表不用脚本生成，直接用 Excel 维护。
+
+注意：`metadata.base_url` 目前只支持本地目录。`app_fat.yml` 里它是 https 地址（rim.server 用来拉远端元数据），本库还没做远端拉取，跑 `ENV=fat` 会在加载时报目录不存在。
 
 ### 8.12 仓库接线
 
@@ -325,7 +354,7 @@ export async function loadSheets(sheets: readonly Sheet<unknown>[]): Promise<voi
 | `config.test.ts` | `common.yml` 缺失时跳过；`app_<env>.yml` 缺失时报错带路径与 ENV 值；深合并（对象递归、数组整体替换）；`APP_*` 覆盖嵌套字段；true/false/数字转换；`required` 缺失报错带字段路径 |
 | `mongo.test.ts` | `db()` 透传库名（不传时用连接串默认）；`withTransaction` 把 session 传给回调；`close()` 幂等；注入的 client 不被 close |
 | `shell-mount.test.ts` | `/shell` 返回 HTML；`/shell/*` 可用；白名单生效（不带 token 也能访问） |
-| `excel.test.ts` | 表头大小写/空格归一；空行跳过；`get` / `all`；缺 id、非数字 id、重复 id 各自抛错且消息带行号；未预载时 getter 抛；同一文件的多个 sheet 都能读；注册不存在的 sheet 抛；文件缺失抛带路径 || `entry.test.ts` | `exports` 四个入口都指向真实 dist 文件；按包名能拿到 `createHonox` / `loadConfig` / `createMongo` / `defineSheet` |
+| `excel.test.ts` | 后缀分派（Template / Config / 跳过）与 `report`；表头大小写/空格归一；空行跳过；`get` / `all`；缺 id、非数字 id、重复 id 各自抛错且消息带 `文件#sheet` + 行号；同名 sheet 跨文件冲突；未加载时 getter 抛；名字写错列已加载项；句柄先于 `load()` 建立；重复 `load()` 整体替换；目录不存在；同一文件多 sheet || `entry.test.ts` | `exports` 四个入口都指向真实 dist 文件；按包名能拿到 `createHonox` / `loadConfig` / `createMongo` / `createMetadata` |
 | `browser-safety.test.ts` | `./` 入口 `Bun.build({ target: "browser" })` 产物不含 `node:` / `require(` / `import(`（照抄 shell 的写法） |
 
 Mongo 测试用结构化 fake（`as unknown as MongoClient`），不依赖真实 mongod，不引 `mongodb-memory-server`。`mongodb` 进 devDependencies 供类型检查。
