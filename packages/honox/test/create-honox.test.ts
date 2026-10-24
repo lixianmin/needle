@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { newLogger, type LogRecord } from "@needle/logo";
 import { sign } from "hono/jwt";
 import { createHonox } from "../src/index.js";
+import { apiRoute } from "../src/middleware.js";
 
 const SECRET = "test-secret";
 
@@ -70,14 +71,34 @@ describe("createHonox", () => {
     const res = await app.request("/health");
     const id = res.headers.get("x-rid");
     expect(id).toBeTruthy();
-    expect(records.at(-1)).toMatchObject({ msg: "<--", rid: id });
+    expect(records.at(-1)).toMatchObject({ rid: id });
   });
 
   test("401 也落两条日志", async () => {
     const { app, records } = setup();
     await app.request("/me");
-    expect(records.filter((r) => r.msg === "-->")).toHaveLength(1);
-    expect(records.filter((r) => r.msg === "<--")).toHaveLength(1);
+    const requestLines = records.filter((r) => r.path === "/me");
+    expect(requestLines).toHaveLength(2);
+    // 进的那行没 status，出的那行有
+    expect(requestLines[0]?.status).toBeUndefined();
+    expect(requestLines[1]).toMatchObject({ status: 401 });
+  });
+
+  test("apiRoute：请求日志的位置指向 API 注册处，不是中间件那一行", async () => {
+    const records: LogRecord[] = [];
+    const log = newLogger({ sinks: [(batch) => records.push(...batch)], batch: false });
+    const app = createHonox({
+      config: {},
+      log,
+      auth: { secret: SECRET, public: ["/where"] },
+    });
+    app.get("/where", apiRoute((c) => c.json({ ok: true })));
+
+    await app.request("/where");
+
+    const end = records.at(-1)!;
+    expect(end.site).toMatch(/^create-honox\.test\.ts:\d+$/);
+    expect(end.fn).not.toBe("requestLog");
   });
 
   test("Shell 面板挂到 /shell，且不被门禁拦", async () => {

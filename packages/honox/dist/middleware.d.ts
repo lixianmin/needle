@@ -1,10 +1,21 @@
-import type { Logger } from "@needle/logo";
-import type { Hono, MiddlewareHandler } from "hono";
+import { type Logger } from "@needle/logo";
+import type { Handler, Hono, MiddlewareHandler } from "hono";
 import { type AuthOptions } from "./auth.js";
 import type { HonoxEnv, PublicEntry } from "./types.js";
 import type { Snowflake } from "./id.js";
 /**
- * 每请求两行：`-->` 进、`<--` 出。
+ * 给路由登记一个"这是哪个 API 文件"的位置。
+ *
+ * 请求日志是在中间件里打的，那一刻栈上只有 Hono 的 dispatch（handler 还没跑 /
+ * 已经返回），再怎么调 callerDepth 也指不到 handler 所在的文件。所以位置在
+ * **注册时**抓一次，存进 context，日志行直接用它。
+ *
+ * 用法：`app.get("/apc", apiRoute((c) => { ... }))`。
+ */
+export declare function apiRoute<T extends object>(handler: Handler<HonoxEnv<T>>): Handler<HonoxEnv<T>>;
+/**
+ * 每请求两行：进的那行只有 rid / path，出的一行额外带 status / durationMs / uid。
+ *（曾经用 `-->` / `<--` 当 msg，后来去掉：字段本身已经说明方向，箭头是噪音。）
  *
  * 结束行放在 finally 里，并读 `c.res.status`——这样门禁短路、404、抛错
  * 三种情况都有结束行；没有它，日志里会出现"有进无出"，看不出请求是卡住还是失败。

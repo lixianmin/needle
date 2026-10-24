@@ -94,7 +94,7 @@ function isPlainObject(value) {
     return proto === Object.prototype || proto === null;
 }
 /** 这几个键由信封填写，业务数据不允许碰。 */
-const ENVELOPE_FIELDS = ["time", "level", "msg", "name", "site", "fn"];
+const ENVELOPE_FIELDS = ["time", "level", "msg", "name"];
 /**
  * 把一次调用的参数变成一条记录。
  *
@@ -139,10 +139,12 @@ export function buildRecord(level, args, options = {}) {
     if (options.name !== undefined) {
         record.name = options.name;
     }
-    if (options.site !== undefined) {
+    // 调用方显式给的 site / fn 优先：请求日志要把位置标成"哪个 API 文件"
+    // （那一刻真实栈上是中间件，自动抓到的永远是中间件那一行）。
+    if (options.site !== undefined && record.site === undefined) {
         record.site = options.site;
     }
-    if (options.fn !== undefined) {
+    if (options.fn !== undefined && record.fn === undefined) {
         record.fn = options.fn;
     }
     // 参数里的 Error 自带调用栈（抛出点），比这里的调用点更准，优先保留。

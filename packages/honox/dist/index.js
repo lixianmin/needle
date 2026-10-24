@@ -44,4 +44,5 @@ export function createHonox(options) {
     }
     return app;
 }
+export { apiRoute } from "./middleware.js";
 export { createSnowflake, parseSnowflake } from "./id.js";

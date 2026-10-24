@@ -115,7 +115,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 }
 
 /** 这几个键由信封填写，业务数据不允许碰。 */
-const ENVELOPE_FIELDS = ["time", "level", "msg", "name", "site", "fn"] as const;
+const ENVELOPE_FIELDS = ["time", "level", "msg", "name"] as const;
 
 export interface BuildOptions {
   name?: string;
@@ -177,10 +177,12 @@ export function buildRecord(
   if (options.name !== undefined) {
     record.name = options.name;
   }
-  if (options.site !== undefined) {
+  // 调用方显式给的 site / fn 优先：请求日志要把位置标成"哪个 API 文件"
+  // （那一刻真实栈上是中间件，自动抓到的永远是中间件那一行）。
+  if (options.site !== undefined && record.site === undefined) {
     record.site = options.site;
   }
-  if (options.fn !== undefined) {
+  if (options.fn !== undefined && record.fn === undefined) {
     record.fn = options.fn;
   }
 

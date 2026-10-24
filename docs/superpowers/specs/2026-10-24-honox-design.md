@@ -153,13 +153,14 @@ export function createHonox<C extends Record<string, unknown>>(
 
 ### 8.4 每请求日志
 
-两个方向各一行，**直接走传进来的 logger**（默认就是全局 `logo`），不派生子 logger；
-`rid` 作为字段带上即可：
+每请求两行，**直接走传进来的 logger**（默认就是全局 `logo`），不派生子 logger；`rid` 作为字段带上。**没有 `-->` / `<--` 箭头**：字段本身已经说明方向（出的一行有 `status` / `durationMs`）。
 
 ```
-2026-10-24T16:25:23 [I] request-log.ts:23 [requestLog()] {"rid":"3zztnkjx7g000","path":"/health","msg":"-->"}
-2026-10-24T16:25:23 [I] request-log.ts:35 [requestLog()] {"rid":"3zztnkjx7g000","path":"/health","status":200,"durationMs":1.2,"uid":null,"msg":"<--"}
+2026-10-24T16:52:34 [I] middleware.ts:71 [requestLog()] {"rid":"02zcgfqmyyw00","path":"/health"}
+2026-10-24T16:52:34 [I] health.ts:7 {"rid":"02zcgfqmyyw00","path":"/health","status":200,"durationMs":1.3,"uid":null}
 ```
+
+- **结束行的位置是 API 文件**，不是中间件：由 `apiRoute()`（见 8.4.2）在路由注册时抓下 `文件:行` 存进 context。进的那一行在 handler 之前，拿不到这个位置，所以仍是中间件行。
 
 - 行格式照 rim.server 的 Go 版 logo：`日期T时间 [级别] 文件:行 [函数()] 载荷`。`site` / `fn` 只在前缀里，不进 JSON。
 - 前端不带 `method`：路径已经能定位接口，动词在 `-->` 用例里是噪音（删过一版，见 memory）。需要区分时看业务日志或网关侧。
@@ -187,7 +188,19 @@ export function createHonox<C extends Record<string, unknown>>(
 - **时钟回拨**：照原版 Snowflake 直接抛错，不静默产生更小的 id——B 树回头插正是要避免的页分裂。等时钟追上来会让请求卡住，所以不选等待。
 - 用途不限于 rid：业务实体 id 直接 `createSnowflake({ epoch, nodeId })`，两个进程只要 nodeId 不同就不会撞。
 
-### 8.4.2 调用点（`site` / `fn`）
+### 8.4.2 `apiRoute()`：把日志位置挪到 API 文件
+
+请求日志是在中间件里打的，那一刻栈上只有 Hono 的 `dispatch`（compose.js），**handler 根本不在栈上**——进的时候还没跑，出的时候已经返回。所以调多大的 callerDepth 都指不到 `app/api/apc.ts`。位置只能在**注册时**抓：
+
+```ts
+app.get("/apc", apiRoute((c) => { ... }));   // 捕获 apc.ts 的行号
+```
+
+`apiRoute` 用 `captureCallSite(1)`（跳过自己那一帧）拿到 `{ site, fn }`，handler 里 `c.set("api", where)`；请求日志在 finally 里读它，作为 `site`/`fn` 传给 logger。logo 的 `buildRecord` 里，**调用方显式给的 `site`/`fn` 优先**于自动抓的（与 `stack` 同一规则）。
+
+没包 `apiRoute` 的路由不会崩：拿不到 `api`，退回自动抓的中间件行。
+
+### 8.4.3 调用点（`site` / `fn`）与 callerDepth
 
 每条日志（不只 error）都抓一次调用点，格式 `file.ts:23` + 函数名，写进记录的 `site` / `fn`，
 由 `formatLine` 打进前缀。
@@ -195,6 +208,7 @@ export function createHonox<C extends Record<string, unknown>>(
 - 代价明码：每条日志构造一次 `Error` 取栈，比不抓贵一个量级；这是"必须能看出哪一行打的"换来的。
 - 完整栈仍只给 `stackLevel`（默认 `error`）及以上，其它级别只有一个调用点。
 - 剪帧规则与 Go 版一致：拿采集函数自己那一帧的目录当基准，同目录的帧都算内部帧。
+- `callerDepth`（对应 Go 版 logo 的 `SetFuncCallDepth`，`logger.child` 会继承）：包了 helper 时多跳过几帧。**注意它只能跳过"同目录之外"的帧**，越界会落到 Hono 的 `dispatch` 或调用方，所以别拿它来"找 API 文件"——那件事用 `apiRoute()`。
 
 ### 8.5 配置加载（`@needle/honox/node`）
 
