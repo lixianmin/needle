@@ -131,7 +131,7 @@ export function createHonox<C extends Record<string, unknown>>(
 
 **中间件顺序（库内固定，业务改不了）：**
 
-1. `rid`（请求 id）：入站 header 带了就沿用（`x-rid` 优先，其次网关常见的 `x-request-id`），没带才生成 **ULID**（26 位 Crockford Base32：10 位毫秒时间戳 + 16 位随机，可排序、能看出生成时间）。写进 `c.set("rid")` 与响应头 `x-rid`。入站值过白名单 `^[0-9A-Za-z._-]{1,64}$`，不合规就当作没带重新生成——它是直接进日志的字段，不加限制等于允许伪造日志行。
+1. `rid`（请求 id）：入站 header 带了就沿用（`x-rid` 优先，其次网关常见的 `x-request-id`），没带才生成 **Snowflake**（见 8.4.2，十进制字符串）。写进 `c.set("rid")` 与响应头 `x-rid`。入站值过白名单 `^[0-9A-Za-z._-]{1,64}$`，不合规就当作没带重新生成——它是直接进日志的字段，不加限制等于允许伪造日志行。
 2. 每请求日志（见 8.4）。
 3. 解 JWT：从 header 或 cookie 取 token，`hono/jwt` 的 `verify` 校验；失败**不抛**，只把 `uid` 设为 `null` 并记 `authError`。
 4. 门禁：命中白名单放行；否则 `uid === null` → `ResponseX.unauthorized(...)`。
@@ -157,8 +157,8 @@ export function createHonox<C extends Record<string, unknown>>(
 `rid` 作为字段带上即可：
 
 ```
-2026-10-24T16:25:23 [I] request-log.ts:23 [requestLog()] {"rid":"01M5...","path":"/health","msg":"-->"}
-2026-10-24T16:25:23 [I] request-log.ts:35 [requestLog()] {"rid":"01M5...","path":"/health","status":200,"durationMs":1.2,"uid":null,"msg":"<--"}
+2026-10-24T16:25:23 [I] request-log.ts:23 [requestLog()] {"rid":"107396354488102912","path":"/health","msg":"-->"}
+2026-10-24T16:25:23 [I] request-log.ts:35 [requestLog()] {"rid":"107396354488102912","path":"/health","status":200,"durationMs":1.2,"uid":null,"msg":"<--"}
 ```
 
 - 行格式照 rim.server 的 Go 版 logo：`日期T时间 [级别] 文件:行 [函数()] 载荷`。`site` / `fn` 只在前缀里，不进 JSON。
@@ -167,7 +167,21 @@ export function createHonox<C extends Record<string, unknown>>(
 - 抛错：`log.error({ err })` 记一条（带完整栈），然后**原样 rethrow**，交给业务的 `app.onError` 或 Hono 默认处理；`finally` 仍落 `<--`（此时 status 是 500）。
 - 结构化字段：`rid`、`path`、`status`、`durationMs`、`uid`。
 
-### 8.4.1 调用点（`site` / `fn`）
+### 8.4.1 Snowflake id（`src/id.ts`）
+
+```
+0 | 41 位毫秒（相对 epoch） | 10 位机器号 | 12 位序列
+```
+
+- **最高位留 0**：整个值落在 signed 64 位内，MySQL `BIGINT`、MongoDB `Long`（BSON int64，0x12）都能原样存。实测 BSON 往返数值精确（读回来是 `Long`，`toString()` 与原值一致）。
+- **JS 装不下**：`Number.MAX_SAFE_INTEGER` 是 2^53，63 位转 number 会失真，且 `JSON.stringify(1n)` 直接抛 `TypeError`。所以模块内一律 `bigint`，**交给前端/JSON 时必须 `.toString()`**。
+- **epoch 必须写死**（示例放 `server.epoch_ms`，2026-01-01T00:00:00Z）：用启动时间当 epoch 会让每次重启的时间位从 0 开始，id 直接重复。
+- **机器号**：0..1023。`nodeIdFromMac()`（`./node` 入口，读 `os.networkInterfaces()`，排序后 FNV-1a 取低 10 位）零配置；容器每次重建 MAC 会变，多实例请显式配。
+- **同一毫秒**：序列 +1，超过 4095 就自旋等下一毫秒（不丢号不重号）。
+- **时钟回拨**：照原版 Snowflake 直接抛错，不静默产生更小的 id——B 树回头插正是要避免的页分裂。等时钟追上来会让请求卡住，所以不选等待。
+- 用途不限于 rid：业务实体 id 直接 `createSnowflake({ epoch, nodeId })`，两个进程只要 nodeId 不同就不会撞。
+
+### 8.4.2 调用点（`site` / `fn`）
 
 每条日志（不只 error）都抓一次调用点，格式 `file.ts:23` + 函数名，写进记录的 `site` / `fn`，
 由 `formatLine` 打进前缀。
@@ -396,7 +410,7 @@ HTTP 接口按 `app/api/<name>.ts` 一接口一文件（照 rim.server 的 `app/
 
 | 文件 | 覆盖 |
 |---|---|
-| `ulid.test.ts` | 26 位 Crockford 字符集；前 10 位可解回毫秒；同毫秒不重复；时间晚的字典序更大；`isUlid` 拒 UUID / 小写 / 含 I·L·O·U |
+| `id.test.ts` | 位布局可解回三段；同毫秒序列递增；跨毫秒归零且整体递增；4096 个后等下一毫秒；时钟回拨抛错；不同 nodeId 不撞；nodeId 越界与早于 epoch 报错；十进制字符串往返 |
 | `auth.test.ts` | 有效 token 放行；缺失 / 无效 / 过期 → 401 且 code=unauthorized；白名单精确匹配与 method 限定；`:id` 与 `/*` 匹配（含基路径本身）；cookie 取 token；`claim` 可配 |
 | `request-log.test.ts` | 两行（`-->` / `<--`）；401 也有结束行；handler 抛错 → 落 error 且 rethrow、结束行 status 500；行里带 `rid` |
 | `config.test.ts` | `common.yml` 缺失时跳过；`app_<env>.yml` 缺失时报错带路径与 ENV 值；深合并（对象递归、数组整体替换）；`APP_*` 覆盖嵌套字段；true/false/数字转换；`required` 缺失报错带字段路径 |

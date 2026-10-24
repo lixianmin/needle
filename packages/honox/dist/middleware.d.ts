@@ -2,6 +2,7 @@ import type { Logger } from "@needle/logo";
 import type { Hono, MiddlewareHandler } from "hono";
 import { type AuthOptions } from "./auth.js";
 import type { HonoxEnv, PublicEntry } from "./types.js";
+import type { Snowflake } from "./id.js";
 /**
  * 每请求两行：`-->` 进、`<--` 出。
  *
@@ -19,6 +20,8 @@ export declare function createRequestLog(log: Logger): MiddlewareHandler<HonoxEn
 export interface MiddlewareOptions<C extends object> {
     /** 挂进 context，业务用 `c.get("config")` 取。 */
     config: C;
+    /** rid 生成器（没带 x-rid 时用）。 */
+    ids: Snowflake;
     log: Logger;
     /** 解 token 的密钥、claim、token 来源。 */
     auth: AuthOptions;

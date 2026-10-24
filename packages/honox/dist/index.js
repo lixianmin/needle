@@ -1,7 +1,10 @@
 import { logo } from "@needle/logo";
 import { createServerShell } from "@needle/shell";
 import { Hono } from "hono";
+import { createSnowflake } from "./id.js";
 import { installMiddleware } from "./middleware.js";
+/** rid 的默认纪元：2026-01-01T00:00:00Z。生产建议显式传自己的 epoch。 */
+const DEFAULT_EPOCH = Date.UTC(2026, 0, 1);
 function normalizeBasePath(basePath) {
     const trimmed = basePath.replace(/\/+$/, "");
     return trimmed === "" ? "" : trimmed;
@@ -31,6 +34,7 @@ export function createHonox(options) {
         config: options.config,
         log,
         auth: options.auth,
+        ids: createSnowflake(options.id ?? { epoch: DEFAULT_EPOCH, nodeId: 0 }),
         public: publicEntries,
     });
     if (shell !== null && shellBasePath !== null) {
@@ -40,3 +44,4 @@ export function createHonox(options) {
     }
     return app;
 }
+export { createSnowflake, parseSnowflake } from "./id.js";

@@ -61,7 +61,7 @@ describe("createHonox", () => {
       const res = await app.request("/health", { headers: { "x-rid": bad } });
       const id = res.headers.get("x-rid");
       expect(id).not.toBe(bad);
-      expect(id).toMatch(/^[0-9A-Z]{26}$/);
+      expect(id).toMatch(/^\d+$/);
     }
   });
 

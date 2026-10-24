@@ -2,11 +2,14 @@ import { type Logger } from "@needle/logo";
 import { type ServerShellOptions } from "@needle/shell";
 import { Hono } from "hono";
 import type { AuthOptions } from "./auth.js";
+import { type SnowflakeOptions } from "./id.js";
 import type { HonoxEnv } from "./types.js";
 export interface HonoxOptions<C extends object> {
     config: C;
     /** 默认 @needle/logo 的 logo 实例。 */
     log?: Logger;
+    /** rid 的 Snowflake 配置；epoch 与 nodeId 都该显式给（多实例必须不同 nodeId）。 */
+    id?: SnowflakeOptions;
     auth: AuthOptions;
     /** 传了就把 Shell 控制台挂到 shell.basePath（默认 "/shell"）。 */
     shell?: ServerShellOptions;
@@ -18,6 +21,8 @@ export interface HonoxOptions<C extends object> {
  */
 export declare function createHonox<C extends object>(options: HonoxOptions<C>): Hono<HonoxEnv<C>>;
 export type { Config } from "./config.js";
+export { createSnowflake, parseSnowflake } from "./id.js";
+export type { Snowflake, SnowflakeOptions } from "./id.js";
 export type { AuthOptions } from "./auth.js";
 export type { AuthErrorReason, HonoxEnv, PublicEntry } from "./types.js";
 //# sourceMappingURL=index.d.ts.map

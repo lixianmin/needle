@@ -4,6 +4,8 @@ metadata:
   base_url: res/metadata
 
 server:
+  # Snowflake 的时间起点：2026-01-01T00:00:00Z（写死，不能用启动时间）
+  epoch_ms: 1767225600000
   web_port: 8001
 
 redis:
