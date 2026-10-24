@@ -3,10 +3,9 @@
 # 日志配置：写进工作目录下的 log/（gitignored），Shell 的 log.list 读的就是这个目录
 logger:
   filter_level: debug          # debug / info / warn / error；写错启动就报错
-  # 飞书群机器人的 webhook 地址。地址就是密钥，仓库里留空；
-  # 本地要推用环境变量覆盖：APP_LOGGER__LARK_URL=https://open.feishu.cn/...
-  lark_url: ""
-  # lark_secret: ""            # 机器人开了「签名校验」才要
+  # 飞书群机器人的 webhook 地址
+  lark_url: "https://open.feishu.cn/open-apis/bot/v2/hook/REDACTED-WEBHOOK"
+  # secret: ""                # 机器人开了「签名校验」才要
 
 # 元数据配置
 metadata:
@@ -16,6 +15,11 @@ server:
   web_port: 8001
   shell_users:
     xmli: 123456
+
+# Shell 面板自己的签名密钥：与业务 JWT 的 auth.secret 分开，两边 token 不能串用。
+# PRO 刻意不写，强制 APP_SHELL__SECRET 注入。
+shell:
+  secret: dev-shell-secret-change-me
 
 redis:
   data_source: 127.0.0.1:6379
