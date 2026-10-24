@@ -157,8 +157,8 @@ export function createHonox<C extends Record<string, unknown>>(
 `rid` 作为字段带上即可：
 
 ```
-2026-10-24T16:25:23 [I] request-log.ts:23 [requestLog()] {"rid":"107396354488102912","path":"/health","msg":"-->"}
-2026-10-24T16:25:23 [I] request-log.ts:35 [requestLog()] {"rid":"107396354488102912","path":"/health","status":200,"durationMs":1.2,"uid":null,"msg":"<--"}
+2026-10-24T16:25:23 [I] request-log.ts:23 [requestLog()] {"rid":"3zztnkjx7g000","path":"/health","msg":"-->"}
+2026-10-24T16:25:23 [I] request-log.ts:35 [requestLog()] {"rid":"3zztnkjx7g000","path":"/health","status":200,"durationMs":1.2,"uid":null,"msg":"<--"}
 ```
 
 - 行格式照 rim.server 的 Go 版 logo：`日期T时间 [级别] 文件:行 [函数()] 载荷`。`site` / `fn` 只在前缀里，不进 JSON。
@@ -173,8 +173,14 @@ export function createHonox<C extends Record<string, unknown>>(
 0 | 41 位毫秒（相对 epoch） | 10 位机器号 | 12 位序列
 ```
 
-- **最高位留 0**：整个值落在 signed 64 位内，MySQL `BIGINT`、MongoDB `Long`（BSON int64，0x12）都能原样存。实测 BSON 往返数值精确（读回来是 `Long`，`toString()` 与原值一致）。
-- **JS 装不下**：`Number.MAX_SAFE_INTEGER` 是 2^53，63 位转 number 会失真，且 `JSON.stringify(1n)` 直接抛 `TypeError`。所以模块内一律 `bigint`，**交给前端/JSON 时必须 `.toString()`**。
+**对外只有字符串：定长 13 位小写 Crockford Base32**（`0-9a-z` 去掉 `i l o u`）。位运算内部用 `bigint`，但不外泄。
+
+- 为什么不给 bigint：63 位装不进 JS `number`（`Number.MAX_SAFE_INTEGER` 是 2^53），而 `JSON.stringify(1n)` 直接抛 `TypeError`。让 bigint 出库就得靠每个调用点记得 `String()`——忘一次就是 500 或悄悄截断，这种"靠记性"的约束不该存在。字符串形态写日志、进 JSON、存 Mongo / MySQL 都不用转。
+- 为什么定长：变长字符串的字典序 ≠ 数值序（`"9..."` 排在 `"10..."` 前面），新 id 会插到旧 id 之前 → 正是要避免的 B 树回头插 / 页分裂。13 位是 63÷5 向上取整（多出的 2 位恒 0）；ASCII 里 `0-9` 在 `a-z` 之前且字母升序，所以定长小写串直接比大小 = 数值比较。
+- **必须全小写**（库只输出小写）；解析侧不区分大小写，人工抄写/网关透传的大写也认得。
+- 存储建议：Mongo `_id` 用字符串（13 字节，和 `ObjectId` 的 12 字节同量级）；MySQL 用 `CHAR(13) CHARACTER SET ascii COLLATE ascii_bin`，别用默认的 utf8mb4（索引更宽、大小写不敏感）。
+- 参考数字：63 位塞进 signed 64 位没问题（实测 BSON int64 往返精确），但我们**不需要**那条路——字符串形态已经绕开了 JS 精度问题。
+- **生成路径不碰 bigint**：`%` / `/` 每次都要分配 bigint 对象，几十万次/秒下全是白烧的 GC。实现把 63 位拆成 hi(31) + lo(32) 两段用 number 位运算，落进一块复用的 `Uint8Array(13)`，最后一次 `String.fromCharCode` 出串——每次调用只产生一个字符串。实测 500k 次：405ns/个 → 244ns/个（约 -40%）。`decode` 仍用 bigint，它只在解析/测试里跑。
 - **epoch 必须写死**（示例放 `server.epoch_ms`，2026-01-01T00:00:00Z）：用启动时间当 epoch 会让每次重启的时间位从 0 开始，id 直接重复。
 - **机器号**：0..1023。`nodeIdFromMac()`（`./node` 入口，读 `os.networkInterfaces()`，排序后 FNV-1a 取低 10 位）零配置；容器每次重建 MAC 会变，多实例请显式配。
 - **同一毫秒**：序列 +1，超过 4095 就自旋等下一毫秒（不丢号不重号）。
