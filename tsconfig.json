@@ -21,6 +21,9 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true
   },
+  "exclude": [
+    "examples/honox-app"
+  ],
   "include": [
     "packages/*/src",
     "packages/*/test",

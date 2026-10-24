@@ -1,0 +1,27 @@
+{
+  "name": "@needle/honox",
+  "version": "0.3.11",
+  "description": "业务无关的 Hono 底座：配置 / JWT 鉴权 / 请求日志 / Mongo / Excel / Shell",
+  "type": "module",
+  "sideEffects": false,
+  "license": "MIT",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "@needle/logo": "workspace:*",
+    "@needle/shell": "workspace:*"
+  },
+  "peerDependencies": {
+    "hono": "^4"
+  },
+  "devDependencies": {
+    "hono": "^4.13.13"
+  }
+}

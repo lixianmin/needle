@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 /**
- * 把根 package.json 的 version 写进三个包。
+ * 把根 package.json 的 version 写进每个 workspace 包。
  *
  * `package.json` 不支持字段引用，所以单一来源只能靠机械同步：根的 version 是
  * 唯一真值，这里只负责搬过去；pre-commit 每次提交前跑，test/version-lock.test.ts
@@ -18,6 +18,7 @@ const targets = [
   "packages/got/package.json",
   "packages/logo/package.json",
   "packages/shell/package.json",
+  "packages/honox/package.json",
 ];
 
 let changed = 0;
