@@ -220,8 +220,13 @@ function render(file: string, ordered: readonly Model[], all: readonly Model[]):
     .map(([name, target]) => `import { ${name}Schema } from "${target}";`)
     .join("\n");
 
+  const registrations = ordered
+    .map((model) => `registerModel("${model.name}", ${model.name}Schema);`)
+    .join("\n");
+
   return `// 由 scripts/gen-models.ts 生成，勿手改。
 import { Type, type Static } from "@sinclair/typebox";
+import { registerModel } from "@needle/honox";
 import type { ${ordered.map((model) => model.name).join(", ")} } from "./${basename(file).replace(/\.ts$/, ".js")}";
 ${isEmpty(imports) ? "" : `${imports}\n`}
 ${fields.join("\n\n")}
@@ -230,6 +235,9 @@ ${fields.join("\n\n")}
 type Equals<A, B> = (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false;
 type Assert<T extends true> = T;
 ${ordered.map((model) => `type _${model.name}InSync = Assert<Equals<Static<typeof ${model.name}Schema>, ${model.name}>>;`).join("\n")}
+
+// 按类名注册，路由那边 modelSchema(Model) 查得到。
+${registrations}
 `;
 }
 

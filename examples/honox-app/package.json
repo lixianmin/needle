@@ -12,7 +12,8 @@
     "@needle/honox": "link:../../packages/honox",
     "@needle/logo": "link:../../packages/logo",
     "@needle/shell": "link:../../packages/shell",
-    "hono": "^4.13.13"
+    "hono": "^4.13.13",
+    "@sinclair/typebox": "^0.34.52"
   },
   "devDependencies": {
     "@types/bun": "^1.4.3",

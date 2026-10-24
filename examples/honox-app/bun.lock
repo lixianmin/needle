@@ -8,6 +8,7 @@
         "@needle/honox": "link:../../packages/honox",
         "@needle/logo": "link:../../packages/logo",
         "@needle/shell": "link:../../packages/shell",
+        "@sinclair/typebox": "^0.34.52",
         "hono": "^4.13.13",
       },
       "devDependencies": {
@@ -22,6 +23,8 @@
     "@needle/logo": ["@needle/logo@link:../../packages/logo", {}],
 
     "@needle/shell": ["@needle/shell@link:../../packages/shell", {}],
+
+    "@sinclair/typebox": ["@sinclair/typebox@0.34.52", "", {}, "sha512-XiMQh7qqVlxZzcVD+kkGMNGMzcTrDMLWI7S4x7z1MkCkbDPrekpZXEUK0eZqZFMuHQg2a2DZOcDIh9o5v3Gonw=="],
 
     "@types/bun": ["@types/bun@1.4.4", "", { "dependencies": { "bun-types": "1.4.4" } }, "sha512-9wkRDXUXK124pEnAutE6n/l18j+i9GC5IAHK8TmX/2nlySETmky0OU6yL5U8pW1AoKh++AN9auDCr647BfurjQ=="],
 
