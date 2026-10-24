@@ -6,14 +6,20 @@ import { createSnowflake, type SnowflakeOptions } from "./id.js";
 import { installMiddleware } from "./middleware.js";
 import type { HonoxEnv, PublicEntry } from "./types.js";
 
-/** rid 的默认纪元：2026-01-01T00:00:00Z。生产建议显式传自己的 epoch。 */
-const DEFAULT_EPOCH = Date.UTC(2026, 0, 1);
+/**
+ * rid 的默认纪元：2014-12-09T00:00:00Z。
+ *
+ * 写 ISO 串而不是 `Date.UTC(2014, 12, 9)`：后者月份是 0-based，字面值其实是
+ * 2015-01-09，差一个月——epoch 是写死的常量，写错了改回来就是 id 字典序断档。
+ * 生产建议显式传自己的 epoch。
+ */
+const DEFAULT_EPOCH = Date.parse("2014-12-09T00:00:00Z");
 
 export interface HonoxOptions {
   /** 请求日志用哪个 logger；默认 `@needle/logo` 的全局 `logo`。 */
   logger?: Logger;
-  /** rid 的 Snowflake 配置；epoch 与 nodeId 都该显式给（多实例必须不同 nodeId）。 */
-  id?: SnowflakeOptions;
+  /** rid 的 Snowflake 配置。默认 epoch 2014-12-09T00:00:00Z、机器号 0；多实例必须给不同 nodeId。 */
+  snowflake?: SnowflakeOptions;
   auth: AuthOptions;
   /** 传了就把 Shell 控制台挂到 shell.basePath（默认 "/shell"）。 */
   shell?: ServerShellOptions;
@@ -53,7 +59,7 @@ export function createHonox(options: HonoxOptions): Hono<HonoxEnv> {
   installMiddleware(app, {
     log,
     auth: options.auth,
-    ids: createSnowflake(options.id ?? { epoch: DEFAULT_EPOCH, nodeId: 0 }),
+    ids: createSnowflake(options.snowflake ?? { epoch: DEFAULT_EPOCH, nodeId: 0 }),
     public: publicEntries,
   });
 

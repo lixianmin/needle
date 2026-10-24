@@ -7,8 +7,8 @@ import type { HonoxEnv } from "./types.js";
 export interface HonoxOptions {
     /** 请求日志用哪个 logger；默认 `@needle/logo` 的全局 `logo`。 */
     logger?: Logger;
-    /** rid 的 Snowflake 配置；epoch 与 nodeId 都该显式给（多实例必须不同 nodeId）。 */
-    id?: SnowflakeOptions;
+    /** rid 的 Snowflake 配置。默认 epoch 2014-12-09T00:00:00Z、机器号 0；多实例必须给不同 nodeId。 */
+    snowflake?: SnowflakeOptions;
     auth: AuthOptions;
     /** 传了就把 Shell 控制台挂到 shell.basePath（默认 "/shell"）。 */
     shell?: ServerShellOptions;
