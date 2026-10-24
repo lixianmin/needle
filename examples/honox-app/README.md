@@ -89,9 +89,11 @@ app/api/
 app/viper.ts     # 配置实例（viper 风格取值器）+ c.get 的键声明
 ```
 
-新增一个接口：在 `app/api/` 加一个文件（`new Hono()` + `xxxApi.get(...)`），再到 `index.ts` 里 `app.route("/", xxxApi)` 一行。`app/main.ts` 不用动。
+新增一个接口：在 `app/api/` 加一个文件，内容就一行 `export const xxxApi = api("/x", handler)`，再到 `index.ts` 里 `app.route("/", xxxApi)`。`app/main.ts` 不用动。
 
-**每个 handler 包一层 `apiRoute(...)`**：`xxxApi.get("/x", apiRoute((c) => {...}))`。它把这个路由注册在哪个文件:行记进 context，请求日志结束行就会指到 `apc.ts:11` 而不是「中间件那一行」。忘了包也不会崩，只是那行位置退回中间件。
+`api()` 一起做了三件事：建子应用、登记 GET 路由、把「这个接口注册在哪个文件:行」记进 context（请求日志结束行因此指到 `apc.ts:6` 而不是中间件）。要别的动词传第三个参数：`api("/x", handler, "POST")`。
+
+已经有一堆路由的 Hono 实例、只想补位置时，用 `apiRoute(handler)` 单独包 handler。
 
 **rid 是 Snowflake**：入站带 `x-rid`（或 `x-request-id`）就沿用，没带才生成。位布局 `41 毫秒 | 10 机器号 | 12 序列`，epoch 取配置里的 `server.epoch_ms`（写死，不能用启动时间），机器号由 `nodeIdFromMac()` 从网卡 MAC 派生。id 对外是**定长 13 位小写 Crockford Base32 字符串**（`0-9a-z` 去掉 `i l o u`）：63 位装不进 JS number，而 `JSON.stringify(bigint)` 会抛，所以从生成那刻就是字符串——写日志、进 JSON、存 Mongo/MySQL 都不用转换。定长保证字典序 = 数值序（变长会让新 id 排到旧 id 前面，B 树回头插）。
 
