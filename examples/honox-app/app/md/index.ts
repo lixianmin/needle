@@ -5,7 +5,7 @@ import { createMetadata } from "@needle/honox/excel";
  * 第二层才是 id。
  *
  * 新增一张表 = 在 `app/md/` 加一个文件，用 `metadata.template/config` 声明；
- * 这个文件与 `server.ts` 都不用改——表是启动时扫目录发现的。
+ * 这个文件与 `app/main.ts` 都不用改——表是启动时扫目录发现的。
  */
 export const metadata = createMetadata();
 
