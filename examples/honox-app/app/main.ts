@@ -1,8 +1,8 @@
 import { createHonox } from "@needle/honox";
 import { logo } from "@needle/logo";
 import { registerApis } from "./api/index.js";
-// 模型注册表：生成物在这里被 import 一次，路由按类名就能查到 schema。
-import "./model/index.js";
+// bean 注册表：生成物在这里被 import 一次，路由按类名就能查到 schema。
+import "./beans/index.js";
 import { APP_VERSION, initLog } from "./logo.js";
 import { viper } from "./viper.js";
 import { initTemplates } from "./md/index.js";

@@ -9,8 +9,8 @@ bun run version:sync
 bun install --silent
 bun run build
 # model class → TypeBox schema：生成物跟 dist 一样随源码提交（spec §5.5）。
-if [ -d examples/honox-app/app/model ]; then
-  bun scripts/gen-models.ts examples/honox-app/app/model/*.ts
-  git add examples/honox-app/app/model/*.generated.ts
+if [ -d examples/honox-app/app/beans ]; then
+  bun scripts/gen-models.ts examples/honox-app/app/beans/*.ts
+  git add examples/honox-app/app/beans/*.generated.ts
 fi
 git add bun.lock packages/*/package.json packages/*/dist packages/shell/src/ui/script.generated.ts

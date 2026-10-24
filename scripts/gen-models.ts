@@ -108,6 +108,10 @@ function typeExpr(node: ts.TypeNode, models: Map<string, Model>, where: string):
 function collect(files: readonly string[]): Map<string, Model> {
   const models = new Map<string, Model>();
   for (const file of files) {
+    // 通配会把生成物自己也扫进来（`beans/*.ts`），跳过它。
+    if (file.endsWith(".generated.ts")) {
+      continue;
+    }
     const source = ts.createSourceFile(file, readFileSync(file, "utf8"), ts.ScriptTarget.ES2022, true);
     for (const statement of source.statements) {
       if (!ts.isClassDeclaration(statement) || statement.name === undefined) {
