@@ -1,0 +1,21 @@
+import type { MiddlewareHandler } from "hono";
+import type { HonoxEnv, PublicEntry } from "./types.js";
+export interface AuthOptions {
+    /** HS256 密钥 */
+    secret: string;
+    /** uid 取自哪个 claim，默认 "sub" */
+    claim?: string;
+    /** 默认 "authorization"（Bearer token） */
+    header?: string;
+    /** 可选：header 里没 token 时从这个 cookie 兜底 */
+    cookie?: string;
+    /** 白名单；空 = 全部要登录 */
+    public?: readonly PublicEntry[];
+}
+/** query 串不参与匹配：白名单记的是路由形状，不是某一次请求的完整 URL。 */
+export declare function matchesPublic(entries: readonly PublicEntry[], method: string, path: string): boolean;
+/**
+ * 解 token + 门禁，一个中间件做完：解析失败不抛错，只把 uid 留空，
+ * 让门禁统一决定 401。这样公开接口上带了个坏 token 也不会被拒。
+ */
+export declare function createAuth(options: AuthOptions): MiddlewareHandler<HonoxEnv>;
