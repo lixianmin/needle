@@ -1,5 +1,5 @@
 import { createApi, traceOf } from "@needle/honox";
-import { BotsBody, BotsQuery } from "../beans/index.js";
+import { BotsBody, BotsQuery } from "../beans/bots.js";
 import { getBotTemplate, getBotTemplates, type BotTemplate } from "../md/bot-template.js";
 import { viper } from "../viper.js";
 
