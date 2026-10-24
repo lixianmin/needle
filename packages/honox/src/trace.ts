@@ -23,7 +23,9 @@ const LEVELS = ["debug", "info", "warn", "error"] as const;
  *
  * 字段顺序：绑定字段在前、业务参数在后，同名时业务覆盖（与 logo 的「后写的赢」一致）。
  */
-export function traceOf(ctx: Context<HonoxEnv>, log: Logger = logo): Trace {
+export function traceOf(ctx: Context<HonoxEnv>, log?: Logger): Trace {
+  // 优先用本次请求装配的 logger（createHonox 传进来的），没有才退回全局 logo。
+  const write = log ?? ctx.get("log") ?? logo;
   const where = ctx.get("api");
   const base = {
     rid: ctx.get("rid"),
@@ -36,7 +38,7 @@ export function traceOf(ctx: Context<HonoxEnv>, log: Logger = logo): Trace {
   const trace = {} as Trace;
   for (const level of LEVELS) {
     trace[level] = (...args: unknown[]) => {
-      log[level](base, ...args);
+      write[level](base, ...args);
     };
   }
   return trace;

@@ -1,5 +1,6 @@
 import { nextUlid } from "@needle/got";
 import { createAuth } from "./auth.js";
+import { isRequestError } from "./request.js";
 /** 入站请求可以自带 rid：`x-rid` 优先，其次是网关常见的 `x-request-id`。 */
 const RID_HEADERS = ["x-rid", "x-request-id"];
 /**
@@ -7,6 +8,11 @@ const RID_HEADERS = ["x-rid", "x-request-id"];
  * 不加这道限制，请求头里塞换行就能伪造日志行（log injection）。
  */
 const RID_PATTERN = /^[0-9A-Za-z._-]{1,64}$/;
+/**
+ * 慢请求阈值默认值。1000ms 是「人肉等待仍可接受」的上界，也覆盖了慢数据库
+ * 往返的典型量级；更小的值会把正常请求也刷成 warn。
+ */
+export const DEFAULT_SLOW_MS = 1000;
 function resolveRid(header) {
     for (const name of RID_HEADERS) {
         const value = header(name);
@@ -22,71 +28,70 @@ function resolveRid(header) {
 function elapsedMs(start) {
     return Math.round((performance.now() - start) * 10) / 10;
 }
+/** 路由注册时记下的模块身份（没包 createApi / apiRoute 就没有）。 */
+function moduleOf(c) {
+    const where = c.get("api");
+    return where === undefined ? {} : { module: where.module };
+}
 /**
- * 每请求两行：进的那行只有 rid / path，出的一行额外带 status / durationMs / uid。
- *（曾经用 `-->` / `<--` 当 msg，后来去掉：字段本身已经说明方向，箭头是噪音。）
+ * 只兜两种业务补不了的日志：500 和慢请求。其余请求一律不记——打什么由业务
+ * 用 `traceOf(ctx)` 自己决定（health 这类接口本来就该是零日志）。
  *
- * 结束行放在 finally 里，并读 `c.res.status`——这样门禁短路、404、抛错
- * 三种情况都有结束行；没有它，日志里会出现"有进无出"，看不出请求是卡住还是失败。
+ * 500 的日志放在这里而不是 `onError`：业务可以自己 `app.onError`（单槽替换），
+ * 替换掉之后库里的日志就没了；而 `c.error` 是 compose 写的，与谁处理无关。
  *
- * 错误有两个来源：`c.error`（Error 抛出被 compose 就地交给 onError）和 catch
- * （非 Error 抛出、onError 自身抛错、自定义 notFound 抛错都会真的穿过来）。
- * 少了 catch 那一路，日志会漏掉错误；而 `c.res` 在没 finalize 时读到的是惰性 200，
- * 会把 500 记成 200。500 的响应体长什么样仍由业务决定，本库不插手。
- *
- * 导出它是为了单独测日志行为；业务侧应该只调 installMiddleware。
+ * 非 Error 抛出不会进 `onError`（compose 只认 `instanceof Error`），会穿到这里，
+ * 所以 catch 那一路也必须记一条，然后原样 rethrow。
  */
-export function createRequestLog(log) {
-    return async function requestLog(c, next) {
-        // 直接用传进来的 logger（默认就是全局 logo），不派生子 logger：
-        // rid 作为字段带上就够了，多一个对象只会让「日志从哪来」多一层。
-        const rid = c.get("rid");
-        const path = c.req.path;
+function createFallbackLog(log, slowMs) {
+    return async function fallbackLog(c, next) {
         const started = performance.now();
-        // 路由注册时记下的位置（没包 apiRoute 就是 undefined，退回自动抓的中间件行）。
-        // 进的那一行还在 handler 之前，拿不到；出的那一行在 finally 里读，能拿到。
-        function origin() {
-            const where = c.get("api");
-            return where === undefined ? {} : { site: where.site, fn: where.fn };
-        }
-        log.info({ rid, path, ...origin() });
+        const base = () => ({
+            rid: c.get("rid"),
+            method: c.req.method,
+            path: c.req.path,
+            ...moduleOf(c),
+        });
         try {
             await next();
-            if (c.error !== undefined) {
-                log.error(c.error);
-            }
         }
         catch (error) {
-            log.error(error);
+            log.error({ ...base(), status: 500 }, error);
             throw error;
         }
-        finally {
-            log.info({
-                rid,
-                path,
-                ...origin(),
-                // 没 finalize 时 c.res 的 getter 会造一个 200 的空响应，那会把失败记成功。
-                status: c.finalized ? c.res.status : 500,
-                durationMs: elapsedMs(started),
-                uid: c.get("uid"),
-            });
+        const durationMs = elapsedMs(started);
+        const uid = c.get("uid");
+        // 没 finalize 时读 c.res 会惰性造一个 200，那会把失败记成成功。
+        const status = c.finalized ? c.res.status : 500;
+        if (c.error !== undefined) {
+            // 客户端传错参数不是服务端故障：onError 已经把它映射成 4xx。
+            if (isRequestError(c.error)) {
+                return;
+            }
+            log.error({ ...base(), status, durationMs, uid }, c.error);
+            return;
+        }
+        // error 行已经带 durationMs，慢请求只补没出错的那一路，避免一次慢失败记两条。
+        if (slowMs > 0 && durationMs >= slowMs) {
+            log.warn({ ...base(), status, durationMs, uid });
         }
     };
 }
 /**
- * 依次装上 rid → 请求日志 → JWT → 门禁，顺序由库固定。
+ * 依次装上 rid → 兜底日志 → JWT → 门禁，顺序由库固定。
  *
- * 顺序不能交给业务：日志排在门禁前面，401 才有结束行；JWT 排在门禁前面，
- * 门禁才看得到 uid。这两个顺序错一个，症状都很隐蔽（"日志偶尔少一行"）。
+ * 顺序不能交给业务：日志排在门禁前面，401 才有日志；JWT 排在门禁前面，
+ * 门禁才看得到 uid。这两个顺序错一个，症状都很隐蔽。
  */
 export function installMiddleware(app, options) {
     app.use("*", async (c, next) => {
         // 调用方带了就用它的（网关/上游的链路 id 才能串起来），没带才自己生成。
         const rid = resolveRid((name) => c.req.header(name));
         c.set("rid", rid);
+        c.set("log", options.log);
         await next();
         c.header("x-rid", rid);
     });
-    app.use("*", createRequestLog(options.log));
-    app.use("*", createAuth(options.auth, options.public));
+    app.use("*", createFallbackLog(options.log, options.slowMs ?? DEFAULT_SLOW_MS));
+    app.use("*", createAuth(options.auth, options.public, options.log));
 }

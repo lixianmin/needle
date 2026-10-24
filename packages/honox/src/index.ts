@@ -1,8 +1,9 @@
 import { logo, type Logger } from "@needle/logo";
-import { createServerShell, type ServerShellOptions } from "@needle/shell";
+import { ResponseX, createServerShell, type ServerShellOptions } from "@needle/shell";
 import { Hono, type Context } from "hono";
 import type { AuthOptions } from "./auth.js";
 import { installMiddleware } from "./middleware.js";
+import { isRequestError } from "./request.js";
 import type { HonoxEnv, PublicEntry } from "./types.js";
 
 export interface HonoxOptions {
@@ -12,6 +13,11 @@ export interface HonoxOptions {
   auth: AuthOptions;
   /** 传了就把 Shell 控制台挂到 shell.basePath（默认 "/shell"）。 */
   shell?: ServerShellOptions;
+  /**
+   * 慢请求阈值（毫秒），0 关闭。默认 1000：够长，正常接口不会被刷成 warn；
+   * 够短，慢数据库往返跑不掉。请求日志其余部分由业务用 `traceOf(ctx)` 自己写。
+   */
+  slowMs?: number;
 }
 
 /**
@@ -57,11 +63,32 @@ export function createHonox(options: HonoxOptions): HonoxApp {
   const publicEntries: PublicEntry[] =
     shellBasePath === null ? [] : [shellBasePath, `${shellBasePath}/*`];
 
-  // 中间件链（rid → 请求日志 → JWT → 门禁）全在 middleware.ts，顺序由库固定。
+  // 中间件链（rid → 兜底日志 → JWT → 门禁）全在 middleware.ts，顺序由库固定。
   installMiddleware(app, {
     log,
     auth: options.auth,
     public: publicEntries,
+    slowMs: options.slowMs,
+  });
+
+  // 没命中任何路由：业务补不了，库记。
+  app.notFound((c) => {
+    log.info({
+      rid: c.get("rid"),
+      method: c.req.method,
+      path: c.req.path,
+      status: 404,
+    });
+    return ResponseX.notFound("接口不存在");
+  });
+
+  // 只做映射，不记日志——500 的日志由中间件的兜底层统一记（业务替换 onError
+  // 也不会丢），这里再记一次就是两条。
+  app.onError((error) => {
+    if (isRequestError(error)) {
+      return ResponseX.fail(error.status, error.code, error.message);
+    }
+    return ResponseX.internalError("服务内部错误");
   });
 
   if (shell !== null && shellBasePath !== null) {
@@ -86,3 +113,9 @@ export { apiRoute, createApi } from "./route.js";
 export type { ApiHandler } from "./route.js";
 export type { AuthOptions } from "./auth.js";
 export type { AuthErrorReason, HonoxEnv, PublicEntry } from "./types.js";
+export { RequestError, isRequestError } from "./request.js";
+export { traceOf } from "./trace.js";
+export type { Trace } from "./trace.js";
+export { modelSchema, registerModel } from "./model.js";
+export type { ModelClass } from "./model.js";
+export type { ParsedHandler } from "./route.js";

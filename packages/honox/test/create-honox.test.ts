@@ -3,6 +3,7 @@ import { newLogger, type LogRecord } from "@needle/logo";
 import { sign } from "hono/jwt";
 import { createHonox } from "../src/index.js";
 import { apiRoute, createApi } from "../src/route.js";
+import { traceOf } from "../src/trace.js";
 
 /** 26 位大写 Crockford：rid 用 ULID，时间在前 48 位（前 10 个字符）。 */
 const ULID_PATTERN = /^[0-9A-HJKMNP-TV-Z]{26}$/;
@@ -91,50 +92,57 @@ describe("createHonox", () => {
     expect(Math.abs(ulidTime(rid) - before)).toBeLessThan(60_000);
   });
 
-  test("响应头有 x-rid，且与结束日志的 rid 一致", async () => {
+  test("响应头有 x-rid，业务日志里的 rid 与它一致", async () => {
     const { app, records } = setup();
-    const res = await app.request("/health");
+    app.allowAnonymous(["/logged"]);
+    app.get("/logged", (c) => {
+      traceOf(c).info({ note: "hi" });
+      return c.json({ ok: true });
+    });
+
+    const res = await app.request("/logged");
+
     const id = res.headers.get("x-rid");
     expect(id).toBeTruthy();
-    expect(records.at(-1)).toMatchObject({ rid: id });
+    expect(records).toHaveLength(1);
+    expect(records[0]).toMatchObject({ rid: id, note: "hi", method: "GET", path: "/logged" });
   });
 
-  test("401 也落两条日志", async () => {
-    const { app, records } = setup();
-    await app.request("/me");
-    const requestLines = records.filter((r) => r.path === "/me");
-    expect(requestLines).toHaveLength(2);
-    // 进的那行没 status，出的那行有
-    expect(requestLines[0]?.status).toBeUndefined();
-    expect(requestLines[1]).toMatchObject({ status: 401 });
-  });
-
-  test("apiRoute：请求日志的位置指向 API 注册处，不是中间件那一行", async () => {
+  test("apiRoute：日志里的位置指向 API 注册处，不是中间件那一行", async () => {
     const records: LogRecord[] = [];
     const log = newLogger({ sinks: [(batch) => records.push(...batch)], batch: false });
-    const app = createHonox({
-      logger: log,
-      auth: { secret: SECRET },
-    });
+    const app = createHonox({ logger: log, auth: { secret: SECRET } });
     app.allowAnonymous(["/where"]);
-    app.get("/where", apiRoute("api/where", (c) => c.json({ ok: true })));
+    app.get(
+      "/where",
+      apiRoute("api/where", (c) => {
+        traceOf(c, log).info({ note: "where" });
+        return c.json({ ok: true });
+      }),
+    );
 
     await app.request("/where");
 
-    const end = records.at(-1)!;
-    expect(end.site).toMatch(/^create-honox\.test\.ts:\d+$/);
-    expect(end.fn).not.toBe("requestLog");
+    expect(records).toHaveLength(1);
+    expect(records[0]?.module).toBe("api/where");
+    expect(records[0]?.site).toMatch(/^create-honox\.test\.ts:\d+$/);
   });
 
-  test("createApi()：一个组挂多条路由，每条都记住自己的注册位置", async () => {
+  test("createApi(module)：每条路由各自记住注册位置，日志带 module", async () => {
     const records: LogRecord[] = [];
     const log = newLogger({ sinks: [(batch) => records.push(...batch)], batch: false });
     const app = createHonox({ logger: log, auth: { secret: SECRET } });
     app.allowAnonymous(["/one", "/two"]);
 
     const group = createApi("api/group");
-    group.get("/one", (c) => c.json({ ok: 1 }));
-    group.post("/two", (c) => c.json({ ok: 2 }));
+    group.get("/one", (c) => {
+      traceOf(c, log).info({ note: "one" });
+      return c.json({ ok: 1 });
+    });
+    group.post("/two", (c) => {
+      traceOf(c, log).info({ note: "two" });
+      return c.json({ ok: 2 });
+    });
     app.route("/", group);
 
     await app.request("/one");
@@ -142,6 +150,8 @@ describe("createHonox", () => {
     await app.request("/two", { method: "POST" });
     const second = records.at(-1);
 
+    expect(first?.module).toBe("api/group");
+    expect(second?.module).toBe("api/group");
     expect(first?.site).toMatch(/^create-honox\.test\.ts:\d+$/);
     expect(second?.site).toMatch(/^create-honox\.test\.ts:\d+$/);
     // 两条路由的注册行不同，说明是分别抓的，不是复用第一条

@@ -10,6 +10,11 @@ export interface HonoxOptions {
     auth: AuthOptions;
     /** 传了就把 Shell 控制台挂到 shell.basePath（默认 "/shell"）。 */
     shell?: ServerShellOptions;
+    /**
+     * 慢请求阈值（毫秒），0 关闭。默认 1000：够长，正常接口不会被刷成 warn；
+     * 够短，慢数据库往返跑不掉。请求日志其余部分由业务用 `traceOf(ctx)` 自己写。
+     */
+    slowMs?: number;
 }
 /**
  * `createHonox` 的返回值：Hono 实例 + 白名单声明入口。
@@ -36,4 +41,10 @@ export { apiRoute, createApi } from "./route.js";
 export type { ApiHandler } from "./route.js";
 export type { AuthOptions } from "./auth.js";
 export type { AuthErrorReason, HonoxEnv, PublicEntry } from "./types.js";
+export { RequestError, isRequestError } from "./request.js";
+export { traceOf } from "./trace.js";
+export type { Trace } from "./trace.js";
+export { modelSchema, registerModel } from "./model.js";
+export type { ModelClass } from "./model.js";
+export type { ParsedHandler } from "./route.js";
 //# sourceMappingURL=index.d.ts.map

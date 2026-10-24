@@ -88,7 +88,9 @@ export interface Trace {
 - 生成时把 `rid` / `uid` / `method` / `path` / `module` / `site` / `fn` 从 `ctx` 取干净，之后打日志不再碰 `ctx`。
 - 每次调用等价于 `log[level](base, ...args)`：**绑定字段在前、业务参数在后**，同名时业务覆盖（与 logo「后写的赢」一致）。
 - 不往 `Context` 上挂任何东西（`c.error` 已被 Hono 占用；挂 `c.log` 又要声明合并污染所有 `Context`）。
-- 用注入的 logger，不是全局 `logo`——`installMiddleware` 那份传进来。
+- 用装配时注入的 logger：`installMiddleware` 把 `log` 写进 `ctx`（`HonoxEnv.Variables.log`），
+  `traceOf` 读它，没有才退回全局 `logo`。这是「日志不进 request context」那条决策的唯一例外——
+  否则 `createHonox({ logger })` 配的实例会被业务日志绕过，日志跑到两个地方去。
 - `module` 只在 `createApi` / `apiRoute` 注册过的路由上有；裸 `app.get` 没有（见 §8）。
 
 ### 5.3 库内兜底日志

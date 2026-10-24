@@ -1,3 +1,4 @@
+import type { Logger } from "@needle/logo";
 import type { MiddlewareHandler } from "hono";
 import type { HonoxEnv, PublicEntry } from "./types.js";
 export interface AuthOptions {
@@ -19,5 +20,5 @@ export declare function matchesPublic(entries: readonly PublicEntry[], method: s
  * 白名单是第二个参数而不是 options 的字段：它是策略，不是「怎么解 token」的配置。
  * 传数组引用（不是拷贝），调用方后续往里 append 的条目对每个请求都生效。
  */
-export declare function createAuth(options: AuthOptions, entries: readonly PublicEntry[]): MiddlewareHandler<HonoxEnv>;
+export declare function createAuth(options: AuthOptions, entries: readonly PublicEntry[], log: Logger): MiddlewareHandler<HonoxEnv>;
 //# sourceMappingURL=auth.d.ts.map
