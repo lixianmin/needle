@@ -6,9 +6,7 @@
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "skipLibCheck": true,
-    "jsx": "react-jsx",
-    "jsxImportSource": "hono/jsx",
     "types": ["bun"]
   },
-  "include": ["app", "scripts", "vite.config.ts"]
+  "include": ["app"]
 }

@@ -4,21 +4,17 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "vite build",
+    "build": "bun build app/server.ts --target=bun --outfile=dist/index.js",
     "start": "bun dist/index.js"
   },
   "dependencies": {
     "@needle/honox": "link:../../packages/honox",
     "@needle/logo": "link:../../packages/logo",
     "@needle/shell": "link:../../packages/shell",
-    "hono": "^4.13.13",
-    "honox": "^0.1.62"
+    "hono": "^4.13.13"
   },
   "devDependencies": {
-    "@hono/vite-build": "^1.11.1",
     "@types/bun": "^1.4.3",
-    "typescript": "5.9.3",
-    "vite": "^8.3.5",
-    "hucre": "^1.2.0"
+    "typescript": "7.0.2"
   }
 }

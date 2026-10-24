@@ -1,8 +1,8 @@
 # 构建上下文是仓库根（要带上 packages/ 里的本仓库包）：
 #   docker build -f examples/honox-app/Dockerfile -t honox-app .
 #
-# 两阶段：builder 里跑 workspace 安装 + vite 构建；运行镜像只带构建产物，
-# dist/index.js 已经把依赖打进去了（@hono/vite-build 的 bun 适配器）。
+# 两阶段：builder 里装依赖 + bun build；运行镜像只带构建产物，
+# dist/index.js 已经把 npm 依赖打进去了。
 FROM oven/bun:1 AS builder
 WORKDIR /src
 
