@@ -30,6 +30,7 @@
     "@needle/got": "workspace:*",
     "@needle/logo": "workspace:*",
     "@needle/shell": "workspace:*",
+    "@sinclair/typebox": "^0.34.52",
     "hucre": "^1.2.0",
     "yaml": "^2.9.1"
   },
