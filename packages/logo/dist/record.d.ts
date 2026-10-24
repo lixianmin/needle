@@ -16,6 +16,10 @@ export declare function sanitize(value: unknown, depth?: number, ancestors?: Wea
 export declare function safeStringify(value: unknown): string;
 export interface BuildOptions {
     name?: string;
+    /** 调用点，如 `request-log.ts:28`。 */
+    site?: string;
+    /** 调用点所在函数名。 */
+    fn?: string;
     stack?: string;
     /** 注入时间，测试用。默认 `Date.now()`。 */
     time?: number;
@@ -28,7 +32,7 @@ export interface BuildOptions {
  *   2. Error 展开成 message + stack
  *   3. 其余一切拼成 msg（用空格分隔，与 console 一致）
  *
- * 信封字段（time/level/msg/name/stack）最后写入，因此永远压过同名业务字段。
+ * 信封字段（time/level/msg/name/site/fn/stack）最后写入，因此永远压过同名业务字段。
  */
 export declare function buildRecord(level: Level, args: readonly unknown[], options?: BuildOptions): LogRecord;
 export {};

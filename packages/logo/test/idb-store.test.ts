@@ -1,6 +1,7 @@
 import "fake-indexeddb/auto";
 import { describe, expect, test } from "bun:test";
 
+import { parseLine } from "../src/line.js";
 import { newLogger } from "../src/logo.js";
 import { createIndexedDbStore, type IndexedDbStoreOptions } from "../src/sinks/idb.js";
 import type { Level, LogRecord } from "../src/types.js";
@@ -31,9 +32,14 @@ const rec = (level: Level, msg: string, offset = 0): LogRecord => ({
   msg,
 });
 
-/** 行格式与文件 sink 一致：`时间 [I] {json}`，取 json 段的 msg。 */
-const msgOf = (line: string): string =>
-  JSON.parse(line.slice(line.indexOf("] ") + 2) as string).msg as string;
+/** 行格式与文件 sink 一致：`时间 [I] 文件:行 [fn()] {json}`，取载荷的 msg。 */
+const msgOf = (line: string): string => {
+  const record = parseLine(line);
+  if (record === null) {
+    throw new Error(`不是合法的日志行：${line}`);
+  }
+  return String(record.msg);
+};
 
 describe("createIndexedDbStore", () => {
   test("写入与级联：info.log 收全、warn.log 收 warn+error、error.log 只收 error", async () => {

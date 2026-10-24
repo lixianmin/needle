@@ -25,7 +25,7 @@ describe("newLogger", () => {
 
     logger.flush();
     expect(calls).toHaveLength(1);
-    expect(calls[0]).toEqual([{ time: 42, level: "info", msg: "x" }]);
+    expect(calls[0]).toMatchObject([{ time: 42, level: "info", msg: "x" }]);
   });
 
   test("连写 1000 条只产生 1 次 sink 调用", () => {
@@ -171,9 +171,28 @@ describe("newLogger", () => {
     expect(calls.flat()).toHaveLength(10);
   });
 
-  // 与 Go 版对齐：那边 stackLevel 默认 LevelError，warn 不抓完整栈。
-  // （Go 每个级别都留 1 帧调用点，JS 这边省掉那次采集，只有 error 才有栈。）
-  test("栈：默认只有 error 带，info / warn 不带", () => {
+  // 与 Go 版对齐：调用点（file:line）每个级别都有；完整栈只给 stackLevel 及以上。
+  test("调用点：info / warn / error 都带 site 与 fn", () => {
+    const { calls, sink } = collector();
+    const logger = newLogger({ ...base, sinks: [sink] });
+
+    function namedCaller(): void {
+      logger.info("i");
+    }
+    namedCaller();
+    logger.warn("w");
+    logger.error("e");
+    logger.flush();
+
+    const records = calls.flat();
+    for (const msg of ["i", "w", "e"]) {
+      const record = records.find((entry) => entry.msg === msg);
+      expect(record?.site).toMatch(/^logger\.test\.ts:\d+$/);
+    }
+    expect(records.find((entry) => entry.msg === "i")?.fn).toBe("namedCaller");
+  });
+
+  test("完整栈：默认只有 error 带，info / warn 不带", () => {
     const { calls, sink } = collector();
     const logger = newLogger({ ...base, sinks: [sink] });
 

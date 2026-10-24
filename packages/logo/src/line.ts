@@ -36,28 +36,31 @@ export const LEVEL_HINTS: Record<string, string> = {
 };
 
 /**
- * 一行日志的落盘格式：
+ * 一行日志的落盘格式（照 rim.server 的 Go 版 logo：日期T时间 [级别] 文件:行 [函数()] 载荷）：
  *
- *   2026-10-22T15:04:05 [I] {"msg":"burst","seq":1}
+ *   2026-10-22T15:04:05 [I] request-log.ts:28 [requestLog()] {"rid":"01JB...","msg":"-->"}
  *
- * 前缀给人看（时间 + 级别，秒级、东八区），后面那段给机器解析。
- * `time` 与 `level` 只出现在前缀里，不再重复进 JSON——同一条信息写两遍，
- * 既是浪费，也给了两个可能不一致的来源。
+ * 前缀给人看，后面那段给机器解析。`time` / `level` / `site` / `fn` 只出现在前缀里，
+ * 不再重复进 JSON——同一条信息写两遍，既是浪费，也给了两个可能不一致的来源。
  */
 export function formatLine(record: LogRecord): string {
-  const { time, level, ...rest } = record;
+  const { time, level, site, fn: fnName, ...rest } = record;
   const hint = LEVEL_HINTS[level] ?? "[?]";
-  return `${formatTime(time)} ${hint} ${safeStringify(rest)}`;
+  const where = site === undefined ? "" : `${site} `;
+  const who = fnName === undefined || fnName === "" ? "" : `[${fnName}()] `;
+  return `${formatTime(time)} ${hint} ${where}${who}${safeStringify(rest)}`;
 }
 
 /** 从一行日志里把 JSON 载荷解析回来。前缀不参与解析。 */
 export function parseLine(line: string): Record<string, unknown> | null {
-  const index = line.indexOf("] ");
+  // 载荷永远是行的最后一段 JSON；前缀里现在还有 "]"（`[I]`、`[fn()]`），
+  // 所以不能再用 "] " 定位，直接找第一个 "{"。
+  const index = line.indexOf("{");
   if (index < 0) {
     return null;
   }
   try {
-    const parsed: unknown = JSON.parse(line.slice(index + 2));
+    const parsed: unknown = JSON.parse(line.slice(index));
     return typeof parsed === "object" && parsed !== null ? (parsed as Record<string, unknown>) : null;
   } catch {
     return null;

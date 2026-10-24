@@ -152,16 +152,28 @@ export function createHonox<C extends Record<string, unknown>>(
 
 ### 8.4 每请求日志
 
-两个方向各一行，走 `log.child({ rid: c.get("rid") })`：
+两个方向各一行，**直接走传进来的 logger**（默认就是全局 `logo`），不派生子 logger；
+`rid` 作为字段带上即可：
 
 ```
---> GET /orders                          # 开始（字段里带 rid）
-<-- GET /orders 200 12ms uid=u1          # 结束（status、耗时、uid）
+2026-10-24T16:25:23 [I] request-log.ts:23 [requestLog()] {"rid":"01M5...","path":"/health","msg":"-->"}
+2026-10-24T16:25:23 [I] request-log.ts:35 [requestLog()] {"rid":"01M5...","path":"/health","status":200,"durationMs":1.2,"uid":null,"msg":"<--"}
 ```
 
+- 行格式照 rim.server 的 Go 版 logo：`日期T时间 [级别] 文件:行 [函数()] 载荷`。`site` / `fn` 只在前缀里，不进 JSON。
+- 前端不带 `method`：路径已经能定位接口，动词在 `-->` 用例里是噪音（删过一版，见 memory）。需要区分时看业务日志或网关侧。
 - 结束行的 `uid` 取请求结束时的值（门禁/路由里可能已经解析出用户）。
-- 抛错：`log.error({ err: { message, stack } })` 记一条，然后**原样 rethrow**，交给业务的 `app.onError` 或 Hono 默认处理；`finally` 仍落 `<--`（此时 status 是 500）。
-- 结构化字段：`rid`、`method`、`path`、`status`、`durationMs`、`uid`。
+- 抛错：`log.error({ err })` 记一条（带完整栈），然后**原样 rethrow**，交给业务的 `app.onError` 或 Hono 默认处理；`finally` 仍落 `<--`（此时 status 是 500）。
+- 结构化字段：`rid`、`path`、`status`、`durationMs`、`uid`。
+
+### 8.4.1 调用点（`site` / `fn`）
+
+每条日志（不只 error）都抓一次调用点，格式 `file.ts:23` + 函数名，写进记录的 `site` / `fn`，
+由 `formatLine` 打进前缀。
+
+- 代价明码：每条日志构造一次 `Error` 取栈，比不抓贵一个量级；这是"必须能看出哪一行打的"换来的。
+- 完整栈仍只给 `stackLevel`（默认 `error`）及以上，其它级别只有一个调用点。
+- 剪帧规则与 Go 版一致：拿采集函数自己那一帧的目录当基准，同目录的帧都算内部帧。
 
 ### 8.5 配置加载（`@needle/honox/node`）
 
@@ -361,7 +373,7 @@ HTTP 接口按 `app/api/<name>.ts` 一接口一文件（照 rim.server 的 `app/
 
 参数走 query 而不是路径段：`GET /bots?id=1`、`GET /apc?id=1` 取单条，不带 `id` 返回全表，`id` 非数字 → `ResponseX.badRequest(...)`，查不到 → `ResponseX.notFound(...)`；`GET /select-apc` 返回那份 Config。理由：id 是可选筛选条件，不是资源路径的一部分。
 
-中间件链（rid → 请求日志 → JWT）由 `createHonox()` 统一装在本库路由之前，因此每个 API 都自动拿到 `c.get("uid")` 并打出 `-->` / `<--` 两行日志（结束行带 status / durationMs / uid / rid）。表不用脚本生成，直接用 Excel 维护。
+中间件链（rid → 请求日志 → JWT）由 `createHonox()` 统一装在本库路由之前，因此每个 API 都自动拿到 `c.get("uid")` 并打出 `-->` / `<--` 两行日志（结束行带 path / status / durationMs / uid / rid）。表不用脚本生成，直接用 Excel 维护。
 
 注意：`metadata.base_url` 目前只支持本地目录。`app_fat.yml` 里它是 https 地址（rim.server 用来拉远端元数据），本库还没做远端拉取，跑 `ENV=fat` 会在加载时报目录不存在。
 

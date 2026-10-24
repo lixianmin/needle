@@ -15,6 +15,10 @@ export interface LogRecord {
     level: Level;
     name?: string;
     msg?: string;
+    /** 调用点 `file.ts:12`，由库填写（与 Go 版 logo 的 FlagShortFile 同口径）。 */
+    site?: string;
+    /** 调用点所在函数名。 */
+    fn?: string;
     stack?: string;
     [field: string]: unknown;
 }
