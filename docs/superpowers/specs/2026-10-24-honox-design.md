@@ -191,9 +191,11 @@ botsApi.post("/bots", BotsBody, (ctx, body) => {
 
 - **500 的日志在中间件而不是 `onError`**：业务可以自己 `app.onError`（单槽替换），换掉之后库里的
   日志就没了；`c.error` 是 compose 写的，与谁处理无关。`onError` 只做映射
-  （`RequestError` → `ResponseX.fail`，其它 → `ResponseX.internalError("服务内部错误")`）。
+  （`RequestError` → `ResponseX.fail`；`HTTPException` 自带 `res` 时原样用，否则套 `{code, message}`
+  信封、5xx 的 message 换成「服务内部错误」；其它 → `ResponseX.internalError("服务内部错误")`）。
 - 非 Error 抛出不进 `onError`（compose 只认 `instanceof Error`），由中间件的 `catch` 记一条后 rethrow。
-- `isRequestError` 为真时不记 error：客户端传错参数不是服务端故障。
+- `isRequestError` 为真**且状态码 < 500** 时不记 error：客户端传错参数不是服务端故障；
+  `RequestError(503, …)` 这类 5xx 仍然留一行。
 - `slowMs` 默认 1000ms，`0` 关闭；error 行已带 `durationMs`，慢请求不重复记。
 
 ### 8.4.1 id 生成（`@needle/got` 的 `id-tools.ts`）### 8.4.1 id 生成（`@needle/got` 的 `id-tools.ts`）

@@ -136,8 +136,14 @@ function collect(files: readonly string[]): Map<string, Model> {
       if (statement.typeParameters !== undefined) {
         die(`${basename(file)}：model class ${name} 不支持泛型`);
       }
+      if (modifiers.some((modifier) => modifier.kind === ts.SyntaxKind.DefaultKeyword)) {
+        die(`${basename(file)}：model class ${name} 用 export class，不要 export default（生成物按名字 import）`);
+      }
       if (RESERVED_NAMES.has(name)) {
         die(`${basename(file)}：model class 不能叫 ${name}（与生成物里的标识符冲突）`);
+      }
+      if (name.endsWith("Schema")) {
+        die(`${basename(file)}：model class ${name} 不能以 Schema 结尾（生成物要拼 ${name}Schema，会和别的 model 撞名）`);
       }
       if (models.has(name)) {
         die(`模型重名：${name}（${models.get(name)?.file} 与 ${file}）`);
@@ -189,6 +195,15 @@ function validate(models: Map<string, Model>): void {
       }
       const line = model.source.getLineAndCharacterOfPosition(member.getStart()).line + 1;
       const where = `${basename(model.file)}:${line} ${model.name}.${member.name.getText()}`;
+      // `T | undefined` 与 `T?` 在漂移断言里不等价（一个是必填、一个是可选），
+      // 所以只接受 `?`，别生成一个编不过的产物。
+      if (
+        member.questionToken === undefined &&
+        ts.isUnionTypeNode(member.type) &&
+        member.type.types.some((type) => type.kind === ts.SyntaxKind.UndefinedKeyword)
+      ) {
+        die(`${where}：写 ${member.name.getText()}?: T，不要 T | undefined（两者在漂移断言里不等价）`);
+      }
       typeExpr(member.type, models, where);
       const dep = classOfField(member.type, models, where);
       if (dep !== undefined) {
@@ -259,11 +274,7 @@ function render(file: string, ordered: readonly Model[], all: readonly Model[]):
 
   const fields = ordered.map((model) => {
     const lines = model.decl.members.filter(ts.isPropertyDeclaration).map((member) => {
-      const optional =
-        member.questionToken !== undefined ||
-        (member.type !== undefined &&
-          ts.isUnionTypeNode(member.type) &&
-          member.type.types.some((type) => type.kind === ts.SyntaxKind.UndefinedKeyword));
+      const optional = member.questionToken !== undefined;
       const expr = typeExpr(member.type as ts.TypeNode, new Map(all.map((m) => [m.name, m])), model.name);
       const name = member.name.getText();
       return `  ${name}: ${optional ? `Type.Optional(${expr})` : expr},`;

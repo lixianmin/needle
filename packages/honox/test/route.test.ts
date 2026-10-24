@@ -1,10 +1,12 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 import { Type } from "@sinclair/typebox";
+import { newLogger, type LogRecord } from "@needle/logo";
 import { Hono, type Handler } from "hono";
 import { clearModels, registerModel } from "../src/model.js";
 import { ResponseX } from "@needle/shell";
 import { isRequestError } from "../src/request.js";
 import { createApi } from "../src/route.js";
+import { traceOf } from "../src/trace.js";
 import type { HonoxEnv } from "../src/types.js";
 
 class BotsQuery {
@@ -146,6 +148,40 @@ describe("createApi", () => {
     expect(() => {
       (api.get as unknown as (path: string, ...rest: unknown[]) => void)("/bad", BotsQuery, () => new Response(null), () => new Response(null));
     }).toThrow(/只支持 \(path, Model, handler\)/);
+  });
+
+  test("use / route 链式之后仍然包装：后续登记的路由不会丢 module", async () => {
+    const records: LogRecord[] = [];
+    const log = newLogger({ sinks: [(batch) => records.push(...batch)], batch: false });
+    const app = new Hono<HonoxEnv>();
+    app.use("*", async (c, next) => {
+      c.set("rid", "r1");
+      c.set("uid", null);
+      c.set("log", log);
+      await next();
+    });
+    const api = createApi("api/u");
+    const mw: Handler<HonoxEnv> = async (_c, next) => {
+      await next();
+    };
+    api.use("/u", mw).get("/u", (c) => {
+      traceOf(c).info({ hit: 1 });
+      return c.json({ ok: true });
+    });
+    app.route("/", api);
+
+    await app.request("/u");
+
+    expect(records[0]?.module).toBe("api/u");
+  });
+
+  test("all 不支持带模型的写法：注册时就报错", () => {
+    const api = createApi("api/all");
+    expect(() => {
+      (api.all as unknown as (p: string, m: unknown, h: unknown) => void)("/x", BotsBody, () =>
+        new Response(null),
+      );
+    }).toThrow(/all 会按 body 解析/);
   });
 
   test("options / query 也走同一套包装（Hono 的 METHODS 里都有）", async () => {

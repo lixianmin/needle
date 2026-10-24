@@ -112,7 +112,8 @@ export interface Trace {
 
 - **500 的日志只有一个来源：计时包装，不是 `onError`**（业务自装 `onError` 会替换掉库里的；计时包装读 `c.error` 不受影响）。`onError` 只做映射，不记日志。
 - 计时包装同时收非 Error 抛出（compose 不会把它们交给 `onError`），记一条后原样 rethrow。
-- `isRequestError(c.error)` 为真时不记 error——客户端传错参数不是服务端故障。
+- `isRequestError(c.error)` 为真时**且状态码 < 500** 才不记——客户端传错参数不是服务端故障；
+  `RequestError(503, …)` 这类 5xx 仍然要留一行 error。
 - **慢请求 warn 只在没有 error 时发**（error 行已带 `durationMs`），避免一次慢失败记两条。
 - `slowMs` 默认 **1000ms**，`0` 关闭。取值理由：人肉等待可接受的上界，覆盖慢数据库往返的典型量级。
 - 计时包装装在 rid 之后、鉴权之前，包住鉴权 + 门禁 + handler 全程；`uid`/`module` 结束后读。
@@ -189,7 +190,12 @@ type _BotsBodyInSync = Assert<Equals<Static<typeof BotsBodySchema>, BotsBody>>;
 
 ### 5.7 `onError` 与错误契约
 
-- `createHonox` 装 `app.onError`：`RequestError` → `ResponseX.fail(...)`，其它 → `ResponseX.internalError("服务内部错误")`；**不记日志**。
+- `createHonox` 装 `app.onError`，三种来源分开映射，**都不记日志**：
+  - `RequestError` → `ResponseX.fail(status, code, message)`；
+  - `HTTPException`（Hono 自带中间件抛的）→ 自带 `res` 时原样用（`basic-auth` 要带 `WWW-Authenticate`），否则
+    `ResponseX.fail(status, codeForStatus(status), 5xx ? "服务内部错误" : message)`——message-only 的
+    `HTTPException.getResponse()` 会吐 text/plain，破坏 `{code, message}` 契约；5xx 还要避免把内部消息带出去；
+  - 其它 → `ResponseX.internalError("服务内部错误")`。
 - 500 响应体从 Hono 默认纯文本变成 `{code:"internal_error",message}`。业务自装 `onError` 时映射要自己转交（导出 `isRequestError`），但 500 的**日志**不受影响。
 - 导出 `RequestError` / `isRequestError`。
 

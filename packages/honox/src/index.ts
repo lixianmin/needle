@@ -36,6 +36,25 @@ export type HonoxApp = Hono<HonoxEnv> & {
   allowAnonymous(entries: readonly PublicEntry[]): HonoxApp;
 };
 
+/** HTTPException 的状态码 → 错误 code。表里没有的用 `http_error`，别现编。 */
+const STATUS_CODES: Record<number, string> = {
+  400: "bad_request",
+  401: "unauthorized",
+  403: "forbidden",
+  404: "not_found",
+  409: "conflict",
+  413: "payload_too_large",
+  422: "unprocessable_entity",
+  429: "too_many_requests",
+  500: "internal_error",
+  503: "service_unavailable",
+  504: "gateway_timeout",
+};
+
+function codeForStatus(status: number): string {
+  return STATUS_CODES[status] ?? "http_error";
+}
+
 function normalizeBasePath(basePath: string): string {
   const trimmed = basePath.replace(/\/+$/, "");
   return trimmed === "" ? "" : trimmed;
@@ -90,9 +109,15 @@ export function createHonox(options: HonoxOptions): HonoxApp {
       return ResponseX.fail(error.status, error.code, error.message);
     }
     // Hono 自带的中间件（basic-auth / bearer-auth / zValidator 之类）抛的是
-    // HTTPException，它自带状态码与响应体；一律当 500 会把 401 变成 500。
+    // HTTPException，它自带状态码。一律当 500 会把 401 变成 500；但也不能直接用
+    // `getResponse()`——message-only 的 HTTPException 会吐出 text/plain，破坏
+    // `{code, message}` 契约。所以：自定义响应优先，其余套同一套信封。
     if (error instanceof HTTPException) {
-      return error.getResponse();
+      if (error.res !== undefined) {
+        return error.res;
+      }
+      const message = error.status >= 500 ? "服务内部错误" : error.message;
+      return ResponseX.fail(error.status, codeForStatus(error.status), message);
     }
     return ResponseX.internalError("服务内部错误");
   });
