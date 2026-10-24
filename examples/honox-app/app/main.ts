@@ -1,5 +1,4 @@
 import { createHonox } from "@needle/honox";
-import { nodeIdFromMac } from "@needle/honox/node";
 import { logo } from "@needle/logo";
 import { registerApis } from "./api/index.js";
 import { initLog } from "./logo.js";
@@ -33,14 +32,9 @@ const shell =
 await initTemplates(viper.getString("metadata.base_url"));
 
 // createHonox 返回现成的 Hono 实例，路由直接挂在它上面，类型从实例上就带着。
-// rid 用 Snowflake：epoch 写死在配置里（不能用启动时间），机器号从网卡 MAC 派生。
-// 多实例部署时 MAC 会变（容器），那种场景请改成显式配置 nodeId。
+// rid 由库自己发 ULID：带时间位和 80 位随机，不需要配机器号，多实例直接跑。
 const app = createHonox({
   logger: logo,
-  snowflake: {
-    epoch: viper.getInt("server.epoch_ms"),
-    nodeId: nodeIdFromMac(),
-  },
   auth: { secret: viper.getString("auth.secret") },
   shell,
 });
