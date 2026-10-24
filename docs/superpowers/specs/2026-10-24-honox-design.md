@@ -203,7 +203,7 @@ export function createHonox(options: HonoxOptions): HonoxApp;
 - 参考数字：63 位塞进 signed 64 位没问题（实测 BSON int64 往返精确），但我们**不需要**那条路——字符串形态已经绕开了 JS 精度问题。
 - **生成路径不碰 bigint**：`%` / `/` 每次都要分配 bigint 对象，几十万次/秒下全是白烧的 GC。实现把 63 位拆成 hi(31) + lo(32) 两段用 number 位运算，落进一块复用的 `Uint8Array(13)`，最后一次 `String.fromCharCode` 出串——每次调用只产生一个字符串。实测 500k 次：405ns/个 → 244ns/个（约 -40%）。`decode` 仍用 bigint，它只在解析/测试里跑。
 - **epoch 必须写死**（`nextSnowflakeId()` 默认 2014-12-09T00:00:00Z）——用启动时间当 epoch 会让每次重启的时间位从 0 开始，id 直接重复。业务要自己的纪元就传 `createSnowflake({ epoch, nodeId })`。
-- **机器号**：0..1023。`nextSnowflakeId()` 不传就是机器号 0，**只适用于单实例/单进程**；多实例必须传互不相同的 `nodeId`（`@needle/honox/node` 的 `nodeIdFromMac()` 是零配置来源，但容器重建即变、且 10 位截断会撞，生产更推荐显式配）。
+- **机器号**：0..1023。`nextSnowflakeId()` 不传就是机器号 0，**只适用于单实例/单进程**；多实例必须传互不相同的 `nodeId`，从部署配置里显式给（K8s 可用 StatefulSet 序号 / Downward API）。不做「从 MAC / IP 派生」的零配置入口：机器号只有 10 位，MAC 与 pod IP 都是哈希进这 1024 个桶，撞号后同毫秒直接重号；容器重建时 MAC / IP 还会变。
 - **生成器要缓存**：序列状态挂在生成器上，`nextSnowflakeId()` 内部按 `epoch:nodeId` 复用同一个实例；每次新建等于每次从序列 0 开始，同一毫秒内连续调用会直接重号。
 - **同一毫秒**：序列 +1，超过 4095 就自旋等下一毫秒（不丢号不重号）。
 - **时钟回拨**：照原版 Snowflake 直接抛错，不静默产生更小的 id——B 树回头插正是要避免的页分裂。等时钟追上来会让请求卡住，所以不选等待。
