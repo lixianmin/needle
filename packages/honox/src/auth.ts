@@ -118,7 +118,11 @@ export function createAuth(
     }
 
     if (matchesPublic(entries, c.req.method, c.req.path)) {
-      return next();
+      // 用 await next() 而不是 return next()：后者会把 compose 返回的 Context 当成
+      // handler 的返回值，compose 见 context 未 finalize 就把这个 Context 塞进 c.res，
+      // 于是「handler 忘了返回 Response」这种错误被伪装成一个已完成的响应。
+      await next();
+      return;
     }
 
     const authError = c.get("authError") ?? "missing";
@@ -133,6 +137,6 @@ export function createAuth(
       });
       return ResponseX.unauthorized(messageFor(authError));
     }
-    return next();
+    await next();
   };
 }

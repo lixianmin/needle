@@ -74,11 +74,25 @@ describe("兜底日志", () => {
       throw "字符串";
     });
 
-    const res = await Promise.resolve(app.request("/weird")).catch(() => null);
-
-    expect(res?.status ?? 500).toBe(500);
+    // compose 与非 Error 抛出都不认它，fetch 会直接 reject（不会变成 500 响应体）——
+    // 这正是必须在这里记一条的原因：没有任何地方会替它记账。
+    await expect(app.request("/weird")).rejects.toBe("字符串");
     expect(records).toHaveLength(1);
     expect(records[0]).toMatchObject({ path: "/weird", status: 500, level: "error" });
+    expect(typeof records[0]?.durationMs).toBe("number");
+  });
+
+  test("handler 既不返回 Response 也不 await next()：记一条 error", async () => {
+    const { app, records } = setup();
+    app.allowAnonymous(["/nofinal"]);
+    // 唯一能造出未 finalize 的方式：handler 什么都不返回。
+    app.get("/nofinal", (() => undefined) as never);
+
+    const res = await Promise.resolve(app.request("/nofinal")).catch(() => null);
+
+    expect(res === null || res.status === 500).toBe(true);
+    expect(records).toHaveLength(1);
+    expect(records[0]).toMatchObject({ path: "/nofinal", status: 500, level: "error" });
   });
 
   test("慢请求：超过 slowMs 记一条 warn，带 durationMs", async () => {

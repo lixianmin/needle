@@ -31,7 +31,7 @@ afterAll(() => {
 });
 
 describe("gen-models", () => {
-  test("标量 / 数组 / 可选 / 嵌套 / Date 都按类型生成", () => {
+  test("标量 / 数组 / 可选 / 嵌套都按类型生成", () => {
     reset();
     const file = write(
       "models.ts",
@@ -44,7 +44,6 @@ export class BotsBody {
   ids: number[] = [];
   note?: string;
   boss?: Boss;
-  at?: Date;
 }
 `,
     );
@@ -54,7 +53,6 @@ export class BotsBody {
     expect(out).toContain("ids: Type.Array(Type.Number())");
     expect(out).toContain("note: Type.Optional(Type.String())");
     expect(out).toContain("boss: Type.Optional(BossSchema)");
-    expect(out).toContain('at: Type.Optional(Type.String({ format: "date-time" }))');
     // 依赖在前：Boss 的 const 必须在 BotsBody 之前（TDZ）
     expect(out.indexOf("export const BossSchema")).toBeLessThan(out.indexOf("export const BotsBodySchema"));
     expect(out).toContain('registerModel("BotsBody", BotsBodySchema);');
@@ -87,16 +85,23 @@ export class BotsBody {
         include: ["models.ts", "models.generated.ts"],
       }),
     );
-    expect(run([file]).code).toBe(0);
+    const regenerate = () => expect(run([file]).code).toBe(0);
+    const tsc = () => Bun.spawnSync(["bunx", "tsc", "-p", join(TMP, "tsconfig.json")], { cwd: ROOT }).exitCode;
 
-    const tsc = (extra?: string) => {
-      writeFileSync(file, `export class BotsBody {\n  ids: number[] = [];\n${extra ?? ""}}\n`);
-      return Bun.spawnSync(["bunx", "tsc", "-p", join(TMP, "tsconfig.json")], { cwd: ROOT }).exitCode;
-    };
-
+    regenerate();
     expect(tsc()).toBe(0);
-    const stale = tsc('  extra: string = "";\n');
-    expect(stale).toBe(1);
+
+    // 加字段但没重新生成
+    writeFileSync(file, 'export class BotsBody {\n  ids: number[] = [];\n  extra: string = "";\n}\n');
+    expect(tsc()).toBe(1);
+
+    // 重新生成后恢复
+    regenerate();
+    expect(tsc()).toBe(0);
+
+    // 删字段但没重新生成：反方向也要拦住
+    writeFileSync(file, "export class BotsBody {\n}\n");
+    expect(tsc()).toBe(1);
   });
 
   test("循环引用 / 方法 / 缺类型标注 / 未知类型 / 重名 都硬报错", () => {
@@ -105,6 +110,9 @@ export class BotsBody {
       { label: "方法", content: "export class A {\n  x: number = 0;\n  run(): void {}\n}\n", pattern: /只支持字段声明/ },
       { label: "缺类型标注", content: "export class A {\n  x = 0;\n}\n", pattern: /必须有类型标注/ },
       { label: "未知类型", content: "export class A {\n  x: Unknown = null;\n}\n", pattern: /未知类型 Unknown/ },
+      { label: "Date", content: "export class A {\n  at: Date = new Date();\n}\n", pattern: /不支持 Date/ },
+      { label: "static", content: "export class A {\n  static x: number = 0;\n}\n", pattern: /不支持 static/ },
+      { label: "未 export", content: "class A {\n  x: number = 0;\n}\n", pattern: /必须 export/ },
     ];
     for (const { label, content, pattern } of cases) {
       reset();

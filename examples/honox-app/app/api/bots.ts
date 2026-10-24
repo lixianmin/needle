@@ -31,7 +31,7 @@ botsApi.get("/bots", BotsQuery, (ctx, query) => {
  * `POST /bots`，body 形如 `{"ids":[1,99]}`：命中的放在 `bots`，找不到的放在
  * `missing`——批量查询里"部分不存在"不该整单失败。
  *
- * 日志只挑想看的字段：body 原样整份打进日志，客户端传多大就写多大。
+ * 日志只挑想看的字段（这里只打 ids）：body 里的密码、超大字段不传就是不打。
  */
 botsApi.post("/bots", BotsBody, (ctx, body) => {
   traceOf(ctx).info({ ids: body.ids });

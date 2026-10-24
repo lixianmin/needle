@@ -14,6 +14,15 @@ const ROUTE_METHOD_SET = new Set<string>(ROUTE_METHODS);
 /** 这些方法读 query，其余读 body。约定：一个路由只校验一侧参数。 */
 const QUERY_METHODS = new Set(["get", "delete"]);
 
+/**
+ * 模型类（class）与普通 handler 在运行时只差一个特征：class 一定有 `prototype`。
+ * 不判这个的话，`api.get(path, h1, h2)`（Hono 支持一个路径挂多个 handler）会被
+ * 当成 `(path, Model, handler)`，然后拿 h1 的 name 去查 schema，整条路由 500。
+ */
+function isModelClass(value: unknown): value is ModelClass<unknown> {
+  return typeof value === "function" && value.prototype !== undefined;
+}
+
 /** 解析过参数的 handler：第二个参数是模型实例形状的对象。 */
 export type ParsedHandler<T> = (c: Context<HonoxEnv>, request: T) => Response | Promise<Response>;
 
@@ -82,14 +91,16 @@ export function createApi(module: string): ApiGroup {
         return (path: string, second: unknown, third?: unknown) => {
           // 第 0 帧是这个箭头函数（route.ts），第 1 帧是调用方（接口文件）。
           const origin: Origin = { module, ...captureCallSite(1) };
-          const handler =
-            typeof third === "function"
-              ? withModel(origin, prop, second as ModelClass<unknown>, third as ParsedHandler<unknown>)
-              : withOrigin(second as Handler<HonoxEnv>, origin);
-          (target as unknown as Record<string, (p: string, h: Handler<HonoxEnv>) => void>)[prop]?.(
-            path,
-            handler,
-          );
+          const handlers =
+            typeof third === "function" && isModelClass(second)
+              ? [withModel(origin, prop, second, third as ParsedHandler<unknown>)]
+              : [second, third]
+                  .filter((entry): entry is Handler<HonoxEnv> => typeof entry === "function")
+                  .map((entry) => withOrigin(entry, origin));
+          const register = (
+            target as unknown as Record<string, (p: string, ...h: Handler<HonoxEnv>[]) => void>
+          )[prop];
+          register?.(path, ...handlers);
           // 返回代理而不是 target：链式 `.get(...).post(...)` 后续调用也要被包住。
           return receiver;
         };
