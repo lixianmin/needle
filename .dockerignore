@@ -1,0 +1,4 @@
+**/node_modules
+.git
+.superpowers
+examples/honox-app/dist
