@@ -8,7 +8,7 @@ import { serve } from "../../packages/shell/dist/node.js";
 
 // 冒烟测试跑 dist，直接读 package.json 里的真版本号：这里不断言它的值，只是
 // createServerShell 要求传一个。单测用的固定常量见 packages/shell/test/fixtures.ts。
-const { version } = JSON.parse(readFileSync(new URL("../../packages/shell/package.json", import.meta.url), "utf8"));
+const { version } = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8"));
 
 // 1. 批量 + 立即刷：error 应该把积压的 info 一起带出去
 const batches = [];

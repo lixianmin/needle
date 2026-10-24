@@ -1,5 +1,6 @@
 {
   "name": "needle",
+  "version": "0.3.8",
   "private": true,
   "type": "module",
   "workspaces": [
@@ -14,7 +15,8 @@
     "demo": "bun run build:logo && bun examples/demo.ts",
     "test": "bun test",
     "typecheck": "tsc --noEmit",
-    "size": "bun build scripts/size-log-only.ts --minify --target=browser | gzip -c | wc -c && bun build packages/shell/dist/index.js --minify --target=browser | gzip -c | wc -c"
+    "size": "bun build scripts/size-log-only.ts --minify --target=browser | gzip -c | wc -c && bun build packages/shell/dist/index.js --minify --target=browser | gzip -c | wc -c",
+    "version:sync": "bun scripts/sync-version.mjs"
   },
   "devDependencies": {
     "@needle/core": "workspace:*",

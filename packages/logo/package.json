@@ -1,6 +1,6 @@
 {
   "name": "@needle/logo",
-  "version": "0.3.7",
+  "version": "0.3.8",
   "description": "结构化日志：批量 sink、stdout / 文件 / IndexedDB / 飞书落地",
   "type": "module",
   "sideEffects": false,
