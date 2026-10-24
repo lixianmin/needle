@@ -1,0 +1,116 @@
+import { describe, expect, test } from "bun:test";
+import { Hono, type Context } from "hono";
+import { Type } from "@sinclair/typebox";
+import { parseBody, parseQuery } from "../src/parse.js";
+import { RequestError, isRequestError } from "../src/request.js";
+import type { HonoxEnv } from "../src/types.js";
+
+/** 在真路由里跑一次解析，拿到值或抛出来的错误——Context 不手搓。 */
+async function attempt<T>(
+  path: string,
+  init: RequestInit | undefined,
+  parse: (c: Context<HonoxEnv>) => T,
+): Promise<{ value: T; error?: undefined } | { value?: undefined; error: unknown }> {
+  let outcome: { value: T; error?: undefined } | { value?: undefined; error: unknown } = {
+    value: undefined as T,
+  };
+  const app = new Hono<HonoxEnv>();
+  app.all("*", async (c) => {
+    try {
+      outcome = { value: await parse(c) };
+    } catch (error) {
+      outcome = { error };
+    }
+    return c.text("ok");
+  });
+  await app.request(path, init);
+  return outcome;
+}
+
+function jsonInit(payload: unknown): RequestInit {
+  return {
+    method: "POST",
+    body: typeof payload === "string" ? payload : JSON.stringify(payload),
+    headers: { "content-type": "application/json" },
+  };
+}
+
+async function parseBodyOf(schema: Parameters<typeof parseBody>[1], payload: unknown) {
+  return attempt("/x", jsonInit(payload), (c) => parseBody(c, schema));
+}
+
+async function parseQueryOf(schema: Parameters<typeof parseQuery>[1], path: string) {
+  return attempt(path, undefined, (c) => parseQuery(c, schema));
+}
+
+function messageOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+const BotsBody = Type.Object({
+  ids: Type.Array(Type.Number()),
+  page: Type.Number({ default: 1 }),
+});
+
+describe("parseBody", () => {
+  test("合法 body 返回对象并补默认值", async () => {
+    const { value } = await parseBodyOf(BotsBody, { ids: [1, 2] });
+    expect(value).toMatchObject({ ids: [1, 2], page: 1 });
+  });
+
+  test("字符串数字被拒（不做类型转换）", async () => {
+    const { error } = await parseBodyOf(BotsBody, { ids: ["1"] });
+    expect(messageOf(error)).toContain("body /ids/0 Expected number");
+  });
+
+  test("不是合法 JSON", async () => {
+    const { error } = await parseBodyOf(BotsBody, "not json");
+    expect(messageOf(error)).toContain("body 不是合法 JSON");
+  });
+
+  test("多余字段被拒（schema 带 additionalProperties: false）", async () => {
+    const strict = Type.Object({ a: Type.Number() }, { additionalProperties: false });
+    const { error } = await parseBodyOf(strict, { a: 1, b: 2 });
+    expect(messageOf(error)).toContain("Unexpected property");
+  });
+});
+
+describe("parseQuery", () => {
+  const Query = Type.Object({
+    id: Type.Optional(Type.Number()),
+    ids: Type.Optional(Type.Array(Type.Number())),
+  });
+
+  test("字符串数字转换；重复键按数组收集", async () => {
+    const { value } = await parseQueryOf(Query, "/x?id=7&ids=1&ids=2");
+    expect(value).toMatchObject({ id: 7, ids: [1, 2] });
+  });
+
+  test("空串视为未传", async () => {
+    const { value } = await parseQueryOf(Query, "/x?id=");
+    expect(value).toMatchObject({});
+  });
+
+  test("非法值报错", async () => {
+    const { error } = await parseQueryOf(Query, "/x?id=abc");
+    expect(messageOf(error)).toContain("query /id Expected number");
+  });
+
+  test("多余的键被忽略", async () => {
+    const { value } = await parseQueryOf(Query, "/x?id=1&_t=99");
+    expect(value).toMatchObject({ id: 1 });
+  });
+});
+
+describe("RequestError", () => {
+  test("默认 400 / bad_request；完整形态保留 status 与 code", () => {
+    expect(new RequestError("x")).toMatchObject({ status: 400, code: "bad_request", message: "x" });
+    expect(new RequestError(409, "conflict", "y")).toMatchObject({ status: 409, code: "conflict" });
+  });
+
+  test("isRequestError 只认自己", () => {
+    expect(isRequestError(new RequestError("x"))).toBe(true);
+    expect(isRequestError(new Error("x"))).toBe(false);
+    expect(isRequestError("x")).toBe(false);
+  });
+});
