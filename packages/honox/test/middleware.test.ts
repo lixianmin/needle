@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { newLogger, type LogRecord } from "@needle/logo";
 import { createHonox } from "../src/index.js";
+import { HTTPException } from "hono/http-exception";
 import { RequestError } from "../src/request.js";
 
 const SECRET = "test-secret";
@@ -93,6 +94,20 @@ describe("兜底日志", () => {
     expect(res === null || res.status === 500).toBe(true);
     expect(records).toHaveLength(1);
     expect(records[0]).toMatchObject({ path: "/nofinal", status: 500, level: "error" });
+  });
+
+  test("HTTPException：按它自己的状态码返回，4xx 记 warn 不记 error", async () => {
+    const { app, records } = setup();
+    app.allowAnonymous(["/teapot"]);
+    app.get("/teapot", () => {
+      throw new HTTPException(418, { message: "我是个茶壶" });
+    });
+
+    const res = await app.request("/teapot");
+
+    expect(res.status).toBe(418);
+    expect(records).toHaveLength(1);
+    expect(records[0]).toMatchObject({ path: "/teapot", status: 418, level: "warn" });
   });
 
   test("慢请求：超过 slowMs 记一条 warn，带 durationMs", async () => {

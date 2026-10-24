@@ -68,6 +68,25 @@ describe("parseBody", () => {
     expect(messageOf(error)).toContain("body 不是合法 JSON");
   });
 
+  test("body 已经被读过：原样抛错，不当成 400", async () => {
+    const app = new Hono<HonoxEnv>();
+    let caught: unknown;
+    app.post("/x", async (c) => {
+      await c.req.raw.text(); // 典型场景：签名校验先把原始流读走
+      try {
+        await parseBody(c, BotsBody);
+      } catch (error) {
+        caught = error;
+      }
+      return c.text("ok");
+    });
+    await app.request("/x", jsonInit({ ids: [1] }));
+
+    // 接线错误必须冒出来（会被记成 500 + error 日志）；当成 400 就彻底隐身了。
+    expect(caught).toBeInstanceOf(Error);
+    expect(isRequestError(caught)).toBe(false);
+  });
+
   test("多余字段被拒（schema 带 additionalProperties: false）", async () => {
     const strict = Type.Object({ a: Type.Number() }, { additionalProperties: false });
     const { error } = await parseBodyOf(strict, { a: 1, b: 2 });

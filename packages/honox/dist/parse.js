@@ -39,7 +39,13 @@ export async function parseBody(c, schema) {
     try {
         parsed = await c.req.json();
     }
-    catch {
+    catch (error) {
+        // 只有 JSON 语法错才是客户端的锅。流已经被读过（比如前面的中间件为了校验
+        // 签名先读了 `c.req.raw`）属于接线错误，必须原样抛——否则它会被记成 400，
+        // 而 RequestError 又不写 error 日志，服务端的 bug 就此彻底隐身。
+        if (!(error instanceof SyntaxError)) {
+            throw error;
+        }
         throw new RequestError(400, "bad_request", "body 不是合法 JSON");
     }
     if (typeof parsed === "object" && parsed !== null) {

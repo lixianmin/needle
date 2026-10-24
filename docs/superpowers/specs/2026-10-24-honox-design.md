@@ -5,7 +5,7 @@
 
 ## 1. 结论
 
-在 `packages/honox` 新增 `@needle/honox`：一个跟业务无关的 Hono 底座。它做四件事——配置加载、鉴权、每请求日志、可选 MongoDB——外加把 `@needle/shell` 的控制台挂上去。示例 app 放在 `examples/honox-app`（纯 Hono + `bun build` + Dockerfile），用来说明它怎么接。
+在 `packages/honox` 新增 `@needle/honox`：一个跟业务无关的 Hono 底座。它做四件事——配置加载、鉴权、兜底日志、可选 MongoDB——外加把 `@needle/shell` 的控制台挂上去。示例 app 放在 `examples/honox-app`（纯 Hono + `bun build` + Dockerfile），用来说明它怎么接。
 
 库本身**不 import honox**，也不用 npm 上的 `honox`（HonoX）：底座返回的就是 `Hono` 实例，路由直接挂在上面。业务若真要 HonoX 的文件路由/islands，自行 `createApp({ app: createHonox(...) })` 接入（验证见 §7）。
 
@@ -17,7 +17,7 @@
 
 ## 3. 目标
 
-- 新项目三行代码拿到：配置对象、每请求日志、JWT 鉴权、可选 Mongo 连接池。
+- 新项目三行代码拿到：配置对象、兜底日志 + `traceOf(ctx)`、JWT 鉴权、可选 Mongo 连接池。
 - 一张 Excel sheet 变成一个类型化、按 id 取数的配置源（`getXxx(id)` / 全表），沿用 rim.proxy 的使用习惯。
 - 鉴权默认拒绝（fail-closed）：没声明过的接口一律要求登录，公开接口写进白名单。
 - 401 响应复用 `@needle/shell` 的 `ResponseX`，全仓库一套错误契约。
@@ -97,7 +97,7 @@ packages/honox/
   src/node.ts           # loadConfig（读 YAML）
   src/mongo.ts          # createMongo / withTransaction
   src/excel.ts          # createMetadata / Template / Config（扫目录读 Excel）
-  src/middleware.ts     # installMiddleware：rid → 请求日志 → JWT → 门禁
+  src/middleware.ts     # installMiddleware：rid → 兜底日志 → JWT → 门禁
   test/*.test.ts
   tsconfig.build.json
 ```
@@ -119,6 +119,7 @@ export interface HonoxOptions {
     cookie?: string;                         // 可选：从 cookie 读 token（如 "token"）
   };                                         // 白名单不在这里，见 8.3
   shell?: ServerShellOptions;                // 传了就把控制台挂到 shell.basePath（默认 "/shell"）
+  slowMs?: number;                           // 慢请求阈值（毫秒），默认 1000，0 关闭
 }
 
 export type HonoxApp = Hono<HonoxEnv> & {
@@ -128,14 +129,14 @@ export type HonoxApp = Hono<HonoxEnv> & {
 export function createHonox(options: HonoxOptions): HonoxApp;
 ```
 
-`HonoxEnv` 的 Variables：`uid: string | null`、`user: JwtPayload | null`、`authError: "missing" | "invalid" | "expired" | null`、`rid: string`、`api?: { site, fn }`（由 `api()` / `apiRoute()` 写）。
+`HonoxEnv` 的 Variables：`uid: string | null`、`user: JwtPayload | null`、`authError: "missing" | "invalid" | "expired" | null`、`rid: string`、`log?: Logger`（`installMiddleware` 写的，`traceOf` 读）、`api?: { module?: string; site?: string; fn?: string }`（由 `createApi()` / `apiRoute()` 写）。
 
 **只放每个请求独有的东西**：配置是进程级单例（viper 取值器），日志是进程级单例（`logo`），两者都直接 import，不按请求复制进 context——少一份可变的副本，也少一层"配置从哪来"的追问。
 
 **中间件顺序（库内固定，业务改不了）：**
 
 1. `rid`（请求 id）：入站 header 带了就沿用（`x-rid` 优先，其次网关常见的 `x-request-id`），没带才由 `nextUlid()` 生成 **ULID**（26 位大写 Crockford Base32，见 8.4.1）。写进 `c.set("rid")` 与响应头 `x-rid`。入站值过白名单 `^[0-9A-Za-z._-]{1,64}$`，不合规就当作没带重新生成——它是直接进日志的字段，不加限制等于允许伪造日志行。
-2. 每请求日志（见 8.4）。
+2. 兜底日志（见 8.4）：未捕获异常 / 未 finalize / 慢请求，**不是**每请求两行。
 3. 解 JWT：从 header 或 cookie 取 token，`hono/jwt` 的 `verify` 校验；失败**不抛**，只把 `uid` 设为 `null` 并记 `authError`。
 4. 门禁：命中白名单放行；否则 `uid === null` → `ResponseX.unauthorized(...)`。
 
@@ -157,7 +158,7 @@ export function createHonox(options: HonoxOptions): HonoxApp;
 - 401 响应：`ResponseX.unauthorized(message)`，`code` 固定 `unauthorized`，message 按 `authError` 区分（「需要登录」/「登录已过期」/「token 无效」）。
 - `shell.basePath` 与 `${basePath}/*` 在装配时自动进白名单——控制台有自己的口令鉴权（`SHELL_PASSWORD`），不该被 JWT 门禁挡。
 
-### 8.4 每请求日志
+### 8.4 请求日志：业务自写 + 库内兜底
 
 **请求日志由业务自己写，库只兜业务补不了的那几类。** 中间件不再对每个请求无条件打两行：
 打不打、打什么、哪些字段要裁掉（密码、超大 body）只有业务知道，中间件在路由匹配之前

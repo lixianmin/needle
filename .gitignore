@@ -153,3 +153,6 @@ vite.config.ts.timestamp-*
 # Stryker 变异测试的临时目录
 .stryker-tmp/
 .stryker/
+
+# 生成器测试的临时产物（崩在中间时别让它进仓库、也别进 tsc）
+test/.tmp-gen/

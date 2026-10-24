@@ -16,6 +16,15 @@ describe("model 注册表", () => {
     expect(modelSchema(BotsBody)).toBe(schema);
   });
 
+  test("同名注册不同 schema：抛错，不静默顶掉", () => {
+    const first = Type.Object({ a: Type.Number() });
+    const second = Type.Object({ b: Type.String() });
+    registerModel("Body", first);
+    // 同一个 schema 重复注册（模块被再次求值）无害
+    registerModel("Body", first);
+    expect(() => registerModel("Body", second)).toThrow(/模型重名：Body/);
+  });
+
   test("没注册时报出类名与修复提示", () => {
     class Unknown {
       a: number = 0;

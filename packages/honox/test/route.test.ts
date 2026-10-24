@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 import { Type } from "@sinclair/typebox";
-import { Hono } from "hono";
+import { Hono, type Handler } from "hono";
 import { clearModels, registerModel } from "../src/model.js";
 import { ResponseX } from "@needle/shell";
 import { isRequestError } from "../src/request.js";
@@ -110,6 +110,51 @@ describe("createApi", () => {
     const res = await app.request("/boom");
     expect(res.status).toBe(500);
     expect(seen).toContain("boom");
+  });
+
+  test("一条路径挂多个 handler：全部都登记（不能悄悄丢第三个）", async () => {
+    const app = host();
+    const api = createApi("api/chain");
+    const trace: string[] = [];
+    const mw: Handler<HonoxEnv> = async (_c, next) => {
+      trace.push("mw");
+      await next();
+    };
+    api.get("/many", mw, mw, (c) => c.json({ ok: true }));
+    app.route("/", api);
+
+    const res = await app.request("/many");
+
+    expect(res.status).toBe(200);
+    expect(trace).toEqual(["mw", "mw"]);
+  });
+
+  test("function 声明当第二个参数时不会被当成模型", async () => {
+    const app = host();
+    const api = createApi("api/fn");
+    const middleware: Handler<HonoxEnv> = (_c, next) => next();
+    api.get("/fn", middleware, (c) => c.json({ ok: true }));
+    app.route("/", api);
+
+    const res = await app.request("/fn");
+
+    expect(res.status).toBe(200);
+  });
+
+  test("模型出现在 handler 位置：注册时就报错，而不是运行期 500", () => {
+    const api = createApi("api/bad");
+    expect(() => {
+      (api.get as unknown as (path: string, ...rest: unknown[]) => void)("/bad", BotsQuery, () => new Response(null), () => new Response(null));
+    }).toThrow(/只支持 \(path, Model, handler\)/);
+  });
+
+  test("options / query 也走同一套包装（Hono 的 METHODS 里都有）", async () => {
+    const app = host();
+    const api = createApi("api/probe");
+    api.options("/probe", (c) => c.text("ok"));
+    app.route("/", api);
+
+    expect(await (await app.request("/probe", { method: "OPTIONS" })).text()).toBe("ok");
   });
 
   test("链式登记：返回的是代理，后续调用照样抓位置", async () => {

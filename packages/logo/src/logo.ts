@@ -148,13 +148,6 @@ export interface Logger {
   dispose(): void;
 }
 
-/**
- * 捕获调用点。
- *
- * 第一行是 "Error" 头，后面是本库内部的帧，都要剪掉——留着只会让真正的
- * 调用点被埋在第 6 行。代价是每次 warn/error 构造一个 Error，因此只在
- * stackLevel 命中的级别上做。
- */
 /** 父子 logger 共用同一个状态：父级 dispose 之后，子级也必须停。 */
 interface LoggerState {
   disposed: boolean;
