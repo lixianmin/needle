@@ -97,6 +97,7 @@ packages/honox/
   src/node.ts           # loadConfig（读 YAML）
   src/mongo.ts          # createMongo / withTransaction
   src/excel.ts          # createMetadata / Template / Config（扫目录读 Excel）
+  src/middleware.ts     # installMiddleware：rid → 请求日志 → JWT → 门禁
   test/*.test.ts
   tsconfig.build.json
 ```
