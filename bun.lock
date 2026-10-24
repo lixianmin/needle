@@ -6,6 +6,7 @@
       "name": "needle",
       "devDependencies": {
         "@needle/got": "workspace:*",
+        "@needle/honox": "workspace:*",
         "@needle/logo": "workspace:*",
         "@needle/shell": "workspace:*",
         "@types/bun": "^1.4.3",
@@ -18,6 +19,20 @@
     "packages/got": {
       "name": "@needle/got",
       "version": "0.3.12",
+    },
+    "packages/honox": {
+      "name": "@needle/honox",
+      "version": "0.3.11",
+      "dependencies": {
+        "@needle/logo": "workspace:*",
+        "@needle/shell": "workspace:*",
+      },
+      "devDependencies": {
+        "hono": "^4.13.13",
+      },
+      "peerDependencies": {
+        "hono": "^4",
+      },
     },
     "packages/logo": {
       "name": "@needle/logo",
@@ -108,6 +123,8 @@
 
     "@needle/got": ["@needle/got@workspace:packages/got"],
 
+    "@needle/honox": ["@needle/honox@workspace:packages/honox"],
+
     "@needle/logo": ["@needle/logo@workspace:packages/logo"],
 
     "@needle/shell": ["@needle/shell@workspace:packages/shell"],
@@ -185,6 +202,8 @@
     "fake-indexeddb": ["fake-indexeddb@6.2.6", "", {}, "sha512-ihhmr0KoET51jT8R4YhbUYuLLvr1qqO6INISygtN16i8loR8kAxtAUr4+EKHTSMjL+lggaAn4OC7DRqzrNgnuQ=="],
 
     "happy-dom": ["happy-dom@21.0.4", "", { "dependencies": { "@types/node": ">=20.0.0", "@types/whatwg-mimetype": "^3.0.2", "@types/ws": "^8.18.1", "buffer-image-size": "^0.6.4", "entities": "^7.0.1", "whatwg-mimetype": "^3.0.0", "ws": "^8.21.0" } }, "sha512-tFm+GaLBgo6o0awHnvHaNoraVo27qJ+2tZEtZ+cIa08hXbeitrxAJajLI05hsUy/2/YTKcUjQYzHe5mCcraLBw=="],
+
+    "hono": ["hono@4.13.13", "", {}, "sha512-CQ46U0ZkAGmbT/4UxdzzGJpacP2IeKgY4a5/tOI9AABbpOMfK739wfDXmv1usCk+3RkKj1hQy4/fjhiwa2xlrA=="],
 
     "kleur": ["kleur@4.1.5", "", {}, "sha512-o+NO+8WrRiQEE4/7nwRJhN1HWpVmJm511pBHUxPLtp0BUISzlBplORYSmTclCnJvQq2tKu/sgl3xVpkc7ZWuQQ=="],
 
