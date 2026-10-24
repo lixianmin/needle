@@ -1,4 +1,4 @@
-import { LEVEL_HINTS, displayNumber, formatDuration, formatTime, toHuman } from "@needle/logo";
+import { displayNumber, formatDuration, formatPayload, formatTime, toHuman } from "@needle/logo";
 import type { LogRecord } from "@needle/logo";
 import { el } from "./dom.js";
 import { ROW_HEIGHT } from "./loglist.js";
@@ -35,7 +35,11 @@ export function renderLogLine(doc: Document, record: LogRecord): HTMLElement {
   const time = el(doc, "span", "t");
   time.textContent = formatTime(record.time);
   const text = el(doc, "span", `lv lv-${record.level}`);
-  text.textContent = `${LEVEL_HINTS[record.level] ?? "[?]"} ${record.msg ?? ""}`;
+  // 跟落盘行一个口径：级别 + 文件:行 + [函数()] + 紧凑 JSON。
+  // 栈在下面单独铺开，不重复进 JSON 行（否则一行里塞进整个栈，还会被 ellipsis 截掉）。
+  const fields = { ...record };
+  delete fields.stack;
+  text.textContent = formatPayload(fields);
   head.append(time, text);
   line.append(head);
 

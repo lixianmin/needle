@@ -1,5 +1,17 @@
 import type { Sink } from "@needle/logo";
 import type { Command, Topic } from "./types.js";
+/**
+ * 注释心跳间隔（注释行不影响事件流，Shell 里不显示）。
+ *
+ * 必须短于链路上最短的「无数据即断开」超时。最短的那一个是应用服务器自己：
+ * `Bun.serve()` 的 HTTP `idleTimeout` 默认 10 秒（bun-types:
+ * HostnamePortServeOptions.idleTimeout），比 nginx 的 60 秒、多数负载均衡的 30 秒
+ * 都短。2 秒留 5 倍余量，代价是每个打开的面板每 2 秒 8 字节。
+ *
+ * 实测：Bun 1.4.4 + 默认 idleTimeout + 15 秒心跳，连接在第 10 秒被掐，
+ * 客户端拿到 ECONNRESET。
+ */
+export declare const DEFAULT_HEARTBEAT_MS = 2000;
 export interface Connection {
     send(event: string, data: unknown): void;
     /**
