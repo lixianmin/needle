@@ -20,7 +20,7 @@ function elapsedMs(start: number): number {
  */
 export function createRequestLog(log: Logger): MiddlewareHandler<HonoxEnv> {
   return async function requestLog(c, next) {
-    const reqLog = log.child({ req: c.get("reqId") });
+    const reqLog = log.child({ rid: c.get("rid") });
     const method = c.req.method;
     const path = c.req.path;
     const started = performance.now();

@@ -15,6 +15,6 @@ export interface HonoxEnv<C extends object = Record<string, unknown>> {
     authError: AuthErrorReason | null;
     config: C;
     log: Logger;
-    reqId: string;
+    rid: string;
   };
 }

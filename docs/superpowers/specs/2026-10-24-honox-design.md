@@ -126,11 +126,11 @@ export function createHonox<C extends Record<string, unknown>>(
 ): Hono<HonoxEnv<C>>;
 ```
 
-`HonoxEnv<C>` 的 Variables：`uid: string | null`、`user: JwtPayload | null`、`authError: "missing" | "invalid" | "expired" | null`、`config: C`、`log: Logger`、`reqId: string`。
+`HonoxEnv<C>` 的 Variables：`uid: string | null`、`user: JwtPayload | null`、`authError: "missing" | "invalid" | "expired" | null`、`config: C`、`log: Logger`、`rid: string`。
 
 **中间件顺序（库内固定，业务改不了）：**
 
-1. `reqId`：`crypto.randomUUID()`，写进 `c.set("reqId")` 与响应头 `x-request-id`。
+1. `rid`（请求 id）：入站 header 带了就沿用（`x-rid` 优先，其次网关常见的 `x-request-id`），没带才生成 **ULID**（26 位 Crockford Base32：10 位毫秒时间戳 + 16 位随机，可排序、能看出生成时间）。写进 `c.set("rid")` 与响应头 `x-rid`。入站值过白名单 `^[0-9A-Za-z._-]{1,64}$`，不合规就当作没带重新生成——它是直接进日志的字段，不加限制等于允许伪造日志行。
 2. 每请求日志（见 8.4）。
 3. 解 JWT：从 header 或 cookie 取 token，`hono/jwt` 的 `verify` 校验；失败**不抛**，只把 `uid` 设为 `null` 并记 `authError`。
 4. 门禁：命中白名单放行；否则 `uid === null` → `ResponseX.unauthorized(...)`。
@@ -152,16 +152,16 @@ export function createHonox<C extends Record<string, unknown>>(
 
 ### 8.4 每请求日志
 
-两个方向各一行，走 `log.child({ req: reqId })`：
+两个方向各一行，走 `log.child({ rid: c.get("rid") })`：
 
 ```
---> GET /orders uid=-                     # 开始
-<-- GET /orders 200 12ms uid=u1           # 结束（status、耗时、uid）
+--> GET /orders                          # 开始（字段里带 rid）
+<-- GET /orders 200 12ms uid=u1          # 结束（status、耗时、uid）
 ```
 
 - 结束行的 `uid` 取请求结束时的值（门禁/路由里可能已经解析出用户）。
 - 抛错：`log.error({ err: { message, stack } })` 记一条，然后**原样 rethrow**，交给业务的 `app.onError` 或 Hono 默认处理；`finally` 仍落 `<--`（此时 status 是 500）。
-- 结构化字段：`method`、`path`、`status`、`durationMs`、`uid`、`req`。
+- 结构化字段：`rid`、`method`、`path`、`status`、`durationMs`、`uid`。
 
 ### 8.5 配置加载（`@needle/honox/node`）
 
@@ -361,7 +361,7 @@ HTTP 接口按 `app/api/<name>.ts` 一接口一文件（照 rim.server 的 `app/
 
 参数走 query 而不是路径段：`GET /bots?id=1`、`GET /apc?id=1` 取单条，不带 `id` 返回全表，`id` 非数字 → `ResponseX.badRequest(...)`，查不到 → `ResponseX.notFound(...)`；`GET /select-apc` 返回那份 Config。理由：id 是可选筛选条件，不是资源路径的一部分。
 
-中间件链（reqId → 请求日志 → JWT）由 `createHonox()` 统一装在本库路由之前，因此每个 API 都自动拿到 `c.get("uid")` 并打出 `-->` / `<--` 两行日志（结束行带 status / durationMs / uid / req）。表不用脚本生成，直接用 Excel 维护。
+中间件链（rid → 请求日志 → JWT）由 `createHonox()` 统一装在本库路由之前，因此每个 API 都自动拿到 `c.get("uid")` 并打出 `-->` / `<--` 两行日志（结束行带 status / durationMs / uid / rid）。表不用脚本生成，直接用 Excel 维护。
 
 注意：`metadata.base_url` 目前只支持本地目录。`app_fat.yml` 里它是 https 地址（rim.server 用来拉远端元数据），本库还没做远端拉取，跑 `ENV=fat` 会在加载时报目录不存在。
 
@@ -382,8 +382,9 @@ HTTP 接口按 `app/api/<name>.ts` 一接口一文件（照 rim.server 的 `app/
 
 | 文件 | 覆盖 |
 |---|---|
+| `ulid.test.ts` | 26 位 Crockford 字符集；前 10 位可解回毫秒；同毫秒不重复；时间晚的字典序更大；`isUlid` 拒 UUID / 小写 / 含 I·L·O·U |
 | `auth.test.ts` | 有效 token 放行；缺失 / 无效 / 过期 → 401 且 code=unauthorized；白名单精确匹配与 method 限定；`:id` 与 `/*` 匹配（含基路径本身）；cookie 取 token；`claim` 可配 |
-| `request-log.test.ts` | 两行（`-->` / `<--`）；401 也有结束行；handler 抛错 → 落 error 且 rethrow、结束行 status 500；响应头有 `x-request-id` |
+| `request-log.test.ts` | 两行（`-->` / `<--`）；401 也有结束行；handler 抛错 → 落 error 且 rethrow、结束行 status 500；行里带 `rid` |
 | `config.test.ts` | `common.yml` 缺失时跳过；`app_<env>.yml` 缺失时报错带路径与 ENV 值；深合并（对象递归、数组整体替换）；`APP_*` 覆盖嵌套字段；true/false/数字转换；`required` 缺失报错带字段路径 |
 | `mongo.test.ts` | `db()` 透传库名（不传时用连接串默认）；`withTransaction` 把 session 传给回调；`close()` 幂等；注入的 client 不被 close |
 | `shell-mount.test.ts` | `/shell` 返回 HTML；`/shell/*` 可用；白名单生效（不带 token 也能访问） |

@@ -41,12 +41,36 @@ describe("createHonox", () => {
     expect(await res.json()).toEqual({ uid: "u1", greeting: "hi" });
   });
 
-  test("响应头有 x-request-id，且与结束日志的 req 一致", async () => {
+  test("请求自带 x-rid 时沿用，并原样回显", async () => {
+    const { app } = setup();
+    const res = await app.request("/health", { headers: { "x-rid": "upstream-rid-1" } });
+    expect(res.headers.get("x-rid")).toBe("upstream-rid-1");
+  });
+
+  test("没有 x-rid 时退回 x-request-id", async () => {
+    const { app } = setup();
+    const res = await app.request("/health", { headers: { "x-request-id": "gateway-rid" } });
+    expect(res.headers.get("x-rid")).toBe("gateway-rid");
+  });
+
+  test("入站 rid 含非法字符（空格 / 斜杠 / 超长）时重新生成", async () => {
+    // 换行这一类根本构造不出来：Fetch 规范自己就拒收带 CR/LF 的 header。
+    // 这里的白名单是第二道防线（别处塞进来的 Request 对象、将来的网关改造）。
+    const { app } = setup();
+    for (const bad of ["with space", "a/b", "<script>", "x".repeat(65)]) {
+      const res = await app.request("/health", { headers: { "x-rid": bad } });
+      const id = res.headers.get("x-rid");
+      expect(id).not.toBe(bad);
+      expect(id).toMatch(/^[0-9A-Z]{26}$/);
+    }
+  });
+
+  test("响应头有 x-rid，且与结束日志的 rid 一致", async () => {
     const { app, records } = setup();
     const res = await app.request("/health");
-    const id = res.headers.get("x-request-id");
+    const id = res.headers.get("x-rid");
     expect(id).toBeTruthy();
-    expect(records.at(-1)).toMatchObject({ msg: "<--", req: id });
+    expect(records.at(-1)).toMatchObject({ msg: "<--", rid: id });
   });
 
   test("401 也落两条日志", async () => {

@@ -12,7 +12,7 @@ export interface HonoxOptions<C extends object> {
     shell?: ServerShellOptions;
 }
 /**
- * 装配一个 Hono app：reqId → 请求日志 → JWT → 门禁，顺序由库固定。
+ * 装配一个 Hono app：rid → 请求日志 → JWT → 门禁，顺序由库固定。
  *
  * 顺序不能交给业务：日志排在门禁前面，401 才有结束行；JWT 排在门禁前面，
  * 门禁才看得到 uid。这两个顺序错一个，症状都很隐蔽（"日志偶尔少一行"）。
