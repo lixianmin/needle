@@ -159,22 +159,43 @@ export function createHonox(options: HonoxOptions): HonoxApp;
 
 ### 8.4 每请求日志
 
-每请求两行，**直接走传进来的 logger**（默认就是全局 `logo`），不派生子 logger；`rid` 作为字段带上。**没有 `-->` / `<--` 箭头**：字段本身已经说明方向（出的一行有 `status` / `durationMs`）。
+**请求日志由业务自己写，库只兜业务补不了的那几类。** 中间件不再对每个请求无条件打两行：
+打不打、打什么、哪些字段要裁掉（密码、超大 body）只有业务知道，中间件在路由匹配之前
+也拿不到这些信息。health 这类接口现在就是零日志。
 
+业务侧：
+
+```ts
+import { traceOf } from "@needle/honox";
+
+botsApi.post("/bots", BotsBody, (ctx, body) => {
+  traceOf(ctx).info({ ids: body.ids });   // 想记什么自己挑
+  …
+});
 ```
-2026-10-24T16:52:34 [I] middleware.ts:71 [requestLog()] {"rid":"01JC5W8N7Q3M2V6Z9Q4R0P1T5X","path":"/health"}
-2026-10-24T16:52:34 [I] health.ts:7 {"rid":"01JC5W8N7Q3M2V6Z9Q4R0P1T5X","path":"/health","status":200,"durationMs":1.3,"uid":null}
-```
 
-- **结束行的位置是 API 文件**，不是中间件：由 `api()` / `apiRoute()`（见 8.4.2）在路由注册时抓下 `文件:行` 存进 context。进的那一行在 handler 之前，拿不到这个位置，所以仍是中间件行。
+`traceOf(ctx)` 生成时把 `rid` / `uid` / `method` / `path` / `module`（`createApi` / `apiRoute`
+注册时写入）取干净，之后打日志不再碰 `ctx`。用的是装配时注入的 logger（`HonoxEnv.Variables.log`），
+没有才退回全局 `logo`——这是「日志不进 request context」那条决策的唯一例外，否则
+`createHonox({ logger })` 配的实例会被业务日志绕过。
 
-- 行格式照 rim.server 的 Go 版 logo：`日期T时间 [级别] 文件:行 [函数()] 载荷`。`site` / `fn` 只在前缀里，不进 JSON。
-- 前端不带 `method`：路径已经能定位接口，动词在 `-->` 用例里是噪音（删过一版，见 memory）。需要区分时看业务日志或网关侧。
-- 结束行的 `uid` 取请求结束时的值（门禁/路由里可能已经解析出用户）。
-- 抛错：`log.error({ err })` 记一条（带完整栈），然后**原样 rethrow**，交给业务的 `app.onError` 或 Hono 默认处理；`finally` 仍落 `<--`（此时 status 是 500）。
-- 结构化字段：`rid`、`path`、`status`、`durationMs`、`uid`。
+库兜的四种（业务补不了，没有 handler）：
 
-### 8.4.1 id 生成（`@needle/got` 的 `id-tools.ts`）
+| 场景 | 位置 | 级别 | 字段 |
+|---|---|---|---|
+| 401 门禁拒绝 | `auth.ts` 门禁分支 | warn | `rid` `path` `method` `status:401` `authError` |
+| 404 未命中 | `createHonox` 装的 `app.notFound` | info | `rid` `path` `method` `status:404` |
+| 未捕获异常 | 中间件的计时包装 | error | `rid` `path` `method` `status:500` `durationMs` `uid` `module` + `error`（含栈） |
+| 慢请求 | 中间件的计时包装 | warn | 同上一行，但只在无 error 时发 |
+
+- **500 的日志在中间件而不是 `onError`**：业务可以自己 `app.onError`（单槽替换），换掉之后库里的
+  日志就没了；`c.error` 是 compose 写的，与谁处理无关。`onError` 只做映射
+  （`RequestError` → `ResponseX.fail`，其它 → `ResponseX.internalError("服务内部错误")`）。
+- 非 Error 抛出不进 `onError`（compose 只认 `instanceof Error`），由中间件的 `catch` 记一条后 rethrow。
+- `isRequestError` 为真时不记 error：客户端传错参数不是服务端故障。
+- `slowMs` 默认 1000ms，`0` 关闭；error 行已带 `durationMs`，慢请求不重复记。
+
+### 8.4.1 id 生成（`@needle/got` 的 `id-tools.ts`）### 8.4.1 id 生成（`@needle/got` 的 `id-tools.ts`）
 
 两种 id，用途不同，都放在 `@needle/got` 的根入口；`@needle/honox` 只消费，**不转手导出**（`import { nextSnowflakeId } from "@needle/got"`）。
 
@@ -209,40 +230,54 @@ export function createHonox(options: HonoxOptions): HonoxApp;
 - **时钟回拨**：照原版 Snowflake 直接抛错，不静默产生更小的 id——B 树回头插正是要避免的页分裂。等时钟追上来会让请求卡住，所以不选等待。
 - 选型小结：要定长紧凑、严格单调、可解出机器号与序列 → Snowflake；要不配任何东西、多实例随便扩 → ULID。
 
-### 8.4.2 `createApi()` / `apiRoute()`：把日志位置挪到 API 文件
+### 8.4.2 `createApi(module)` / `apiRoute(module, handler)`
 
-请求日志是在中间件里打的，那一刻栈上只有 Hono 的 `dispatch`（compose.js），**handler 根本不在栈上**——进的时候还没跑，出的时候已经返回。所以调多大的 callerDepth 都指不到 `app/api/apc.ts`。位置只能在**注册时**抓：
+一个文件一个组，第一个参数是这个文件在生产日志里的身份：
 
 ```ts
-// app/api/bots.ts —— 一个文件一个组，里面挂多条路由
-export const botsApi = createApi();
+// app/api/bots.ts
+export const botsApi = createApi("api/bots");
 
-botsApi.get("/bots", (c) => { ... });
-botsApi.post("/bots", (c) => { ... });
+botsApi.get("/bots", BotsQuery, (ctx, query) => …);     // GET/DELETE → 解析 query
+botsApi.post("/bots", BotsBody, (ctx, body) => …);      // POST/PUT/PATCH → 解析 body
+botsApi.get("/health", (ctx) => ctx.json({ ok: true })); // 不校验参数
 
 // 已经有 new Hono() 实例时，单独包 handler
-app.get("/apc", apiRoute((c) => { ... }));
+app.get("/apc", apiRoute("api/apc", (c) => …));
 ```
 
-`createApi()` 返回的是真正的 `Hono`（`app.route("/", botsApi)` 照常挂载），只是把 `get`/`post`/`put`/`patch`/`delete`/`all` 包了一层：每次登记路由时 `captureCallSite(1)` 抓下 `文件:行`，handler 里 `c.set("api", where)`。请求日志在 finally 里读它，作为 `site`/`fn` 传给 logger。logo 的 `buildRecord` 里，**调用方显式给的 `site`/`fn` 优先**于自动抓的（与 `stack` 同一规则）。
+- **`module` 必填**：它是生产环境唯一的定位信息来源（§8.4.3），可选就等于允许一批没有身份的日志。
+- 带模型的写法：注册时 `captureCallSite(1)` 抓 `文件:行`，连同 `module` 写进 `c.set("api", …)`；
+  请求到达时按方法决定解析哪一侧（GET/DELETE 读 query，其余读 body），把校验后的对象作为
+  handler 的第二个参数。失败抛 `RequestError`，由 `onError` 映射成 4xx。
+  代价：一个路由只校验一侧参数（当前没有接口同时需要 query 与 body）。
+- 模型的 schema 由 `scripts/gen-models.ts` 从手写 class 生成（见 `2026-10-24-request-log-and-parse-design.md`），
+  生成物按类名 `registerModel(...)` 注册，路由这边 `modelSchema(Model)` 懒查；查不到就抛一条
+  带修复提示的错误。
+- `createApi()` 返回的是真正的 `Hono`（`app.route("/", botsApi)` 照常挂载），只是把
+  `get`/`post`/`put`/`patch`/`delete`/`all` 包了一层。
+- **Proxy 只绑原型方法**，实例自有字段（`errorHandler` / `notFoundHandler`）原样返回：`bind` 出来
+  的副本会让父 app 的 `route()` 误判「子 app 自带错误处理」，把 handler 包进子 app 的**默认**
+  errorHandler——父层 `onError` 就再也收不到该组路由的异常（参数校验失败会变成纯文本 500）。
 
-为什么用 Proxy 而不是子类：要覆盖的只有"登记路由"这几个方法，其余（`route`/`use`/`fetch`/挂载语义）原样透传；链式 `get(...).post(...)` 返回代理，后续调用照样被包住。
+### 8.4.3 调用点与 `module`
 
-以后再有例行代码（统一参数解析、统一响应包装）也往这个组上收。
+**`site` / `fn` 不再逐条从栈里抓。** 打包后栈帧报的是 bundle 坐标（源码直跑是 `bots.ts:39`，
+`--outfile` 之后是 `dist/index.js:412`，`--minify` 之后连行号都被挤到第 2 行），逐条构造
+`Error` 付了代价却拿不到可用的位置。现在只有 `error` 级构造一次 `Error` 取完整栈，
+`info` / `warn` / `debug` 零构造。
 
-没包 `api` / `apiRoute` 的路由不会崩：拿不到 `api`，退回自动抓的中间件行。
+生产环境的定位靠**手写一次的 `module`**：`createApi("api/bots")` / `apiRoute("api/bots", h)`
+里的那个字符串，等于 C++ 里 `LOG_INFO` 宏带的 `__FILE__`。它经 `c.set("api", …)` 进 context，
+由 `traceOf(ctx)` 写进每条业务日志（`logo.child({ module })` 是同一件事，给非请求场景用）。
 
-### 8.4.3 调用点（`site` / `fn`）与 callerDepth
+- `captureCallSite()` 仍保留：`createApi` / `apiRoute` 注册时抓一次 `文件:行`，写进 `site` / `fn`。
+  它**只当开发期信息**——打包后同样是 bundle 坐标，不许当生产定位手段。
+- `callerDepth`（对应 Go 的 `SetFuncCallDepth`）删掉了：它存在的唯一目的是修补「助手包一层
+  位置就歪」，自动抓栈没了之后没有意义。
+- 行格式仍是 `日期T时间 [级别] 文件:行 [函数()] 载荷`；`site` / `fn` 只在前缀里，不进 JSON。
 
-每条日志（不只 error）都抓一次调用点，格式 `file.ts:23` + 函数名，写进记录的 `site` / `fn`，
-由 `formatLine` 打进前缀。
-
-- 代价明码：每条日志构造一次 `Error` 取栈，比不抓贵一个量级；这是"必须能看出哪一行打的"换来的。
-- 完整栈仍只给 `stackLevel`（默认 `error`）及以上，其它级别只有一个调用点。
-- 剪帧规则与 Go 版一致：拿采集函数自己那一帧的目录当基准，同目录的帧都算内部帧。
-- `callerDepth`（对应 Go 版 logo 的 `SetFuncCallDepth`，`logger.child` 会继承）：包了 helper 时多跳过几帧。**注意它只能跳过"同目录之外"的帧**，越界会落到 Hono 的 `dispatch` 或调用方，所以别拿它来"找 API 文件"——那件事用 `apiRoute()`。
-
-### 8.5 配置加载（`@needle/honox/node`）
+### 8.5 配置加载（`@needle/honox/node`）### 8.5 配置加载（`@needle/honox/node`）
 
 来源是 rim.server 的 `app/builds/config.go`：`common.yml` 打底 → `app_<env>.yml` 深合并 → 已知环境变量覆盖 → 必填检查，产出一个 viper 风格的取值器。rim 那边调用方写 `vip.GetInt("server.web_port")`，这里对应 `config.getInt("server.web_port")`。
 

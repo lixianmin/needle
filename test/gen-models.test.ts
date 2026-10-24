@@ -100,13 +100,13 @@ export class BotsBody {
   });
 
   test("循环引用 / 方法 / 缺类型标注 / 未知类型 / 重名 都硬报错", () => {
-    const cases: [string, string[], RegExp][] = [
-      ["循环引用", ["export class Node {\n  name: string = \"\";\n  parent?: Node;\n}\n"], /循环引用/],
-      ["方法", ["export class A {\n  x: number = 0;\n  run(): void {}\n}\n"], /只支持字段声明/],
-      ["缺类型标注", ["export class A {\n  x = 0;\n}\n"], /必须有类型标注/],
-      ["未知类型", ["export class A {\n  x: Unknown = null;\n}\n"], /未知类型 Unknown/],
+    const cases = [
+      { label: "循环引用", content: "export class Node {\n  name: string = \"\";\n  parent?: Node;\n}\n", pattern: /循环引用/ },
+      { label: "方法", content: "export class A {\n  x: number = 0;\n  run(): void {}\n}\n", pattern: /只支持字段声明/ },
+      { label: "缺类型标注", content: "export class A {\n  x = 0;\n}\n", pattern: /必须有类型标注/ },
+      { label: "未知类型", content: "export class A {\n  x: Unknown = null;\n}\n", pattern: /未知类型 Unknown/ },
     ];
-    for (const [label, [content], pattern] of cases) {
+    for (const { label, content, pattern } of cases) {
       reset();
       const file = write("models.ts", content);
       const result = run([file]);

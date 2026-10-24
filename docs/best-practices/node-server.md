@@ -162,6 +162,10 @@ Shell 右栏只在面板打开时收实时日志，没有历史；Workers 又没
 
 要按文件查日志，用 Node / Bun（磁盘文件）或浏览器（IndexedDB store）——Workers 两样都没有。
 
+### 构建期别开 `drop_console`
+
+Workers / 浏览器里没有 `process.stdout`，stdout sink 会退化到 `console.log`（Node / Bun 走 `process.stdout.write`，不受影响）。所以构建配置里开 esbuild `drop: ["console"]` 或 terser `drop_console: true`，会把**所有日志**静默删掉——代码照跑，日志一条不剩。要压体积就按文件排除，别全局 drop。
+
 ### 为什么不做定时批量
 
 `logo` 的批量刷新依赖定时器。Workers 的响应返回后，未触发的定时器可能被取消——批量反而会丢日志。库的做法是：检测不到可同步写的 stdout 时，日志逐条立即写出。这条规则同样适用于 Vercel Edge、Deno Deploy 这类环境。
