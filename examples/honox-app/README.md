@@ -7,11 +7,13 @@
 `@needle/*` 三个包还没发 npm，这里用 `link:` 指向仓库里的 `packages/*`（`bun install` 会建立软链接，不需要 `bun link` 的全局注册）。本示例有**自己的** `node_modules`、`bun.lock` 和 `tsconfig.json`，不进仓库根 workspace：`bun install --frozen-lockfile` 与 Docker 构建要能独立复现。TypeScript 与根同版本（`7.0.2`，有测试钉住）。
 
 ```bash
-bun install     # 装 hono / typescript 等
-SHELL_PASSWORD=dev bun run dev     # 开发：bun --watch 直接跑 app/main.ts，改代码自动重启
-bun run build   # bun build → dist/index.js（自包含产物）
-SHELL_PASSWORD=dev bun run start   # 跑构建产物；默认 8213 端口（res/config/common.yml），PORT 可改
+bun install        # 装 hono / typescript 等
+bun run dev        # 开发：bun --watch 直接跑 app/main.ts，改代码自动重启
+bun run build      # bun build → dist/index.js（自包含产物）
+bun run start      # 跑构建产物；端口取自 res/config，ENV 默认 dev
 ```
+
+Shell 面板的账号在 `res/config/app_dev.yml` 的 `server.shell_users` 里（本仓库是 `xmli / 123456`，只用于本地）。
 
 ## 为什么不是 HonoX
 
@@ -21,13 +23,28 @@ SHELL_PASSWORD=dev bun run start   # 跑构建产物；默认 8213 端口（res/
 
 ## 配置
 
-配置和模板表都在 `res/` 下，与镜像里的目录结构一致：
+配置和模板表都在 `res/` 下，与镜像里的目录结构一致。加载顺序照 rim.server：
 
-- `res/config/common.yml`：所有环境共享（端口、host、redis）。
-- `res/config/app_<env>.yml`：只写差异项，`ENV` 决定加载哪个（默认 `dev`）。
-- 环境变量覆盖：`APP_AUTH__SECRET=xxx`（`__` 分隔层级），优先级最高；`PORT` / `HOST` 直接盖 端口/host。
+1. `res/config/common.yml`（所有环境共享，可缺）
+2. `res/config/app_<env>.yml`（只写差异项，**必须存在**）
+3. `APP_*` 环境变量（`__` 分隔层级，如 `APP_SERVER__WEB_PORT=9000`）
 
-`loadConfig({ dir: "res/config" })` 读的就是这个目录。启动时缺 `auth.secret` 会直接报错，不会带着空密钥跑。`logger` / `metadata` / `redis` 几段当前示例不读（`@needle/logo` 的 lark sink 没接线，模板路径写死在 `app/md/`），留着给业务扩展；`lark_token` 在仓库里是空字符串，真实值用环境变量注入。
+`ENV` 决定第 2 步加载哪个文件，只认 **dev / fat / pro**（默认 dev，写错直接报错）。这是整个示例里唯一读 `process.env` 的地方——**业务代码一律用 `config.getXxx("点分路径")`**，不再自己去看环境变量：
+
+```ts
+const config = loadConfig({ dir: "res/config", required: ["auth.secret", "metadata.base_url", "server.web_port"] });
+
+config.getInt("server.web_port")          // 8001
+config.getString("server.host", "0.0.0.0") // 缺省值给了就不抛
+config.getStringMap("server.shell_users") // { xmli: "123456" }（YAML 数字转字符串）
+config.getBool("feature.on")
+config.has("server.host")                 // 路径上有值
+config.env / config.isDev() / config.isFat() / config.isPro()
+```
+
+取值语义比 viper 严一点：缺值又没给 fallback 就抛，不会静默变成 `""` / `0`。`required` 里的点分路径在启动时检查，缺了或空字符串都直接报错（所以 `app_pro.yml` 刻意不写 `auth.secret`，生产必须用 `APP_AUTH__SECRET` 注入）。
+
+`logger` / `redis` 几段当前示例不读（`@needle/logo` 的 lark sink 没接线），留着给业务扩展；`lark_token` 在仓库里是空字符串，真实值用 `APP_LOGGER__LARK_TOKEN` 注入。
 
 ## 接口
 
@@ -38,7 +55,7 @@ SHELL_PASSWORD=dev bun run start   # 跑构建产物；默认 8213 端口（res/
 | `GET /bots?id=1` | 需要 JWT | 读 `BotTemplate` 表的那一行；不带 `id` 返回全表 |
 | `GET /apc?id=1` | 需要 JWT | 读 `ApcTemplate` 表的那一行；不带 `id` 返回全表 |
 | `GET /select-apc` | 需要 JWT | 返回 `SelectApcConfig` 这份全局配置 |
-| `GET /shell` | 公开（面板自己用 `SHELL_PASSWORD` 登录） | 调试面板 |
+| `GET /shell` | 公开（面板自己用 `server.shell_users` 里的账号登录） | 调试面板 |
 
 生成一个测试 token：
 
@@ -130,10 +147,9 @@ export class BotTemplate {
 
 ```bash
 docker build -f examples/honox-app/Dockerfile -t honox-app .
-docker run --rm -p 8213:8213 \
+docker run --rm -p 8001:8001 \
   -e APP_AUTH__SECRET="换成你自己的随机串" \
-  -e SHELL_PASSWORD="换成你自己的口令" \
   honox-app
 ```
 
-镜像里 `NODE_ENV=production`：不传 `APP_AUTH__SECRET` 就启动报错，不会带着仓库里的 dev 密钥裸奔；`SHELL_PASSWORD` 同理（`/shell` 在 JWT 白名单里，对它唯一的门就是这个口令）。`ENV` 默认 `dev`，换成其它值要先加对应的 `res/config/app_<env>.yml`（`app_fat.yml` 没写 `auth.secret`，跑 fat 得靠 `APP_AUTH__SECRET`）。镜像不带 `node_modules`：`dist/index.js` 是自包含产物；`res/` 是运行时 fs 读的，整目录拷进镜像。
+镜像里 `ENV=pro`，读 `res/config/app_pro.yml`。那份配置刻意没写 `auth.secret`，所以不传 `APP_AUTH__SECRET` 就启动报错，不会带着仓库里的 dev 密钥裸奔。Shell 面板要开就在 `server.shell_users` 里配账号（pro 的配置里没有，所以镜像默认不挂面板）；`/shell` 在 JWT 白名单里，对它唯一的门就是这些账号。镜像不带 `node_modules`：`dist/index.js` 是自包含产物；`res/` 是运行时 fs 读的，整目录拷进镜像。

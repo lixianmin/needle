@@ -23,20 +23,27 @@ Web Shell，支持命令查看当前系统状态，如进程状态、业务数�
 
 ## 〇、Hono 底座（@needle/honox）
 
-新项目起步用：配置（`common.yml` + `app_<env>.yml` + `APP_*` 环境变量）、每请求日志、JWT 鉴权（默认拒绝，公开接口走白名单）、可选 Mongo、Excel 配置表、调试面板。行为细则与设计理由见 `docs/superpowers/specs/2026-10-24-honox-design.md`；可跑的例子在 `examples/honox-app`（HonoX + Dockerfile）。
+新项目起步用：配置（`common.yml` + `app_<env>.yml` + `APP_*` 环境变量，viper 风格取值器）、每请求日志、JWT 鉴权（默认拒绝，公开接口走白名单）、可选 Mongo、Excel 元数据表、调试面板。行为细则与设计理由见 `docs/superpowers/specs/2026-10-24-honox-design.md`；可跑的例子在 `examples/honox-app`（纯 Hono + Dockerfile）。
 
 ```ts
 import { createHonox } from "@needle/honox";
 import { loadConfig } from "@needle/honox/node";
-import { loadSheets } from "@needle/honox/excel";
+import { createMetadata } from "@needle/honox/excel";
 
-const config = loadConfig<{ auth: { secret: string } }>({ required: ["auth.secret"] });
-await loadSheets([botSheet]);              // Excel 预载后，getter 同步
+// ENV 决定读 app_<env>.yml（只认 dev / fat / pro）；之后一律走 config.getXxx(...)
+const config = loadConfig({
+  dir: "res/config",
+  required: ["auth.secret", "metadata.base_url", "server.web_port"],
+});
+
+const metadata = createMetadata();
+await metadata.load(config.getString("metadata.base_url")); // *Template 按 id 建表，*Config 单例
+
 const app = createHonox({
   config,
-  auth: { secret: config.auth.secret, public: ["/health"] },
-  // /shell 对匿名网络可达（在 JWT 白名单里），口令必须由部署方提供，不要写默认值
-  shell: { basePath: "/shell", auth: { users: { admin: process.env.SHELL_PASSWORD! } } },
+  auth: { secret: config.getString("auth.secret"), public: ["/health"] },
+  // /shell 对匿名网络可达（在 JWT 白名单里），账号从配置来，不要写默认值
+  shell: { basePath: "/shell", auth: { users: config.getStringMap("server.shell_users") } },
 });
 app.get("/orders", (c) => c.json({ uid: c.get("uid") })); // 不声明 = 要登录
 ```

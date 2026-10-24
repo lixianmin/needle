@@ -97,3 +97,124 @@ export function assertRequired(config: Record<string, unknown>, required: readon
     throw new Error(`配置缺少必填项：${missing.join("、")}（来源：config 目录 + 环境变量覆盖）`);
   }
 }
+
+/** 配置项不存在，或类型不对。消息里带点分路径，配错时不用翻代码。 */
+function missing(path: string): Error {
+  return new Error(`配置项不存在：${path}`);
+}
+
+/** 按点分路径取值；中间层不是对象就当不存在（与 viper 的 Get 语义一致）。 */
+export function readPath(data: Record<string, unknown>, path: string): unknown {
+  let cursor: unknown = data;
+  for (const key of path.split(".")) {
+    if (typeof cursor !== "object" || cursor === null || Array.isArray(cursor)) {
+      return undefined;
+    }
+    cursor = (cursor as Record<string, unknown>)[key];
+    if (cursor === undefined) {
+      return undefined;
+    }
+  }
+  return cursor;
+}
+
+export interface Config<C extends Record<string, unknown> = Record<string, unknown>> {
+  /** 环境名：`dev` / `fat` / `pro`（已小写归一）。 */
+  readonly env: string;
+  isDev(): boolean;
+  isFat(): boolean;
+  isPro(): boolean;
+  /** 路径上有值就算 true（null 也算有）。 */
+  has(path: string): boolean;
+  get(path: string): unknown;
+  /** 缺省值给了就不抛；没给且缺失 → 抛。 */
+  getString(path: string, fallback?: string): string;
+  getInt(path: string, fallback?: number): number;
+  getBool(path: string, fallback?: boolean): boolean;
+  /** 取一层 key→string 的映射（YAML 的数字会被转成字符串）。缺省给 {}。 */
+  getStringMap(path: string): Record<string, string>;
+  /** 合并后的原始数据，只读用途（整段透传给别的库之类）。 */
+  raw(): C;
+}
+
+/**
+ * 把合并结果包成 viper 风格的取值器：调用方只认 `config.getInt("server.web_port")`，
+ * 不再各自去摸 `process.env`，也不用手写一遍点分路径的兼容代码。
+ *
+ * 取值语义比 viper 严一点：缺值又没给 fallback 就抛。viper 返回零值（"" / 0），
+ * 配置写错时表现成「端口 0」「密钥空」，排查成本比报错高得多。
+ */
+export function createConfig<C extends Record<string, unknown>>(data: C, env: string): Config<C> {
+  function value(path: string): unknown {
+    return readPath(data, path);
+  }
+
+  function resolved<T>(path: string, fallback: T | undefined, convert: (raw: unknown) => T | undefined): T {
+    const raw = value(path);
+    if (raw === undefined) {
+      if (fallback !== undefined) {
+        return fallback;
+      }
+      throw missing(path);
+    }
+    const converted = convert(raw);
+    if (converted === undefined) {
+      throw new Error(`配置项 ${path} 类型不对：${JSON.stringify(raw)}`);
+    }
+    return converted;
+  }
+
+  return {
+    env,
+    isDev: () => env === "dev",
+    isFat: () => env === "fat",
+    isPro: () => env === "pro",
+    has: (path) => value(path) !== undefined,
+    get: value,
+    getString: (path, fallback) =>
+      resolved(path, fallback, (raw) =>
+        typeof raw === "string" || typeof raw === "number" || typeof raw === "boolean"
+          ? String(raw)
+          : undefined,
+      ),
+    getInt: (path, fallback) =>
+      resolved(path, fallback, (raw) => {
+        if (typeof raw === "number") {
+          return Number.isFinite(raw) ? Math.trunc(raw) : undefined;
+        }
+        if (typeof raw === "string" && raw.trim() !== "") {
+          const parsed = Number(raw);
+          return Number.isFinite(parsed) ? Math.trunc(parsed) : undefined;
+        }
+        return undefined;
+      }),
+    getBool: (path, fallback) =>
+      resolved(path, fallback, (raw) => {
+        if (typeof raw === "boolean") {
+          return raw;
+        }
+        if (raw === "true") {
+          return true;
+        }
+        if (raw === "false") {
+          return false;
+        }
+        return undefined;
+      }),
+    getStringMap: (path) => {
+      const raw = value(path);
+      if (raw === undefined) {
+        return {};
+      }
+      if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+        throw new Error(`配置项 ${path} 不是 key→value 映射：${JSON.stringify(raw)}`);
+      }
+      const map: Record<string, string> = {};
+      for (const [key, entry] of Object.entries(raw)) {
+        map[key] = String(entry);
+      }
+      return map;
+    },
+    raw: () => data,
+  };
+}

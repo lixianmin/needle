@@ -5,7 +5,7 @@ import { createAuth, type AuthOptions } from "./auth.js";
 import { createRequestLog } from "./request-log.js";
 import type { HonoxEnv, PublicEntry } from "./types.js";
 
-export interface HonoxOptions<C extends Record<string, unknown>> {
+export interface HonoxOptions<C extends object> {
   config: C;
   /** 默认 @needle/logo 的 logo 实例。 */
   log?: Logger;
@@ -25,7 +25,7 @@ function normalizeBasePath(basePath: string): string {
  * 顺序不能交给业务：日志排在门禁前面，401 才有结束行；JWT 排在门禁前面，
  * 门禁才看得到 uid。这两个顺序错一个，症状都很隐蔽（"日志偶尔少一行"）。
  */
-export function createHonox<C extends Record<string, unknown>>(
+export function createHonox<C extends object>(
   options: HonoxOptions<C>,
 ): Hono<HonoxEnv<C>> {
   const log = options.log ?? logo;
@@ -67,5 +67,6 @@ export function createHonox<C extends Record<string, unknown>>(
   return app;
 }
 
+export type { Config } from "./config.js";
 export type { AuthOptions } from "./auth.js";
 export type { AuthErrorReason, HonoxEnv, PublicEntry } from "./types.js";

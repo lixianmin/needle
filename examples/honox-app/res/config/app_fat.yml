@@ -1,14 +1,1 @@
 # FAT 环境配置 - 只包含与 common.yml 不同的配置
-
-# 日志配置
-logger:
-  filter_level: debug
-  # 凭据不进仓库：真实值用 APP_LOGGER__LARK_TOKEN 注入
-  lark_token: ""
-
-# 元数据配置
-metadata:
-  base_url: https://unity.tos-cn-beijing.volces.com/rim.res/metadata20141209/fat
-
-redis:
-  data_source: 127.0.0.1:6379

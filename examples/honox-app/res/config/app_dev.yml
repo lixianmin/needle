@@ -3,12 +3,16 @@
 # 日志配置
 logger:
   filter_level: debug
-  # 凭据不进仓库：真实值用 APP_LOGGER__LARK_TOKEN 注入（本示例没接 lark sink）
   lark_token: ""
 
 # 元数据配置
 metadata:
   base_url: res/metadata
+
+server:
+  web_port: 8001
+  shell_users:
+    xmli: 123456
 
 redis:
   data_source: 127.0.0.1:6379
