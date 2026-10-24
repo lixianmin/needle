@@ -28,7 +28,7 @@ function basename(file) {
  * 自己。改成拿第一帧（本函数所在文件）的目录当基准——同一目录下的帧都是内部帧，
  * 与目录布局无关。
  */
-function externalFrames() {
+function externalFrames(skip = 0) {
     const frames = (new Error().stack ?? "").split("\n").slice(1);
     const origin = parseFrame(frames[0] ?? "");
     if (origin === undefined) {
@@ -40,7 +40,10 @@ function externalFrames() {
         return frames;
     }
     // Windows 的栈里是反斜杠，两种分隔符都试。
-    return frames.filter((line) => !line.includes(`${dir}/`) && !line.includes(`${dir}\\`));
+    const external = frames.filter((line) => !line.includes(`${dir}/`) && !line.includes(`${dir}\\`));
+    // 与 Go 版 logo 的 SetFuncCallDepth 同一件事：调用方再包一层 helper 时，
+    // 多出来的那几帧要把它们跳过，否则打出来的永远是 helper 自己那一行。
+    return skip > 0 ? external.slice(skip) : external;
 }
 /** 调用点：`file.ts:12`。每条日志都要，所以每写一条构造一次 Error，这是明码代价。 */
 function callSiteOf(frames) {
@@ -49,6 +52,18 @@ function callSiteOf(frames) {
 }
 function functionOf(frames) {
     return parseFrame(frames[0] ?? "")?.fn;
+}
+/**
+ * 抓当前调用点的 { site, fn }，`skip` 是额外跳过的帧数（0 = 调用本函数的那一行）。
+ *
+ * 给需要"在别处记录位置、稍后再打日志"的场景用（例如 HTTP 路由注册时记下文件:行）。
+ */
+export function captureCallSite(skip = 0) {
+    const frame = parseFrame(externalFrames(skip)[0] ?? "");
+    if (frame === undefined) {
+        return undefined;
+    }
+    return { site: `${basename(frame.file)}:${frame.line}`, fn: frame.fn };
 }
 /** 完整调用栈：只有达到 stackLevel 的级别才带上，头一行保留 "Error"。 */
 function stackOf(frames) {
@@ -62,6 +77,7 @@ function buildLogger(options, state) {
     const flushIntervalMs = options.flushIntervalMs ?? DEFAULT_FLUSH_INTERVAL_MS;
     const maxBuffer = options.maxBuffer ?? DEFAULT_MAX_BUFFER;
     const stackLevel = options.stackLevel ?? "error";
+    const callerDepth = options.callerDepth ?? 0;
     const batch = options.batch ?? hasStdout();
     let level = options.level ?? "info";
     let buffer = [];
@@ -123,7 +139,7 @@ function buildLogger(options, state) {
         }
         const withStack = stackLevel !== "off" && LEVELS[recordLevel] >= LEVELS[stackLevel];
         // 调用点每级都要（info/warn 也带）；全栈只给 stackLevel 及以上。
-        const frames = externalFrames();
+        const frames = externalFrames(callerDepth);
         const built = buildRecord(recordLevel, args, {
             name: options.name,
             site: callSiteOf(frames),
@@ -169,6 +185,7 @@ function buildLogger(options, state) {
                 now,
                 flushIntervalMs,
                 maxBuffer,
+                callerDepth,
                 stackLevel,
                 batch,
                 fields: { ...fixedFields, ...rest },

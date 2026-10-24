@@ -192,6 +192,26 @@ describe("newLogger", () => {
     expect(records.find((entry) => entry.msg === "i")?.fn).toBe("namedCaller");
   });
 
+  test("callerDepth 能跳过外包 helper 的帧（对应 Go 的 SetFuncCallDepth）", () => {
+    const { calls, sink } = collector();
+    const direct = newLogger({ ...base, sinks: [sink] });
+    const skipped = newLogger({ ...base, sinks: [sink], callerDepth: 1 });
+
+    function helper(log: typeof direct): void {
+      log.info("x");
+    }
+    helper(direct);
+    helper(skipped);
+    direct.flush();
+    skipped.flush();
+
+    const [directRecord, skippedRecord] = calls.flat();
+    // 不跳过时，调用点落在 helper 内部；跳一帧后，落在 helper 的调用处（测试回调）。
+    expect(directRecord?.fn).toBe("helper");
+    expect(skippedRecord?.fn).not.toBe("helper");
+    expect(skippedRecord?.site).toMatch(/^logger\.test\.ts:\d+$/);
+  });
+
   test("完整栈：默认只有 error 带，info / warn 不带", () => {
     const { calls, sink } = collector();
     const logger = newLogger({ ...base, sinks: [sink] });

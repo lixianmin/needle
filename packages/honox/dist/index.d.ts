@@ -21,6 +21,7 @@ export interface HonoxOptions<C extends object> {
  */
 export declare function createHonox<C extends object>(options: HonoxOptions<C>): Hono<HonoxEnv<C>>;
 export type { Config } from "./config.js";
+export { apiRoute } from "./middleware.js";
 export { createSnowflake, parseSnowflake } from "./id.js";
 export type { Snowflake, SnowflakeOptions } from "./id.js";
 export type { AuthOptions } from "./auth.js";

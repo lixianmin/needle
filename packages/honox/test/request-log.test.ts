@@ -18,11 +18,11 @@ function setup() {
 }
 
 describe("createRequestLog", () => {
-  test("正常请求落两行，结束行带 path / status / durationMs / uid / rid（method 已去掉）", async () => {
+  test("正常请求落两行，结束行带 path / status / durationMs / uid / rid（没有箭头 msg）", async () => {
     const { app, records } = setup();
     app.get("/orders", (c) => c.json({ ok: true }));
     await app.request("/orders");
-    expect(records.map((r) => r.msg)).toEqual(["-->", "<--"]);
+    expect(records).toHaveLength(2);
     const end = records[1]!;
     expect(end).toMatchObject({ path: "/orders", status: 200, uid: null, rid: "r1" });
     expect(typeof end.durationMs).toBe("number");
@@ -34,7 +34,7 @@ describe("createRequestLog", () => {
     app.get("/private", (c) => c.text("no"));
     const res = await app.request("/private");
     expect(res.status).toBe(401);
-    expect(records.map((r) => r.msg)).toEqual(["-->", "<--"]);
+    expect(records).toHaveLength(2);
     expect(records[1]).toMatchObject({ status: 401 });
   });
 
@@ -42,7 +42,7 @@ describe("createRequestLog", () => {
     const { app, records } = setup();
     const res = await app.request("/no-such-route");
     expect(res.status).toBe(404);
-    expect(records.at(-1)).toMatchObject({ msg: "<--", status: 404 });
+    expect(records.at(-1)).toMatchObject({ status: 404 });
   });
 
   test("handler 抛错：落一条 error 并 rethrow，结束行 status 500", async () => {
@@ -54,7 +54,7 @@ describe("createRequestLog", () => {
     const res = await app.request("/boom");
     expect(res.status).toBe(500);
     expect(records.some((r) => r.level === "error" && r.message === "kaboom")).toBe(true);
-    expect(records.at(-1)).toMatchObject({ msg: "<--", status: 500 });
+    expect(records.at(-1)).toMatchObject({ status: 500 });
   });
 
   test("非 Error 抛出：仍记 error 行，结束行 status 500", async () => {
@@ -64,7 +64,7 @@ describe("createRequestLog", () => {
     });
     await expect(app.request("/weird")).rejects.toBe("boom-string");
     expect(records.some((r) => r.level === "error")).toBe(true);
-    expect(records.at(-1)).toMatchObject({ msg: "<--", status: 500 });
+    expect(records.at(-1)).toMatchObject({ status: 500 });
   });
 
   test("结束行的 uid 用请求结束时的值", async () => {

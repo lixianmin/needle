@@ -16,5 +16,7 @@ export interface HonoxEnv<C extends object = Record<string, unknown>> {
     config: C;
     log: Logger;
     rid: string;
+    /** 由 `apiRoute()` 写入：这个请求命中的 API 注册在哪个文件:行。 */
+    api?: { site: string; fn: string };
   };
 }

@@ -91,6 +91,8 @@ app/viper.ts     # 配置实例（viper 风格取值器）+ c.get 的键声明
 
 新增一个接口：在 `app/api/` 加一个文件（`new Hono()` + `xxxApi.get(...)`），再到 `index.ts` 里 `app.route("/", xxxApi)` 一行。`app/main.ts` 不用动。
 
+**每个 handler 包一层 `apiRoute(...)`**：`xxxApi.get("/x", apiRoute((c) => {...}))`。它把这个路由注册在哪个文件:行记进 context，请求日志结束行就会指到 `apc.ts:11` 而不是「中间件那一行」。忘了包也不会崩，只是那行位置退回中间件。
+
 **rid 是 Snowflake**：入站带 `x-rid`（或 `x-request-id`）就沿用，没带才生成。位布局 `41 毫秒 | 10 机器号 | 12 序列`，epoch 取配置里的 `server.epoch_ms`（写死，不能用启动时间），机器号由 `nodeIdFromMac()` 从网卡 MAC 派生。id 对外是**定长 13 位小写 Crockford Base32 字符串**（`0-9a-z` 去掉 `i l o u`）：63 位装不进 JS number，而 `JSON.stringify(bigint)` 会抛，所以从生成那刻就是字符串——写日志、进 JSON、存 Mongo/MySQL 都不用转换。定长保证字典序 = 数值序（变长会让新 id 排到旧 id 前面，B 树回头插）。
 
 **uid 与请求日志是自动的**：`createHonox()` 装配的中间件链是 `rid → 请求日志 → JWT 鉴权`，所有 `app/api/` 里的路由都挂在它后面。于是每条请求都会：
@@ -99,8 +101,8 @@ app/viper.ts     # 配置实例（viper 风格取值器）+ c.get 的键声明
 - 打两行日志，进 `-->`、出 `<--`，结束行带 `status`、`durationMs`、`uid`、`req`：
 
 ```
-[I] request-log.ts:23 [requestLog()] {"rid":"3zztnkjx7g000","path":"/me","msg":"-->"}
-[I] request-log.ts:35 [requestLog()] {"rid":"3zztnkjx7g000","path":"/me","status":200,"durationMs":1.9,"uid":"u1","msg":"<--"}
+[I] middleware.ts:71 [requestLog()] {"rid":"02zcgfqmyyw00","path":"/me"}
+[I] me.ts:7 {"rid":"02zcgfqmyyw00","path":"/me","status":200,"durationMs":1.9,"uid":"u1"}
 ```
 
 日志走 `@needle/logo` 的批处理，进程被杀前可能还没刷出来——本地验证时给它 1~2 秒。

@@ -1,6 +1,6 @@
 import { newLogger } from "./logo.js";
 import { stdoutSink } from "./sinks/stdout.js";
-export { newLogger } from "./logo.js";
+export { captureCallSite, newLogger } from "./logo.js";
 export { stdoutSink, hasStdout } from "./sinks/stdout.js";
 export { createIndexedDbStore } from "./sinks/idb.js";
 export { createLarkSink } from "./sinks/lark.js";

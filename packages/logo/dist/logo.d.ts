@@ -1,4 +1,13 @@
 import { type Level, type Sink } from "./types.js";
+/**
+ * 抓当前调用点的 { site, fn }，`skip` 是额外跳过的帧数（0 = 调用本函数的那一行）。
+ *
+ * 给需要"在别处记录位置、稍后再打日志"的场景用（例如 HTTP 路由注册时记下文件:行）。
+ */
+export declare function captureCallSite(skip?: number): {
+    site: string;
+    fn: string;
+} | undefined;
 export interface LoggerOptions {
     /** 低于这个级别不记录。默认 "info"。 */
     level?: Level;
@@ -12,6 +21,11 @@ export interface LoggerOptions {
     flushIntervalMs?: number;
     /** 缓冲上限（条）。默认 10000；写满立刻 flush，不丢记录。 */
     maxBuffer?: number;
+    /**
+     * 额外跳过的栈帧数，对应 Go 版 logo 的 `SetFuncCallDepth`。
+     * 默认 0：调用点就是直接调 logger 的那一行；包了 helper 就调大它。
+     */
+    callerDepth?: number;
     /** 从哪个级别开始采集**完整**调用栈（调用点每级都有）。默认 "error"；设 "off" 关闭全栈。 */
     stackLevel?: Level | "off";
     /** 是否启用定时批量。默认取决于能否同步写 stdout。 */

@@ -1,5 +1,5 @@
-import type { Logger } from "@needle/logo";
-import type { Hono, MiddlewareHandler } from "hono";
+import { captureCallSite, type Logger } from "@needle/logo";
+import type { Handler, Hono, MiddlewareHandler } from "hono";
 import { createAuth, type AuthOptions } from "./auth.js";
 import type { HonoxEnv, PublicEntry } from "./types.js";
 import type { Snowflake } from "./id.js";
@@ -27,13 +27,35 @@ function resolveRid(
   return ids.next();
 }
 
+/**
+ * 给路由登记一个"这是哪个 API 文件"的位置。
+ *
+ * 请求日志是在中间件里打的，那一刻栈上只有 Hono 的 dispatch（handler 还没跑 /
+ * 已经返回），再怎么调 callerDepth 也指不到 handler 所在的文件。所以位置在
+ * **注册时**抓一次，存进 context，日志行直接用它。
+ *
+ * 用法：`app.get("/apc", apiRoute((c) => { ... }))`。
+ */
+export function apiRoute<T extends object>(handler: Handler<HonoxEnv<T>>): Handler<HonoxEnv<T>> {
+  // 跳 1 帧：第 0 帧是 apiRoute 自己。
+  const where = captureCallSite(1);
+  if (where === undefined) {
+    return handler;
+  }
+  return (c, next) => {
+    c.set("api", where);
+    return handler(c, next);
+  };
+}
+
 /** 保留 1 位小数：毫秒精度够定位慢请求，也不会让日志字段变成浮点长尾。 */
 function elapsedMs(start: number): number {
   return Math.round((performance.now() - start) * 10) / 10;
 }
 
 /**
- * 每请求两行：`-->` 进、`<--` 出。
+ * 每请求两行：进的那行只有 rid / path，出的一行额外带 status / durationMs / uid。
+ *（曾经用 `-->` / `<--` 当 msg，后来去掉：字段本身已经说明方向，箭头是噪音。）
  *
  * 结束行放在 finally 里，并读 `c.res.status`——这样门禁短路、404、抛错
  * 三种情况都有结束行；没有它，日志里会出现"有进无出"，看不出请求是卡住还是失败。
@@ -52,8 +74,14 @@ export function createRequestLog(log: Logger): MiddlewareHandler<HonoxEnv> {
     const rid = c.get("rid");
     const path = c.req.path;
     const started = performance.now();
+    // 路由注册时记下的位置（没包 apiRoute 就是 undefined，退回自动抓的中间件行）。
+    // 进的那一行还在 handler 之前，拿不到；出的那一行在 finally 里读，能拿到。
+    function origin(): { site?: string; fn?: string } {
+      const where = c.get("api");
+      return where === undefined ? {} : { site: where.site, fn: where.fn };
+    }
 
-    log.info({ rid, path }, "-->");
+    log.info({ rid, path, ...origin() });
     try {
       await next();
       if (c.error !== undefined) {
@@ -67,12 +95,12 @@ export function createRequestLog(log: Logger): MiddlewareHandler<HonoxEnv> {
         {
           rid,
           path,
+          ...origin(),
           // 没 finalize 时 c.res 的 getter 会造一个 200 的空响应，那会把失败记成功。
           status: c.finalized ? c.res.status : 500,
           durationMs: elapsedMs(started),
           uid: c.get("uid"),
         },
-        "<--",
       );
     }
   };

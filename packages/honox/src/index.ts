@@ -71,6 +71,7 @@ export function createHonox<C extends object>(
 }
 
 export type { Config } from "./config.js";
+export { apiRoute } from "./middleware.js";
 export { createSnowflake, parseSnowflake } from "./id.js";
 export type { Snowflake, SnowflakeOptions } from "./id.js";
 export type { AuthOptions } from "./auth.js";

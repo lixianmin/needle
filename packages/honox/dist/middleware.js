@@ -1,3 +1,4 @@
+import { captureCallSite } from "@needle/logo";
 import { createAuth } from "./auth.js";
 /** 入站请求可以自带 rid：`x-rid` 优先，其次是网关常见的 `x-request-id`。 */
 const RID_HEADERS = ["x-rid", "x-request-id"];
@@ -16,12 +17,33 @@ function resolveRid(header, ids) {
     // 自己生成时是 13 位 Snowflake 字符串：定长、字典序 = 生成顺序。
     return ids.next();
 }
+/**
+ * 给路由登记一个"这是哪个 API 文件"的位置。
+ *
+ * 请求日志是在中间件里打的，那一刻栈上只有 Hono 的 dispatch（handler 还没跑 /
+ * 已经返回），再怎么调 callerDepth 也指不到 handler 所在的文件。所以位置在
+ * **注册时**抓一次，存进 context，日志行直接用它。
+ *
+ * 用法：`app.get("/apc", apiRoute((c) => { ... }))`。
+ */
+export function apiRoute(handler) {
+    // 跳 1 帧：第 0 帧是 apiRoute 自己。
+    const where = captureCallSite(1);
+    if (where === undefined) {
+        return handler;
+    }
+    return (c, next) => {
+        c.set("api", where);
+        return handler(c, next);
+    };
+}
 /** 保留 1 位小数：毫秒精度够定位慢请求，也不会让日志字段变成浮点长尾。 */
 function elapsedMs(start) {
     return Math.round((performance.now() - start) * 10) / 10;
 }
 /**
- * 每请求两行：`-->` 进、`<--` 出。
+ * 每请求两行：进的那行只有 rid / path，出的一行额外带 status / durationMs / uid。
+ *（曾经用 `-->` / `<--` 当 msg，后来去掉：字段本身已经说明方向，箭头是噪音。）
  *
  * 结束行放在 finally 里，并读 `c.res.status`——这样门禁短路、404、抛错
  * 三种情况都有结束行；没有它，日志里会出现"有进无出"，看不出请求是卡住还是失败。
@@ -40,7 +62,13 @@ export function createRequestLog(log) {
         const rid = c.get("rid");
         const path = c.req.path;
         const started = performance.now();
-        log.info({ rid, path }, "-->");
+        // 路由注册时记下的位置（没包 apiRoute 就是 undefined，退回自动抓的中间件行）。
+        // 进的那一行还在 handler 之前，拿不到；出的那一行在 finally 里读，能拿到。
+        function origin() {
+            const where = c.get("api");
+            return where === undefined ? {} : { site: where.site, fn: where.fn };
+        }
+        log.info({ rid, path, ...origin() });
         try {
             await next();
             if (c.error !== undefined) {
@@ -55,11 +83,12 @@ export function createRequestLog(log) {
             log.info({
                 rid,
                 path,
+                ...origin(),
                 // 没 finalize 时 c.res 的 getter 会造一个 200 的空响应，那会把失败记成功。
                 status: c.finalized ? c.res.status : 500,
                 durationMs: elapsedMs(started),
                 uid: c.get("uid"),
-            }, "<--");
+            });
         }
     };
 }
