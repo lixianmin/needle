@@ -117,7 +117,7 @@ describe("createHonox", () => {
       auth: { secret: SECRET },
     });
     app.allowAnonymous(["/where"]);
-    app.get("/where", apiRoute((c) => c.json({ ok: true })));
+    app.get("/where", apiRoute("api/where", (c) => c.json({ ok: true })));
 
     await app.request("/where");
 
@@ -132,7 +132,7 @@ describe("createHonox", () => {
     const app = createHonox({ logger: log, auth: { secret: SECRET } });
     app.allowAnonymous(["/one", "/two"]);
 
-    const group = createApi();
+    const group = createApi("api/group");
     group.get("/one", (c) => c.json({ ok: 1 }));
     group.post("/two", (c) => c.json({ ok: 2 }));
     app.route("/", group);
