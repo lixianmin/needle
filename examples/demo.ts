@@ -8,14 +8,15 @@
  */
 import { readFileSync } from "node:fs";
 
-import { createServerShell, table } from "../src/shell/index.js";
-import { CommandError } from "../src/shell/commands.js";
-import { logo } from "../src/index.js";
-import { createFileSink, createLogFiles, serve } from "../src/node.js";
+import { createServerShell, table } from "../packages/shell/src/index.js";
+import { CommandError } from "../packages/shell/src/commands.js";
+import { serve } from "../packages/shell/src/node.js";
+import { logo } from "@needle/logo";
+import { createFileSink, createLogFiles } from "@needle/logo/node";
 
 // 版本号的唯一来源是包的 package.json（AGENTS.md §14），别在这里硬编码。
 const pkg = JSON.parse(
-  readFileSync(new URL("../package.json", import.meta.url), "utf8"),
+  readFileSync(new URL("../packages/shell/package.json", import.meta.url), "utf8"),
 ) as { version: string };
 
 const LOG_DIR = "logs";

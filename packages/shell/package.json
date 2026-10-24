@@ -1,0 +1,24 @@
+{
+  "name": "@needle/shell",
+  "version": "0.3.7",
+  "description": "浏览器 / 扩展里的 Web Shell 面板",
+  "type": "module",
+  "sideEffects": false,
+  "license": "MIT",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./node": {
+      "types": "./dist/node.d.ts",
+      "default": "./dist/node.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "@needle/logo": "workspace:*"
+  }
+}
