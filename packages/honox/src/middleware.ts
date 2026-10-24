@@ -82,8 +82,9 @@ function createFallbackLog(log: Logger, slowMs: number): MiddlewareHandler<Honox
     const status = responded ? response.status : 500;
 
     if (c.error !== undefined) {
-      // 客户端传错参数不是服务端故障：onError 已经把它映射成 4xx。
-      if (isRequestError(c.error)) {
+      // 客户端传错参数不是服务端故障：onError 已经把它映射成 4xx。但
+      // `new RequestError(503, …)` 这类 5xx 是服务端故障，必须留一行。
+      if (isRequestError(c.error) && c.error.status < 500) {
         return;
       }
       // HTTPException 这类自带 4xx 的错误同样不是服务端故障，记 warn 就够。

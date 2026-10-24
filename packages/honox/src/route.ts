@@ -20,6 +20,9 @@ const ROUTE_METHODS = [
 ] as const;
 const ROUTE_METHOD_SET = new Set<string>(ROUTE_METHODS);
 
+/** 返回 `this` 的链式方法：要把 `this` 换回代理，否则后续登记绕过包装。 */
+const CHAINING_METHODS = new Set<string | symbol>(["use", "on", "route", "mount"]);
+
 /** 这些方法读 query，其余读 body。约定：一个路由只校验一侧参数。 */
 const QUERY_METHODS = new Set(["get", "delete", "options", "query"]);
 
@@ -118,6 +121,11 @@ export function createApi(module: string): ApiGroup {
           const origin: Origin = { module, ...captureCallSite(1) };
           const withModelForm =
             args.length === 2 && typeof args[1] === "function" && isModelClass(args[0]);
+          if (withModelForm && prop === "all") {
+            throw new Error(
+              `all ${path}：all 会按 body 解析参数，GET 之类没有 body 的请求必然 400；请分开写具体方法`,
+            );
+          }
           if (!withModelForm && args.some(isModelClass)) {
             throw new Error(
               `${prop} ${path}：带模型的写法只支持 (path, Model, handler)，模型不能出现在 handler 位置`,
@@ -139,6 +147,14 @@ export function createApi(module: string): ApiGroup {
       const value = Reflect.get(target, prop, receiver);
       if (typeof value !== "function") {
         return value;
+      }
+      // 这几个方法 `return this`（= target）。链式 `api.use(...).get(...)` 的那次
+      // .get 如果拿到裸 target，就不会包 handler，日志里连 module 都没有。
+      if (CHAINING_METHODS.has(prop)) {
+        return (...args: unknown[]) => {
+          const result = (value as (...rest: unknown[]) => unknown).apply(target, args);
+          return result === target ? receiver : result;
+        };
       }
       // 只绑原型方法。实例自有字段（errorHandler / notFoundHandler）bind 出来是另一个
       // 函数：父 app 的 route() 会据此误判「子 app 自带错误处理」，把 handler 包进子 app

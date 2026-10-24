@@ -13,8 +13,16 @@ if [ -d examples/honox-app/app/beans ]; then
   # find 而不是 shell glob：glob 不递归，beans 下建子目录时生成物会永远不重建。
   MODEL_FILES=$(find examples/honox-app/app/beans -name '*.ts' ! -name '*.generated.ts' | sort)
   if [ -n "$MODEL_FILES" ]; then
+    # 关掉 glob、只按换行切分：bean 文件名里有空格也不会被拆成两个参数。
+    set -f
+    OLDIFS=$IFS
+    IFS='
+'
     bun scripts/gen-models.ts $MODEL_FILES
-    git add examples/honox-app/app/beans
+    IFS=$OLDIFS
+    set +f
   fi
+  # 无论是否还有 bean 都要 stage：删掉最后一个 bean 时也要把删除带走。
+  git add examples/honox-app/app/beans
 fi
 git add bun.lock packages/*/package.json packages/*/dist packages/shell/src/ui/script.generated.ts

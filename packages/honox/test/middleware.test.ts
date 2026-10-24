@@ -96,18 +96,63 @@ describe("兜底日志", () => {
     expect(records[0]).toMatchObject({ path: "/nofinal", status: 500, level: "error" });
   });
 
-  test("HTTPException：按它自己的状态码返回，4xx 记 warn 不记 error", async () => {
+  test("HTTPException：状态码照用，响应体仍是 {code, message}", async () => {
     const { app, records } = setup();
-    app.allowAnonymous(["/teapot"]);
-    app.get("/teapot", () => {
-      throw new HTTPException(418, { message: "我是个茶壶" });
+    app.allowAnonymous(["/slow-down"]);
+    app.get("/slow-down", () => {
+      throw new HTTPException(429, { message: "慢点" });
     });
 
-    const res = await app.request("/teapot");
+    const res = await app.request("/slow-down");
 
-    expect(res.status).toBe(418);
+    expect(res.status).toBe(429);
+    expect(await res.json()).toEqual({ code: "too_many_requests", message: "慢点" });
     expect(records).toHaveLength(1);
-    expect(records[0]).toMatchObject({ path: "/teapot", status: 418, level: "warn" });
+    expect(records[0]).toMatchObject({ path: "/slow-down", status: 429, level: "warn" });
+  });
+
+  test("HTTPException 5xx：消息不外泄（换成通用文案）", async () => {
+    const { app } = setup();
+    app.allowAnonymous(["/hidden"]);
+    app.get("/hidden", () => {
+      throw new HTTPException(500, { message: "数据库密码是 xxx" });
+    });
+
+    const res = await app.request("/hidden");
+
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ code: "internal_error", message: "服务内部错误" });
+  });
+
+  test("HTTPException 自带 res 时用它的（basic-auth 那种要带 WWW-Authenticate）", async () => {
+    const { app } = setup();
+    app.allowAnonymous(["/basic"]);
+    app.get("/basic", () => {
+      throw new HTTPException(401, {
+        res: new Response("unauthorized", { status: 401, headers: { "www-authenticate": "Basic" } }),
+      });
+    });
+
+    const res = await app.request("/basic");
+
+    expect(res.status).toBe(401);
+    expect(res.headers.get("www-authenticate")).toBe("Basic");
+    expect(await res.text()).toBe("unauthorized");
+  });
+
+  test("RequestError 带 5xx：仍然记一条 error（服务端故障不能隐身）", async () => {
+    const { app, records } = setup();
+    app.allowAnonymous(["/down"]);
+    app.get("/down", () => {
+      throw new RequestError(503, "unavailable", "下游不可用");
+    });
+
+    const res = await app.request("/down");
+
+    expect(res.status).toBe(503);
+    expect(await res.json()).toMatchObject({ code: "unavailable", message: "下游不可用" });
+    expect(records).toHaveLength(1);
+    expect(records[0]).toMatchObject({ path: "/down", status: 503, level: "error" });
   });
 
   test("慢请求：超过 slowMs 记一条 warn，带 durationMs", async () => {
