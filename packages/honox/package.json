@@ -9,6 +9,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./node": {
+      "types": "./dist/node.d.ts",
+      "default": "./dist/node.js"
     }
   },
   "files": [
@@ -16,7 +20,8 @@
   ],
   "dependencies": {
     "@needle/logo": "workspace:*",
-    "@needle/shell": "workspace:*"
+    "@needle/shell": "workspace:*",
+    "yaml": "^2.9.1"
   },
   "peerDependencies": {
     "hono": "^4"
