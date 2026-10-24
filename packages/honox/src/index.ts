@@ -11,7 +11,7 @@ const DEFAULT_EPOCH = Date.UTC(2026, 0, 1);
 
 export interface HonoxOptions {
   /** 请求日志用哪个 logger；默认 `@needle/logo` 的全局 `logo`。 */
-  log?: Logger;
+  logger?: Logger;
   /** rid 的 Snowflake 配置；epoch 与 nodeId 都该显式给（多实例必须不同 nodeId）。 */
   id?: SnowflakeOptions;
   auth: AuthOptions;
@@ -30,7 +30,7 @@ function normalizeBasePath(basePath: string): string {
  * 业务路由挂在返回值上，所以自动继承中间件链。
  */
 export function createHonox(options: HonoxOptions): Hono<HonoxEnv> {
-  const log = options.log ?? logo;
+  const log = options.logger ?? logo;
   const app = new Hono<HonoxEnv>();
 
   const shellBasePath =

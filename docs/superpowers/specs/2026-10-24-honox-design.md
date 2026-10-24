@@ -111,7 +111,7 @@ packages/honox/
 ```ts
 export interface HonoxOptions<C extends Record<string, unknown>> {
   /** 请求日志用哪个 logger；默认全局 logo。 */
-  log?: Logger;                              // 默认 @needle/logo 的 logo 实例
+  logger?: Logger;                           // 默认 @needle/logo 的 logo 实例
   auth: {
     secret: string;                          // HS256 密钥
     claim?: string;                          // uid 取哪个 claim，默认 "sub"

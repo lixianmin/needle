@@ -10,7 +10,7 @@ function setup() {
   const records: LogRecord[] = [];
   const log = newLogger({ sinks: [(batch) => records.push(...batch)], batch: false });
   const app = createHonox({
-    log,
+    logger: log,
     auth: { secret: SECRET, public: ["/health"] },
     shell: {
       basePath: "/shell",
@@ -87,7 +87,7 @@ describe("createHonox", () => {
     const records: LogRecord[] = [];
     const log = newLogger({ sinks: [(batch) => records.push(...batch)], batch: false });
     const app = createHonox({
-      log,
+      logger: log,
       auth: { secret: SECRET, public: ["/where"] },
     });
     app.get("/where", apiRoute((c) => c.json({ ok: true })));
@@ -102,7 +102,7 @@ describe("createHonox", () => {
   test("createApi()：一个组挂多条路由，每条都记住自己的注册位置", async () => {
     const records: LogRecord[] = [];
     const log = newLogger({ sinks: [(batch) => records.push(...batch)], batch: false });
-    const app = createHonox({ log, auth: { secret: SECRET, public: ["/one", "/two"] } });
+    const app = createHonox({ logger: log, auth: { secret: SECRET, public: ["/one", "/two"] } });
 
     const group = createApi();
     group.get("/one", (c) => c.json({ ok: 1 }));
