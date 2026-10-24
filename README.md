@@ -168,6 +168,22 @@ process.on("SIGTERM", () => logo.dispose());                                    
 
 `info` 默认攒批 100ms 才写出去，`warn` / `error` 立即写出并把积压一起带出去。测试里断言 sink 收到的记录之前，先 `logo.flush()`。
 
+### 3. 常见坑
+
+以下都在 0.3.9 的 dist 上实测过，按「现象 → 怎么办」写。
+
+- **记录里没有 `message`，字段叫 `msg`。** 只有传 `Error` 时才会出现 `message`（展开成 `message` + `stack`）；普通日志判正文用 `msg`。
+- **`time` / `level` 不在打印出来的 JSON 里。** 落盘行是 `2026-10-23T10:50:43 [I] {…}`，时间与级别只在前缀；记录的 `time` 是 **epoch 毫秒数字**。时间固定 `+08:00`，与机器 `TZ` 无关。
+- **默认只有 `error` 带 `stack`。** `stackLevel` 默认 `"error"`（更早版本是 `"warn"`）：`warn` 记录没有 stack，要就给 `newLogger({ stackLevel: "warn" })`。传 `Error` 时用的是 Error 自己的栈（抛出点）。
+- **Node 里 spy `console.log` 抓不到日志。** 有 `process.stdout.write` 时 stdout sink 直接写 stdout。要断言就 `addSink` 自己的函数。
+- **`logo` 没有 `name`。** 记录里就没有 `name` 字段；`newLogger({ name })` 与 `child({ name })` 才有。想按来源过滤就自己加业务字段。
+- **信封字段会被丢弃。** `info("x", { level: "error", time: 1, msg: "fake", name: "y" })` 记成 `{level:"info", msg:"x", time:<now>}`——业务对象伪造不了 `time` / `level` / `msg` / `name`。
+- **非纯对象进 `msg`，不进字段。** 数组、`Date`、`Map`、类实例都会序列化后拼进 `msg`；要可查询的字段就传纯对象。
+- **`child()` 会快照 sink。** 建 child 之后再给父级 `addSink`，子实例收不到。要统一落点就在启动早期建 child，或直接给 child 挂。
+- **`dispose()` 之后日志静默丢弃。** 父级 dispose 连带子级一起停（共用状态）；退出前调一次即可，别在长生命周期进程里早调。
+- **`./node` 不能进浏览器 / Workers 打包。** 它专放 `node:` 能力（文件 sink、日志目录）；根入口 `.` 不碰 `node:`。
+- **一个包拆成三个后，git 依赖装不了。** 根包 `needle` 是 `private: true` 且无 exports，`github:lixianmin/needle` 只能装到那个私有根包（`import "@needle/logo"` 报 `ERR_MODULE_NOT_FOUND`）；git 子目录语法（`#path:/packages/logo` 之类）bun 不支持。多项目只能本地 `bun link`，或等发布 npm。`link:` 会进 lockfile 并指向本机绝对路径——用 `github:<sha>` 装下游包的消费者也必须先 link，否则解析失败。
+
 
 
 ## 三、平台支持
