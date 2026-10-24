@@ -247,7 +247,7 @@ export function createMongo(options: MongoOptions): Mongo;
 ```
 examples/honox-app/
   app/server.ts          # loadConfig → createHonox(...) → 路由直接挂 → export default { port, fetch }
-  app/lib/plans.ts       # defineSheet 声明 Plan sheet
+  app/lib/templates.ts   # defineSheet 声明 BotTemplate / ApcTemplate 两张表
   config/common.yml      # auth.secret
   config/app_dev.yml     # 只写与 common 不同的项
   Dockerfile
@@ -296,7 +296,9 @@ export async function loadSheets(sheets: readonly Sheet<unknown>[]): Promise<voi
 
 ### 8.11 示例里的 Excel
 
-示例 app 带一张 `res/metadata/Plan.xlsx`（2~3 行，字段 `id` / `name` / `quota`），`app/server.ts` 顶层 `await loadSheets([planSheet])`，`app/routes/plans/[id].ts` 用 `planSheet.get(Number(c.req.param("id")))` 返回配置；找不到 id 返回 `ResponseX.notFound(...)`。
+示例 app 带两张表：`res/metadata/BotTemplate.xlsx`（sheet `BotTemplate`，列 `id` / `name` / `prompt`）与 `res/metadata/ApcTemplate.xlsx`（sheet `ApcTemplate`，列 `id` / `equips` / `gender` / `name` / `buy_money` / `buy_price`；`equips` 是 `|` 分隔的装备 id 串，原样当字符串返回）。`app/lib/templates.ts` 用 `defineSheet` 声明，`app/server.ts` 顶层 `await loadSheets([botSheet, apcSheet])` 预载，`GET /bots/:id` 与 `GET /apc/:id` 各自调 `get(Number(c.req.param("id")))`；找不到 id 返回 `ResponseX.notFound(...)`。
+
+`ApcTemplate.xlsx` 里另有一张 `SelectApcConfig`（无 `id` 列），不归 `defineSheet` 管，不加载。表不用脚本生成，直接用 Excel 维护。
 
 ### 8.12 仓库接线
 
