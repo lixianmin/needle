@@ -45,14 +45,6 @@ function externalFrames(skip = 0) {
     // 多出来的那几帧要把它们跳过，否则打出来的永远是 helper 自己那一行。
     return skip > 0 ? external.slice(skip) : external;
 }
-/** 调用点：`file.ts:12`。每条日志都要，所以每写一条构造一次 Error，这是明码代价。 */
-function callSiteOf(frames) {
-    const frame = parseFrame(frames[0] ?? "");
-    return frame === undefined ? undefined : `${basename(frame.file)}:${frame.line}`;
-}
-function functionOf(frames) {
-    return parseFrame(frames[0] ?? "")?.fn;
-}
 /**
  * 抓当前调用点的 { site, fn }，`skip` 是额外跳过的帧数（0 = 调用本函数的那一行）。
  *
@@ -77,7 +69,6 @@ function buildLogger(options, state) {
     const flushIntervalMs = options.flushIntervalMs ?? DEFAULT_FLUSH_INTERVAL_MS;
     const maxBuffer = options.maxBuffer ?? DEFAULT_MAX_BUFFER;
     const stackLevel = options.stackLevel ?? "error";
-    const callerDepth = options.callerDepth ?? 0;
     const batch = options.batch ?? hasStdout();
     let level = options.level ?? "info";
     let buffer = [];
@@ -138,13 +129,11 @@ function buildLogger(options, state) {
             return;
         }
         const withStack = stackLevel !== "off" && LEVELS[recordLevel] >= LEVELS[stackLevel];
-        // 调用点每级都要（info/warn 也带）；全栈只给 stackLevel 及以上。
-        const frames = externalFrames(callerDepth);
+        // 只有要完整栈时才构造 Error（一次取帧）。info / warn / debug 零构造。
+        const frames = withStack ? externalFrames() : undefined;
         const built = buildRecord(recordLevel, args, {
             name: options.name,
-            site: callSiteOf(frames),
-            fn: functionOf(frames),
-            stack: withStack ? stackOf(frames) : undefined,
+            stack: frames === undefined ? undefined : stackOf(frames),
             time: now(),
         });
         // child 的固定字段在前、本次调用的字段在后：更具体的赢。
@@ -185,7 +174,6 @@ function buildLogger(options, state) {
                 now,
                 flushIntervalMs,
                 maxBuffer,
-                callerDepth,
                 stackLevel,
                 batch,
                 fields: { ...fixedFields, ...rest },
