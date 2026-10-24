@@ -190,21 +190,26 @@ export function createHonox<C extends Record<string, unknown>>(
 - **时钟回拨**：照原版 Snowflake 直接抛错，不静默产生更小的 id——B 树回头插正是要避免的页分裂。等时钟追上来会让请求卡住，所以不选等待。
 - 用途不限于 rid：业务实体 id 直接 `createSnowflake({ epoch, nodeId })`，两个进程只要 nodeId 不同就不会撞。
 
-### 8.4.2 `api()` / `apiRoute()`：把日志位置挪到 API 文件
+### 8.4.2 `createApi()` / `apiRoute()`：把日志位置挪到 API 文件
 
 请求日志是在中间件里打的，那一刻栈上只有 Hono 的 `dispatch`（compose.js），**handler 根本不在栈上**——进的时候还没跑，出的时候已经返回。所以调多大的 callerDepth 都指不到 `app/api/apc.ts`。位置只能在**注册时**抓：
 
 ```ts
-// 一个文件一个接口时的默认写法：建子应用 + 登记路由 + 记位置，一行做完
-export const apcApi = api("/apc", (c) => { ... });
+// app/api/bots.ts —— 一个文件一个组，里面挂多条路由
+export const botsApi = createApi();
 
-// 已经有自己的 Hono 实例、或一条路径挂多个方法时，单独包 handler
+botsApi.get("/bots", (c) => { ... });
+botsApi.post("/bots", (c) => { ... });
+
+// 已经有 new Hono() 实例时，单独包 handler
 app.get("/apc", apiRoute((c) => { ... }));
 ```
 
-两者都用 `captureCallSite(1)`（跳过自己那一帧）拿到 `{ site, fn }`，handler 里 `c.set("api", where)`；请求日志在 finally 里读它，作为 `site`/`fn` 传给 logger。logo 的 `buildRecord` 里，**调用方显式给的 `site`/`fn` 优先**于自动抓的（与 `stack` 同一规则）。
+`createApi()` 返回的是真正的 `Hono`（`app.route("/", botsApi)` 照常挂载），只是把 `get`/`post`/`put`/`patch`/`delete`/`all` 包了一层：每次登记路由时 `captureCallSite(1)` 抓下 `文件:行`，handler 里 `c.set("api", where)`。请求日志在 finally 里读它，作为 `site`/`fn` 传给 logger。logo 的 `buildRecord` 里，**调用方显式给的 `site`/`fn` 优先**于自动抓的（与 `stack` 同一规则）。
 
-`api(path, handler, method = "GET")` 返回一个只有这条路由的子应用——省掉 `new Hono()` + `.get()` + `apiRoute()` 三行例行代码；以后再有例行代码（比如统一的参数解析）往这里收。
+为什么用 Proxy 而不是子类：要覆盖的只有"登记路由"这几个方法，其余（`route`/`use`/`fetch`/挂载语义）原样透传；链式 `get(...).post(...)` 返回代理，后续调用照样被包住。
+
+以后再有例行代码（统一参数解析、统一响应包装）也往这个组上收。
 
 没包 `api` / `apiRoute` 的路由不会崩：拿不到 `api`，退回自动抓的中间件行。
 

@@ -1,5 +1,7 @@
-import { api } from "@needle/honox";
+import { createApi } from "@needle/honox";
 
-export const homeApi = api("/", (c) =>
+export const homeApi = createApi();
+
+homeApi.get("/", (c) =>
   c.text("honox-app: GET /health、GET /me、GET /bots?id=、GET /apc?id=、GET /select-apc"),
 );
