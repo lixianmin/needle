@@ -5,9 +5,9 @@
 
 ## 1. 结论
 
-在 `packages/honox` 新增 `@needle/honox`：一个跟业务无关的 Hono 底座。它做四件事——配置加载、鉴权、每请求日志、可选 MongoDB——外加把 `@needle/shell` 的控制台挂上去。示例 app 放在 `examples/honox-app`（HonoX + Vite + Dockerfile），用来说明它怎么接。
+在 `packages/honox` 新增 `@needle/honox`：一个跟业务无关的 Hono 底座。它做四件事——配置加载、鉴权、每请求日志、可选 MongoDB——外加把 `@needle/shell` 的控制台挂上去。示例 app 放在 `examples/honox-app`（纯 Hono + `bun build` + Dockerfile），用来说明它怎么接。
 
-库本身**不 import honox**。HonoX 从示例层接入（`createApp({ app })`），库只认 `hono`。
+库本身**不 import honox**，也不用 npm 上的 `honox`（HonoX）：底座返回的就是 `Hono` 实例，路由直接挂在上面。业务若真要 HonoX 的文件路由/islands，自行 `createApp({ app: createHonox(...) })` 接入（验证见 §7）。
 
 ## 2. 为什么
 
@@ -69,7 +69,7 @@ B 原本被认为和 HonoX 的文件路由冲突（HonoX 自己 `createApp()` �
   GET /me（带 uid）  → 200 {"uid":"u1"}   # 文件路由里读得到父层 c.get('uid')
   ```
 
-所以库只依赖 `hono`，HonoX 留在示例层：`createApp({ app: createHonox(...) })`。
+所以库只依赖 `hono`，HonoX 只是业务侧的一种可选接法：`createApp({ app: createHonox(...) })`。示例 app 不用 HonoX（理由见 8.8）。
 
 ### 7.1 Excel 读取的方案对比
 
@@ -234,27 +234,27 @@ export function createMongo(options: MongoOptions): Mongo;
 
 ### 8.8 示例 app（`examples/honox-app`）
 
-**不进 workspace**（避免根 TS 7 被 HonoX 撞坏；两份 typescript 在同一 node_modules 里，honox 解析到哪份不可控）。独立的 `package.json` + `bun.lock`。根 `tsconfig.json` 的 `include` 含 `"examples"`，所以要在**根 tsconfig 加 `exclude: ["examples/honox-app"]`**，否则示例里的 `honox/server` 会被 TS 7 抓去编译并报 TS2307；`no-hono-coupling` 的源码扫描同样跳过这个目录（示例本来就该 import honox）。依赖：
+**不用 npm 上的 `honox`（HonoX）。** 两个包只共享名字：底座返回的就是 `Hono` 实例，路由直接 `.get()` 挂在它上面，不需要文件路由框架。HonoX 的接法已在 §7 的 spike 里验过并留档，示例不再承担这项演示——带上它要额外拖进 `precinct` → `@typescript-eslint/typescript-estree`，把示例钉在旧 TypeScript 上，也让依赖表里出现两个 `honox`。
 
-- `hono`、`honox`、`@hono/vite-build`（bun 适配器）、`vite`、`typescript@5.9.3`
-- `@needle/honox`、`@needle/shell`、`@needle/logo` 用 `file:` 指到 `../../packages/*`（或用 `bun link`；实现时二选一，以能 `bun install --frozen-lockfile` 为准）
+**不进 workspace**：示例有自己的 `tsconfig.json`（`moduleResolution: bundler`）与 `bun.lock`，`bun install --frozen-lockfile` 和 Docker 构建要能独立复现。TypeScript 与根同版本（`7.0.2`，由测试钉住）。根 `tsconfig.json` 的 `include` 含 `"examples"`，所以根 tsconfig 保留 `exclude: ["examples/honox-app"]`，让它走自己的 tsconfig。依赖：
+
+- 运行时：`hono`、`@needle/honox`、`@needle/shell`、`@needle/logo`
+- 开发：`@types/bun`、`hucre`（生成 Excel 夹具的脚本）、`typescript@7.0.2`
+- `@needle/*` 用 `link:` 指到 `../../packages/*`（示例不在根 workspace，`workspace:*` 在独立安装下解析不到；`file:` 同理会把 workspace 依赖断掉）
 
 内容：
 
 ```
 examples/honox-app/
-  app/server.ts          # createHonox(...) → createApp({ app })
-  app/routes/health.ts   # 公开：{"ok":true}
-  app/routes/me.ts       # 受保护：返回 { uid }
-  app/routes/index.ts
+  app/server.ts          # loadConfig → createHonox(...) → 路由直接挂 → export default { port, fetch }
+  app/lib/plans.ts       # defineSheet 声明 Plan sheet
   config/common.yml      # auth.secret
   config/app_dev.yml     # 只写与 common 不同的项
-  vite.config.ts
   Dockerfile
   README.md              # 怎么跑、怎么打镜像
 ```
 
-`Dockerfile`（示例，不是发版产物）：`oven/bun` 基础镜像 → 装依赖（frozen lockfile）→ `vite build`（SSR，无 client entry 时跳过 `--mode client`）→ `USER bun` → `CMD ["bun", "dist/index.js"]` → `EXPOSE 3000`。
+构建只有一步：`bun build app/server.ts --target=bun --outfile=dist/index.js`。Bun 认得 `export default { port, fetch }` 并在启动时自己 serve，所以 `dist/index.js` 是自包含产物（npm 依赖已打进去），运行镜像不带 `node_modules`；`config/` 与 `res/` 走运行时 fs 读取，仍需拷进镜像。
 
 ### 8.10 Excel 配置（`@needle/honox/excel`）
 
@@ -340,7 +340,7 @@ bun install && bun run build && bunx tsc --noEmit && bun test && node test/smoke
 1. **`/shell/*` 是否匹配基路径 `/shell`**：记忆里已有 Hono 的实测结论（匹配），实现时仍用测试钉住；不匹配就补一条精确路由。
 2. **shell 面板的 sink 没有 dispose 出口（已定：接受）。** `shell/src/source.ts:123` 把广播 sink `addSink` 到传入的 logger（默认全局 `logo`），只有 `ServerShell.dispose()` 才摘；B 只返回裸 Hono，没有这个出口。人类拍板保持返回形状不变，文档写明「一个进程一个实例」：测试每次传独立 logger 做隔离，生产里只在开发热重载时积 sink。`sse.ts` 的定时器跟连接走、`teardown` 会清，不会挂住测试。
 3. **示例 app 用 `file:` 还是 `bun link` 接 workspace 包**：以 `bun install --frozen-lockfile` 能在干净目录跑通为准。
-4. **Dockerfile 里的 client 构建**：本仓库示例没有客户端入口，`vite build --mode client` 会报错（spike 里已经遇到），所以 Dockerfile 只跑 SSR 构建；将来加 islands 再补。
+4. **构建步骤**：示例没有客户端入口，构建只有 `bun build` 一步（不再有 vite 的 SSR/client 两次构建）；将来加 islands 或静态资源再补。
 5. **hucre 没有同步 API（已核实）。** `readXlsx` 返回 `Promise`，因为它用 `DecompressionStream("deflate-raw")` 解 zip（`hucre/dist/zip/reader.mjs`），这个 Web API 天生异步；零依赖所以没带同步 inflate。`@jetstreamapp/simple-excel` 同样是流式异步。所以选「启动预载 + 同步 getter」：预载在启动路径上多花一次解析时间，换来业务侧不用改调用形态。
 6. **Excel 测试夹具由 hucre 自己写出来**（`writeXlsxObjects`），读和写是同一家实现，存在「自己读自己写的格式」的自证实风险。缓解：夹具里手工塞入大小写表头、空行、坏 id 行等边界；若线上出现 hucre 解析问题，再补一个真实 Excel 导出的夹具。
 

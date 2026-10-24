@@ -16,6 +16,8 @@ function codeFiles(dir: string): string[] {
   return [...new Glob("**/*.{ts,js,mjs}").scanSync({ cwd })]
     // dist 是 src 的产物，扫两遍没意义；且打包结果里的 hono 本来就来自 src。
     .filter((rel) => !rel.includes("/dist/"))
+    // 示例 app 自带 node_modules（不装则无法构建），第三方包里的 hono 不是本仓库的代码。
+    .filter((rel) => !rel.includes("/node_modules/"))
     .map((rel) => join(dir, rel));
 }
 
@@ -80,5 +82,37 @@ describe("honox 是唯一允许依赖 Hono 的包", () => {
       .filter((rel) => /from\s+["']hono(\/|["'])/.test(source(rel)))
       .filter((rel) => !ALLOWED_PREFIXES.some((prefix) => rel.startsWith(prefix)));
     expect(offenders).toEqual([]);
+  });
+});
+
+/**
+ * 示例 app 只演示 `@needle/honox`，不引入 npm 上的 honox（HonoX）。
+ * 两者同名但无关；带上 HonoX 会额外拖进 precinct → @typescript-eslint/typescript-estree，
+ * 把示例钉死在旧 TypeScript 上，也让「honox」这个词在依赖表里出现两次。
+ */
+describe("示例 app 不依赖 npm 的 honox（HonoX）", () => {
+  test("依赖表里没有 honox 及其构建链", () => {
+    const manifest = pkg("examples/honox-app/package.json");
+    const names = [
+      ...Object.keys(manifest.dependencies ?? {}),
+      ...Object.keys(manifest.devDependencies ?? {}),
+    ];
+    expect(names).not.toContain("honox");
+    expect(names).not.toContain("vite");
+    expect(names).not.toContain("@hono/vite-build");
+  });
+
+  test("源码里没有从 honox 的 import", () => {
+    const offenders = codeFiles("examples/honox-app").filter((rel) =>
+      /from\s+["']honox(\/|["'])/.test(source(rel)),
+    );
+    expect(offenders).toEqual([]);
+  });
+
+  test("示例的 TypeScript 与根同版本", () => {
+    const root = pkg("package.json").devDependencies?.typescript;
+    const example = pkg("examples/honox-app/package.json").devDependencies?.typescript;
+    expect(example).toBe(root);
+    expect(root?.startsWith("7.0.")).toBe(true);
   });
 });
