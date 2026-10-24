@@ -1,3 +1,5 @@
+> **包结构已于 2026-10-24 调整**：下面示例里的包名已按三包结构更新（`@needle/logo` / `@needle/shell`）；包结构以 `2026-10-24-three-packages-design.md` 为准，本文的 IndexedDB 设计仍然有效。
+
 # 浏览器日志落 IndexedDB 设计
 
 日期：2026-10-23
@@ -38,8 +40,8 @@
 
 ## 三、约束
 
-- 包约束：`src/logo` 下不得出现 `../shell`；根入口与 `./shell` 不得 import 任何 `node:`（`test/unit/browser-safety.test.ts` 对打包产物做内容断言）。
-- `Sink` 契约：一次收一批 `LogRecord[]`（`src/logo/types.ts`），任何 sink 自动攒批受益。
+- 包约束：`@needle/logo` 不得依赖 `@needle/shell`；两个包的根入口不得 import 任何 `node:`（`packages/*/test/browser-safety.test.ts` 对打包产物做内容断言）。
+- `Sink` 契约：一次收一批 `LogRecord[]`（`packages/logo/src/types.ts`），任何 sink 自动攒批受益。
 - 浏览器里 logger 默认不攒批（探测不到 stdout，逐条立即写出）；用 IDB sink 的文档示例必须显式 `batch: true` + 建议 `flushIntervalMs: 16`。
 - warn/error 立即 flush 并带走积压，是 logger 已有行为，IDB sink 不改变它。
 - 代码风格：控制流强制花括号、语句体独占多行、`else` 跟 `}`。
@@ -64,7 +66,7 @@
 ### 5.1 LogStore：一个对象两个身份
 
 ```ts
-// src/logo/sinks/idb.ts（暂名），从根入口 `.` 导出
+// packages/logo/src/sinks/idb.ts（暂名），从包根入口 `.` 导出
 export interface IndexedDbStoreOptions {
   /** 数据库名。默认 "needle-logs"；多应用同源共存时各自命名。 */
   name?: string;
@@ -86,9 +88,8 @@ export function createIndexedDbStore(options?: IndexedDbStoreOptions): LogStore;
 用户接线（完整，就这两行）：
 
 ```ts
-import { logo } from "@needle/needle";
-import { createIndexedDbStore } from "@needle/needle";
-import { createBrowserShell } from "@needle/needle/shell";
+import { logo, createIndexedDbStore } from "@needle/logo";
+import { createBrowserShell } from "@needle/shell";
 
 const store = createIndexedDbStore();
 logo.addSink(store);   // 写：与其它 sink 并列
@@ -109,7 +110,7 @@ logger 的 `dispose()` 会调用 sink 的 `close()`（既有机制），store �
 
 - 数据库：`needle-logs`（**版本 2**）。object store `records`：**out-of-line 自增键**（不传 `keyPath`）、`autoIncrement: true`；索引 `by_time` on `time`。
   - v1 曾用 `keyPath: "id"`，2026-10-23 复审发现 `id` 是最常见的业务字段，记录里的 `id` 会变成主键——同一订单 id 的两条日志互相覆盖、静默丢日志。v2 升级时删掉旧 store 重建（日志是易失数据，不写迁移）。
-- 记录存**原始 `LogRecord` 对象**（已是 JSON-safe，见 `src/logo/types.ts` 的记录契约），序列化成文本只在 `read` / sample 时做。
+- 记录存**原始 `LogRecord` 对象**（已是 JSON-safe，见 `packages/logo/src/types.ts` 的记录契约），序列化成文本只在 `read` / sample 时做。
 - **写**：低于 `minLevel`（默认 "info"）的记录写入时丢弃——与 file sink 一致：低于级别的记录不落任何文件。其余收进单个 `readwrite` 事务连续 `put`、一次 commit。绝不逐条开事务。
 - **级联虚拟文件**：`info.log` / `warn.log` / `error.log`，语义与 file sink 一致——`warn.log` 含 warn+error，`error.log` 只含 error。写时不分桶（IDB 是一份流），读时按级别过滤。
 - **`list()`**：固定返回三个 entry（级别达到默认 `minLevel: "info"` 才出现，与 file sink「按需建文件」对齐：一条 error 都没有时不冒出空的 error.log——某级别 0 条记录时不列它）。`modified` = 该级别最新记录的 `time`；`size` = 该级别所有行文本长度之和 + 每行换行（字符数，展示用，不做字节精确换算）。
@@ -118,15 +119,15 @@ logger 的 `dispose()` 会调用 sink 的 `close()`（既有机制），store �
 
 ### 5.3 sample（tips）
 
-- `LogFileEntry`（`src/logo/types.ts`）加字段 `sample?: string`：该文件**末尾 5 行**，每行截 200 字符，`\n` 分隔，纯文本。可选字段，不强迫简单实现。
-- Node 侧 `createLogFiles`（`src/logo/log-files.ts`）：`list()` 时对每个文件读尾部——open 后从 `size - 4KB` 读到末尾，按 `\n` 拆，丢弃窗口开头可能截断的半行，取最后 5 条完整行。读失败静默，sample 缺省。
+- `LogFileEntry`（`packages/logo/src/types.ts`）加字段 `sample?: string`：该文件**末尾 5 行**，每行截 200 字符，`\n` 分隔，纯文本。可选字段，不强迫简单实现。
+- Node 侧 `createLogFiles`（`packages/logo/src/log-files.ts`）：`list()` 时对每个文件读尾部——open 后从 `size - 4KB` 读到末尾，按 `\n` 拆，丢弃窗口开头可能截断的半行，取最后 5 条完整行。读失败静默，sample 缺省。
 - 浏览器侧：`list()` 一次 `getAll()` 在 JS 里分桶后取该级别最后 5 条（`by_time` 索引只给 `prune` 用，读路径不做索引扫描），`formatLine` 后按 200 字符截断。
-- UI：`LinkedCell`（`src/shell/types.ts`）加 `tip?: string`；表格单元格渲染（`src/shell/ui/table.ts`）把带 tip 的链接包进 hover 容器，纯 CSS 显示（`visibility` 切换 + `white-space: pre-wrap`），样本用 `textContent` 渲染——**不得用 innerHTML**（GONSOLE 修过的 XSS：日志内容里的 `<script>` 会被执行）。CSS 进 `src/shell/ui/style.ts`，Solarized 变量取色。
+- UI：`LinkedCell`（`packages/shell/src/types.ts`）加 `tip?: string`；表格单元格渲染（`packages/shell/src/ui/table.ts`）把带 tip 的链接包进 hover 容器，纯 CSS 显示（`visibility` 切换 + `white-space: pre-wrap`），样本用 `textContent` 渲染——**不得用 innerHTML**（GONSOLE 修过的 XSS：日志内容里的 `<script>` 会被执行）。CSS 进 `packages/shell/src/ui/style.ts`，Solarized 变量取色。
 - `log.list` 组表格时把 `entry.sample` 填进 `tip`。服务端与浏览器自动同享。
 
 ### 5.4 本地适配器读日志
 
-`createLocalAdapter`（`src/shell/ui/local.ts`）的 `fetchFile(href)`：现在无条件返回失败文案。改为——href 匹配 `/log/<name>`（与 `log.list` 生成的链接 `${basePath}/log/${name}` 同口径）时，调 `source.logFiles.read(name)`：读到返回 `{ ok: true, text }`，读不到返回 `{ ok: false, error: "日志不存在" }`；其余 href 维持失败。打开新窗口的 blob 流程在 `view.ts` 已有，不动。
+`createLocalAdapter`（`packages/shell/src/ui/local.ts`）的 `fetchFile(href)`：现在无条件返回失败文案。改为——href 匹配 `/log/<name>`（与 `log.list` 生成的链接 `${basePath}/log/${name}` 同口径）时，调 `source.logFiles.read(name)`：读到返回 `{ ok: true, text }`，读不到返回 `{ ok: false, error: "日志不存在" }`；其余 href 维持失败。打开新窗口的 blob 流程在 `view.ts` 已有，不动。
 
 ### 5.5 Service Worker 与多上下文
 
@@ -152,7 +153,7 @@ logger 的 `dispose()` 会调用 sink 的 `close()`（既有机制），store �
 
 ## 七、留给 builder 的决定
 
-- `src/logo/sinks/idb.ts` 的内部结构（打开/升级/清理的函数划分）、测试如何 fake IDB。
+- `packages/logo/src/sinks/idb.ts` 的内部结构（打开/升级/清理的函数划分）、测试如何 fake IDB。
 - `list()` 的 size 估算实现。
 - 尾部读取窗口（Node 4KB、浏览器 5 条）的常量命名与注释（magic number 要注释为什么）。
 - CSS 类名沿用 GONSOLE 的 `tips`/`tips_text` 还是对齐本库现有命名。
