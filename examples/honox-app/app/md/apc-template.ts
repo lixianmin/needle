@@ -1,4 +1,4 @@
-import { metadata } from "./index";
+import { metadata } from "./index.js";
 
 /** 玩家（APC）模板。数组字段 `equips` 会被库按 `|` 拆成 string[]。 */
 export class ApcTemplate {

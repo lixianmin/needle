@@ -1,8 +1,8 @@
 import { createHonox } from "@needle/honox";
 import { nodeIdFromMac } from "@needle/honox/node";
-import { registerApis } from "./api";
-import { viper } from "./viper";
-import { initTemplates } from "./md";
+import { registerApis } from "./api/index.js";
+import { viper } from "./viper.js";
+import { initTemplates } from "./md/index.js";
 
 // 配置在 app/viper.ts 里加载（ENV 决定读 res/config/app_<env>.yml，只认
 // dev / fat / pro）。任何地方都直接 `import { viper } from "../viper"`，
