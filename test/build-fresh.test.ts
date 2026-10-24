@@ -23,7 +23,7 @@ function newestMtime(dir: string, skip?: (name: string) => boolean): number {
 }
 
 const pairs: Array<[string, string, string]> = [
-  ["packages/core/src", "packages/core/dist/index.js", "bun run build:core"],
+  ["packages/got/src", "packages/got/dist/index.js", "bun run build:got"],
   ["packages/logo/src", "packages/logo/dist/index.js", "bun run build:logo"],
   ["packages/shell/src", "packages/shell/dist/index.js", "bun run build:shell"],
 ];

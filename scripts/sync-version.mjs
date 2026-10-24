@@ -15,7 +15,7 @@ if (typeof root.version !== "string" || root.version === "") {
 }
 
 const targets = [
-  "packages/core/package.json",
+  "packages/got/package.json",
   "packages/logo/package.json",
   "packages/shell/package.json",
 ];

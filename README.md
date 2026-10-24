@@ -8,13 +8,13 @@ Web Shell，支持命令查看当前系统状态，如进程状态、业务数�
 
 | 你要什么 | 从哪 import | 能跑在哪 |
 |---|---|---|
-| 通用数据结构：`SortedTable` | `@needle/core` | 任何地方 |
+| 通用数据结构：`SortedTable` | `@needle/got` | 任何地方 |
 | 日志：`logo` / `newLogger` / `createLarkSink` / `formatTime` / `toHuman` | `@needle/logo` | 任何地方（含浏览器、Workers） |
 | Shell：`createServerShell` / `createBrowserShell` / `mountShell` / `createFetchAdapter` | `@needle/shell` | 任何地方（含浏览器、Chrome 扩展） |
 | 日志的 Node 专属能力：`createFileSink` / `createLogFiles` | `@needle/logo/node` | 仅 Node / Bun（`node:fs`） |
 | Shell 的 Node 专属能力：`serve` / `attach` | `@needle/shell/node` | 仅 Node / Bun（`node:http`） |
 
-`@needle/core` / `@needle/logo` / `@needle/shell` 的根入口都不 import 任何 `node:` 模块，所以浏览器和 Workers 打包时不会把 Node 代码带进来。依赖是单向的：`shell` → `logo`，`core` 不依赖任何包。
+`@needle/got` / `@needle/logo` / `@needle/shell` 的根入口都不 import 任何 `node:` 模块，所以浏览器和 Workers 打包时不会把 Node 代码带进来。依赖是单向的：`shell` → `logo`，`got` 不依赖任何包。
 
 ## 一、Shell
 
@@ -197,7 +197,7 @@ process.on("SIGTERM", () => logo.dispose());                                    
 | Chrome 扩展 | DOM 面板 | 无 | [chrome-extension.md](docs/best-practices/chrome-extension.md) |
 | 浏览器纯前端页 | DOM 面板 | 无 | [browser-client.md](docs/best-practices/browser-client.md) |
 
-文件 sink 只在有 `node:fs` 的地方能用：`@needle/logo/node` 顶层 `import "node:fs"`，浏览器和 Workers 打包时不能碰它；`@needle/core`、`@needle/logo`、`@needle/shell` 三个根入口都不碰 `node:`（`@needle/core` 本来就没有 `node:` 依赖；logo / shell 由各自的 `browser-safety.test.ts` 对打包产物做内容断言）。
+文件 sink 只在有 `node:fs` 的地方能用：`@needle/logo/node` 顶层 `import "node:fs"`，浏览器和 Workers 打包时不能碰它；`@needle/got`、`@needle/logo`、`@needle/shell` 三个根入口都不碰 `node:`（`@needle/got` 本来就没有 `node:` 依赖；logo / shell 由各自的 `browser-safety.test.ts` 对打包产物做内容断言）。
 
 
 
@@ -211,7 +211,7 @@ process.on("SIGTERM", () => logo.dispose());                                    
 # ── 1. 一次性：把仓库拉到本地，构建并注册三个包（以后拉新代码不用重新 link）──
 git clone https://github.com/lixianmin/needle.git ~/needle
 cd ~/needle && bun install && bun run build
-cd ~/needle/packages/core && bun link        # 注册 @needle/core
+cd ~/needle/packages/got && bun link         # 注册 @needle/got
 cd ~/needle/packages/logo && bun link        # 注册 @needle/logo
 cd ~/needle/packages/shell && bun link       # 注册 @needle/shell
 
@@ -280,7 +280,7 @@ bun run demo                # 先构建 @needle/logo，再起 demo（改 logo �
 ```bash
 cd ~/needle                 # 已经在 §四.1 克隆过
 bun install
-bun run build               # core → logo → UI 脚本 → shell；三份 dist 与内联 UI 脚本
+bun run build               # got → logo → UI 脚本 → shell；三份 dist 与内联 UI 脚本
 bunx tsc --noEmit           # 类型检查
 bun test                    # 全部用例
 
