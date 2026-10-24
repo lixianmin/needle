@@ -9,7 +9,7 @@ function setup() {
   const log = newLogger({ sinks: [(batch) => records.push(...batch)], batch: false });
   const app = new Hono<HonoxEnv>();
   app.use("*", async (c, next) => {
-    c.set("reqId", "r1");
+    c.set("rid", "r1");
     c.set("uid", null);
     await next();
   });
@@ -18,13 +18,13 @@ function setup() {
 }
 
 describe("createRequestLog", () => {
-  test("正常请求落两行，结束行带 status / durationMs / uid / req", async () => {
+  test("正常请求落两行，结束行带 status / durationMs / uid / rid", async () => {
     const { app, records } = setup();
     app.get("/orders", (c) => c.json({ ok: true }));
     await app.request("/orders");
     expect(records.map((r) => r.msg)).toEqual(["-->", "<--"]);
     const end = records[1]!;
-    expect(end).toMatchObject({ method: "GET", path: "/orders", status: 200, uid: null, req: "r1" });
+    expect(end).toMatchObject({ method: "GET", path: "/orders", status: 200, uid: null, rid: "r1" });
     expect(typeof end.durationMs).toBe("number");
   });
 
