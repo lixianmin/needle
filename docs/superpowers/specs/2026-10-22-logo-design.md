@@ -280,6 +280,8 @@ POST /exec   { "line": "log.list" }
 
 表里没覆盖的状态码走 `ResponseX.fail(status, code, message)`——但同一个 `code` 用到第二次就该补成一个具名方法，别让调用方去记数字。
 
+`ResponseX` 从包入口（`@needle/shell`）公开导出：宿主应用自己接路由时（框架挂载、附加端点）复用同一套错误契约，不用另拼一份 `{code, message}`。
+
 `/health` 是唯一例外：它的 body 是探活载荷 `{"ok":true}`，不是错误信封。线上错误体不带 `ok` 字段——非 2xx 已经表达了失败；`ok` 只活在内部 Result（浏览器适配器没有状态码可用）。
 
 四条工程约束，写在这里避免实现时各写各的：
