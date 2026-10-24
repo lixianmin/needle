@@ -1,11 +1,5 @@
 import type { HonoxEnv } from "@needle/honox";
+import type { Config } from "@needle/honox/node";
 
-/** `res/config/*.yml` 合出来的配置形状。 */
-export type AppConfig = {
-  auth: { secret: string };
-  metadata: { base_url: string };
-  server?: { web_port?: number; host?: string };
-};
-
-/** createHonox 的 Env：`c.get("uid")` / `c.get("reqId")` 的类型从这里来。 */
-export type AppEnv = HonoxEnv<AppConfig>;
+/** createHonox 的 Env：配置以 viper 风格取值器的形态挂在 context 上。 */
+export type AppEnv = HonoxEnv<Config>;

@@ -1,9 +1,1 @@
 # 通用配置 - 所有环境共享
-redis:
-  data_source: 127.0.0.1:6379
-  db: 0
-
-# 服务器配置
-server:
-  web_port: 8213
-  host: 0.0.0.0

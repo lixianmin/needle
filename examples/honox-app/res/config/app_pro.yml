@@ -1,0 +1,10 @@
+# PRO 环境配置 - 只包含与 common.yml 不同的配置
+# 刻意不写 auth.secret：生产必须用 APP_AUTH__SECRET 注入，否则启动直接报必填项缺失。
+metadata:
+  base_url: res/metadata
+
+server:
+  web_port: 8001
+
+redis:
+  data_source: 127.0.0.1:6379

@@ -8,7 +8,7 @@ export type AuthErrorReason = "missing" | "invalid" | "expired";
 export type PublicEntry = string | { method: string; path: string };
 
 /** 中间件塞进 c.var 的全部内容。 */
-export interface HonoxEnv<C extends Record<string, unknown> = Record<string, unknown>> {
+export interface HonoxEnv<C extends object = Record<string, unknown>> {
   Variables: {
     uid: string | null;
     user: JWTPayload | null;

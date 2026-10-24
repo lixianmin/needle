@@ -21,8 +21,7 @@ WORKDIR /app
 COPY --from=builder /src/examples/honox-app/dist ./dist
 COPY --from=builder /src/examples/honox-app/res ./res
 
-ENV ENV=dev
-ENV NODE_ENV=production
-EXPOSE 8213
+ENV ENV=pro
+EXPOSE 8001
 USER bun
 CMD ["bun", "dist/index.js"]

@@ -165,40 +165,54 @@ export function createHonox<C extends Record<string, unknown>>(
 
 ### 8.5 配置加载（`@needle/honox/node`）
 
-来源是 rim.proxy 的 `app/config/config.ts`：`common.yml` 打底 → `app_<env>.yml` 深合并 → 环境变量覆盖 → 必填检查。
+来源是 rim.server 的 `app/builds/config.go`：`common.yml` 打底 → `app_<env>.yml` 深合并 → 已知环境变量覆盖 → 必填检查，产出一个 viper 风格的取值器。rim 那边调用方写 `vip.GetInt("server.web_port")`，这里对应 `config.getInt("server.web_port")`。
 
 ```ts
+/** 只认这三种环境；写错的 ENV 启动就报错。 */
+export const SUPPORTED_ENVS = ["dev", "fat", "pro"] as const;
+
 export interface LoadConfigOptions {
-  /** 配置目录（相对 process.cwd()），默认 "config" */
-  dir?: string;
-  /** 环境名，默认 process.env.ENV ?? "dev"；小写后拼文件名 */
-  env?: string;
-  /** 环境变量源，默认 process.env */
-  envVars?: Record<string, string | undefined>;
-  /** 环境变量前缀，默认 "APP_" */
-  envPrefix?: string;
-  /** 必填路径，如 ["auth.secret"] */
-  required?: readonly string[];
+  dir?: string;                 // 默认 "config"（相对 process.cwd()）
+  env?: string;                 // 默认 process.env.ENV ?? "dev"
+  envVars?: Record<string, string | undefined>;  // 默认 process.env
+  envPrefix?: string;           // 默认 "APP_"
+  required?: readonly string[]; // 点分路径
 }
 
-export function loadConfig<C extends Record<string, unknown>>(options?: LoadConfigOptions): C;
+export interface Config<C extends Record<string, unknown> = Record<string, unknown>> {
+  readonly env: string;         // dev / fat / pro
+  isDev(): boolean;
+  isFat(): boolean;
+  isPro(): boolean;
+  has(path: string): boolean;
+  get(path: string): unknown;
+  getString(path: string, fallback?: string): string;
+  getInt(path: string, fallback?: number): number;
+  getBool(path: string, fallback?: boolean): boolean;
+  getStringMap(path: string): Record<string, string>;
+  raw(): C;
+}
+
+export function loadConfig<C extends Record<string, unknown>>(options?: LoadConfigOptions): Config<C>;
 ```
 
 加载顺序（后面的覆盖前面的）：
 
 1. `<dir>/common.yml`——**可缺**，缺失就跳过。
 2. `<dir>/app_<env>.yml`——**必存在**，缺失抛 `Error("找不到环境配置：<绝对路径>（ENV=<env>）")`。
-3. `APP_*` 环境变量——去掉前缀 → 转小写 → `__` 换成 `.`，写进嵌套路径（`APP_AUTH__SECRET` → `auth.secret`）。
+3. `APP_*` 环境变量——去掉前缀 → 转小写 → `__` 换成 `.`，写进嵌套路径（`APP_AUTH__SECRET` → `auth.secret`，`APP_SERVER__WEB_PORT` → `server.web_port`）。
 
 规则：
 
+- **`ENV` 只有 `loadConfig` 读**；业务代码一律 `config.getXxx(...)` / `config.isPro()`，不再自己摸 `process.env`（rim 也是这个分工；它另外在 `loadConfigFromEnvironment` 里显式列了 MONGO/REDIS/ROCKETMQ 几个已知变量，我们的对应物是通用 `APP_*`）。
+- `ENV` 白名单：`dev` / `fat` / `pro`（大小写不敏感），其它值直接抛。默认 `dev`。
 - 读 YAML 用 `yaml`（2.9.1）：它自己不是 `node:` 依赖，但读文件要 `node:fs`，所以 `loadConfig` 只能在 `./node` 入口。
-- 深合并语义与 rim.proxy 一致：**对象递归合并，数组整体替换**。
+- 深合并语义与 rim 一致：**对象递归合并，数组整体替换**。
 - 类型转换（只对环境变量做）：`"true"` / `"false"` → boolean；纯数字串 → number；其余保持字符串。
 - 文件顶层必须是对象（或空文件）；否则抛错带路径。空文件当 `{}`。
-- `env` **不做白名单**：任何值都直接用小写拼文件名。写错环境名就是文件不存在，报错里带 ENV 值。
-- 合并后按 `required` 逐条检查（点分路径），缺失或空字符串 → 抛 `Error("配置缺少必填项：auth.secret（来源：config/common.yml + config/app_dev.yml + APP_ 环境变量）")`。
-- 返回普通对象，用泛型声明形状，不提供 `get('a.b')` 访问器。
+- 合并后按 `required` 逐条检查（点分路径），缺失或空字符串 → 抛 `Error("配置缺少必填项：auth.secret（来源：config 目录 + 环境变量覆盖）")`。
+- **取值语义比 viper 严**：缺值且没给 fallback → 抛 `配置项不存在：<path>`；类型不对 → 抛 `配置项 <path> 类型不对：<原始值>`。viper 返回零值（`""` / `0`），配错时表现成「端口 0」「密钥空」，排查成本比直接报错高。`getStringMap` 缺省给 `{}`（映射类配置本来就可选），值统一 `String()`（YAML 里的数字账号会被转成字符串）。
+- `raw()` 给整段透传用（`c.get("config")` 拿到的就是这个取值器实例）。
 - 不引入 zod，也不做 schema 校验；运行时只保证必填项在。
 
 ### 8.6 MongoDB（`@needle/honox/mongo`）
@@ -250,14 +264,16 @@ examples/honox-app/
   app/env.ts             # AppConfig（配置形状）+ AppEnv（= HonoxEnv<AppConfig>）
   app/api/               # 一个接口一个文件；index.ts 只做挂载（详见 8.11）
   app/md/                # 一表一文件（bot / apc / select-apc-config），index.ts 持有 manager
-  res/config/common.yml  # 服务器端口/host、redis
-  res/config/app_dev.yml # 只写与 common 不同的项（含本示例必填的 auth.secret）
+  res/config/common.yml  # 所有环境共享（示例里目前是空的）
+  res/config/app_dev.yml # 只写与 common 不同的项：端口、shell_users、auth.secret、metadata
+  res/config/app_fat.yml # FAT
+  res/config/app_pro.yml # PRO：刻意不写 auth.secret，强制 APP_AUTH__SECRET
   res/metadata/*.xlsx    # 模板表（见 8.11）
   Dockerfile
   README.md              # 怎么跑、怎么打镜像
 ```
 
-构建只有一步：`bun build app/server.ts --target=bun --outfile=dist/index.js`。Bun 认得 `export default { port, hostname, fetch }` 并在启动时自己 serve，所以 `dist/index.js` 是自包含产物（npm 依赖已打进去），运行镜像不带 `node_modules`；`res/` 走运行时 fs 读取（配置 + 模板表都在里面），需整目录拷进镜像。配置目录不是库默认的 `config`，示例显式传 `dir: "res/config"`。
+构建只有一步：`bun build app/main.ts --target=bun --outfile=dist/index.js`。Bun 认得 `export default { port, hostname, fetch }` 并在启动时自己 serve，所以 `dist/index.js` 是自包含产物（npm 依赖已打进去），运行镜像不带 `node_modules`；`res/` 走运行时 fs 读取（配置 + 模板表都在里面），需整目录拷进镜像。配置目录不是库默认的 `config`，示例显式传 `dir: "res/config"`。取值一律走 `config.getInt("server.web_port")` 这类访问器（§8.5），`shell_users` 直接喂给 Shell 面板；没配 `shell_users` 就不挂面板。镜像里 `ENV=pro`，`app_pro.yml` 缺 `auth.secret` → 不传 `APP_AUTH__SECRET` 启动即失败。
 
 ### 8.10 Excel 元数据（`@needle/honox/excel`）
 
