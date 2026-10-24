@@ -1,12 +1,18 @@
 import { createHonox } from "@needle/honox";
 import { nodeIdFromMac } from "@needle/honox/node";
+import { logo } from "@needle/logo";
 import { registerApis } from "./api/index.js";
+import { initLog } from "./logo.js";
 import { viper } from "./viper.js";
 import { initTemplates } from "./md/index.js";
 
 // 配置在 app/viper.ts 里加载（ENV 决定读 res/config/app_<env>.yml，只认
 // dev / fat / pro）。任何地方都直接 `import { viper } from "../viper.js"`，
 // 不经过 request context。
+
+// 日志最先初始化：它给全局 logo 挂文件 / 飞书 sink，晚于业务导入的话，
+// 启动阶段那一批日志就永远进不了文件。
+const logFiles = initLog();
 
 // /shell 在 JWT 白名单里，对匿名网络可达；口令是它唯一的门。
 // 没配 shell_users 就不挂面板，免得留一个没人能管的入口。
@@ -19,6 +25,7 @@ const shell =
         auth: { users: shellUsers },
         title: "honox-app",
         version: "0.1.0",
+        logFiles,
       };
 
 // 模板表的加载全在 app/md：扫一次目录，按 sheet 名后缀分派。
@@ -29,6 +36,7 @@ await initTemplates(viper.getString("metadata.base_url"));
 // rid 用 Snowflake：epoch 写死在配置里（不能用启动时间），机器号从网卡 MAC 派生。
 // 多实例部署时 MAC 会变（容器），那种场景请改成显式配置 nodeId。
 const app = createHonox({
+  logger: logo,
   snowflake: {
     epoch: viper.getInt("server.epoch_ms"),
     nodeId: nodeIdFromMac(),

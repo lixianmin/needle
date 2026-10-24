@@ -1,9 +1,11 @@
 # DEV 环境配置 - 只包含与 common.yml 不同的配置
 
-# 日志配置
+# 日志配置：写进 res/logs，Shell 的 log.list 读的就是这个目录
 logger:
-  filter_level: debug
-  lark_token: ""
+  filter_level: debug          # debug / info / warn / error；写错启动就报错
+  dir: res/logs                # 不写就用这个默认值
+  lark_token: ""               # 飞书群机器人 webhook；留空 = 不推
+  # lark_secret: ""            # 机器人开了「签名校验」才要
 
 # 元数据配置
 metadata:
