@@ -1,16 +1,22 @@
 # honox-app
 
-`@needle/honox` 的示例：HonoX 文件路由 + 配置 + JWT 鉴权 + 每请求日志 + Excel 配置 + Shell 面板。
+`@needle/honox` 的示例：配置 + JWT 鉴权 + 每请求日志 + Excel 配置 + Shell 面板。路由直接挂在 `createHonox()` 返回的 Hono 实例上，不引入 npm 上的 `honox`（HonoX）——见“为什么不是 HonoX”。
 
 ## 依赖怎么来
 
-`@needle/*` 三个包还没发 npm，这里用 `link:` 指向仓库里的 `packages/*`（`bun install` 会建立软链接，不需要 `bun link` 的全局注册）。本示例有**自己的** `node_modules` 和 `bun.lock`，不进仓库根 workspace：仓库根用 TypeScript 7，而 HonoX 0.1.62 的岛检测经 `@typescript-eslint/typescript-estree` 调 TS API，在 TS 7 上直接抛 `TypeError: ... reading 'Cjs'`，构建都起不来。所以这里固定 TypeScript 5.9.3。
+`@needle/*` 三个包还没发 npm，这里用 `link:` 指向仓库里的 `packages/*`（`bun install` 会建立软链接，不需要 `bun link` 的全局注册）。本示例有**自己的** `node_modules`、`bun.lock` 和 `tsconfig.json`，不进仓库根 workspace：`bun install --frozen-lockfile` 与 Docker 构建要能独立复现。TypeScript 与根同版本（`7.0.2`，有测试钉住）。
 
 ```bash
-bun install     # 装 hono / honox / vite / typescript 5.9.3
-bun run build   # vite build → dist/index.js
+bun install     # 装 hono / typescript 等
+bun run build   # bun build → dist/index.js（自包含产物）
 SHELL_PASSWORD=dev bun run start   # 默认 3000 端口，PORT 可改
 ```
+
+## 为什么不是 HonoX
+
+`@needle/honox` 和 npm 上的 `honox`（HonoX）只是名字撞了：前者是本仓库的 Hono 底座（配置/鉴权/日志/Excel/Shell），后者是文件路由 + islands 的元框架。底座返回的就是 `Hono` 实例，这几个接口直接 `.get()` 挂上去，用不上文件路由。
+
+早期示例确实接过 HonoX（`createApp({ app: createHonox(...) })`），那条接法在 spec §7 的 spike 里验过并留档，业务侧要文件路由/islands 时照抄即可。不默认带上的原因：HonoX 的岛检测走 `precinct` → `@typescript-eslint/typescript-estree`，在 TypeScript 7 上直接抛 `TypeError: ... reading 'Cjs'`，会把整个示例钉死在 TS 5.9.3；而且依赖表里会出现两个 `honox`，每次读都要解释一遨。
 
 ## 配置
 
