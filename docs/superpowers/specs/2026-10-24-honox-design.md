@@ -246,7 +246,7 @@ export function createMongo(options: MongoOptions): Mongo;
 
 ```
 examples/honox-app/
-  app/server.ts          # loadConfig → createHonox(...) → registerApis(app) → export default { port, hostname, fetch }
+  app/main.ts            # loadConfig → createHonox(...) → registerApis(app) → export default { port, hostname, fetch }
   app/env.ts             # AppConfig（配置形状）+ AppEnv（= HonoxEnv<AppConfig>）
   app/api/               # 一个接口一个文件；index.ts 只做挂载（详见 8.11）
   app/md/                # 一表一文件（bot / apc / select-apc-config），index.ts 持有 manager
@@ -271,7 +271,7 @@ examples/honox-app/
 | `XxxConfig` | `Config` | 全局一份的配置，取第一个非空数据行 |
 | 其它 | — | 不是元数据表，跳过并在启动日志里列出 |
 
-两级索引与 rim.server 同构：`routeTable: sheetName → 文件` 是扫描得到的，`templateTable: sheetName → Map<id, row>` 在预载时填好。**代码里不写文件名，也不写加载清单**——新增一张表只要 sheet 名按约定命名，`server.ts` 与 `app/md/index.ts` 都不用改。
+两级索引与 rim.server 同构：`routeTable: sheetName → 文件` 是扫描得到的，`templateTable: sheetName → Map<id, row>` 在预载时填好。**代码里不写文件名，也不写加载清单**——新增一张表只要 sheet 名按约定命名，`app/main.ts` 与 `app/md/index.ts` 都不用改。
 
 ```ts
 export interface Template<T> {
@@ -337,11 +337,11 @@ export function createMetadata(): Metadata;
 - `app/md/bot-template.ts` / `apc-template.ts`：类（`id = 0`、`name = ""`…）+ 文件内私有 `const templates = metadata.template(XxxTemplate)` + `getXxx(id)` / `getXxxs()`；`apc-template` 的 `equips: string[] = []` 就是拆列声明。
 - `app/md/select-apc-config.ts`：类（四个 `string[] = []` 字段）+ 私有 `const config = metadata.config(SelectApcConfig)` + `getSelectApcConfig()`（Config 只有一份，没有复数形式）。
 - 约定：句柄不导出，每个文件只出「类 + 单条 getter + 全表 getter」，调用方按需 import 具体文件，不经 `index.ts` 转手（否则新增表又要改 index）。
-- `app/server.ts`：`await initTemplates(config.metadata.base_url)`（示例配置里是 `res/metadata`）。
+- `app/main.ts`：`await initTemplates(config.metadata.base_url)`（示例配置里是 `res/metadata`）。
 
-**新增一张表 = 在 `app/md/` 加一个文件**（需要路由就再加一个 `app.get`）；`index.ts` 与 `server.ts` 的模板相关代码都不用动。
+**新增一张表 = 在 `app/md/` 加一个文件**（需要路由就再加一个 `app.get`）；`index.ts` 与 `app/main.ts` 的模板相关代码都不用动。
 
-HTTP 接口按 `app/api/<name>.ts` 一接口一文件（照 rim.server 的 `app/web/controller/*.go` 分文件思路，但这里粒度到单个接口），`app/api/index.ts` 的 `registerApis(app)` 只做登记，`app/server.ts` 不再出现具体路由。接口类型用 `app/env.ts` 导出的 `AppEnv`（= `HonoxEnv<AppConfig>`）。
+HTTP 接口按 `app/api/<name>.ts` 一接口一文件（照 rim.server 的 `app/web/controller/*.go` 分文件思路，但这里粒度到单个接口），`app/api/index.ts` 的 `registerApis(app)` 只做登记，`app/main.ts` 不再出现具体路由。接口类型用 `app/env.ts` 导出的 `AppEnv`（= `HonoxEnv<AppConfig>`）。
 
 参数走 query 而不是路径段：`GET /bots?id=1`、`GET /apc?id=1` 取单条，不带 `id` 返回全表，`id` 非数字 → `ResponseX.badRequest(...)`，查不到 → `ResponseX.notFound(...)`；`GET /select-apc` 返回那份 Config。理由：id 是可选筛选条件，不是资源路径的一部分。
 

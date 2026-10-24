@@ -47,7 +47,7 @@ bun -e 'import { sign } from "hono/jwt"; console.log(await sign({ sub: "u1", exp
 
 ## 接口目录
 
-每个 HTTP 接口一个文件，全在 `app/api/`；`app/api/index.ts` 只做挂载，`app/server.ts` 只装配中间件。
+每个 HTTP 接口一个文件，全在 `app/api/`；`app/api/index.ts` 只做挂载，`app/main.ts` 只装配中间件。
 
 ```
 app/api/
@@ -61,7 +61,7 @@ app/api/
 app/env.ts       # AppConfig（配置形状）+ AppEnv（createHonox 的 Env）
 ```
 
-新增一个接口：在 `app/api/` 加一个文件（`new Hono<AppEnv>()` + `xxxApi.get(...)`），再到 `index.ts` 里 `app.route("/", xxxApi)` 一行。`server.ts` 不用动。
+新增一个接口：在 `app/api/` 加一个文件（`new Hono<AppEnv>()` + `xxxApi.get(...)`），再到 `index.ts` 里 `app.route("/", xxxApi)` 一行。`app/main.ts` 不用动。
 
 **uid 与请求日志是自动的**：`createHonox()` 装配的中间件链是 `reqId → 请求日志 → JWT 鉴权`，所有 `app/api/` 里的路由都挂在它后面。于是每条请求都会：
 
@@ -105,7 +105,7 @@ app/md/
 | `ApcTemplate.xlsx` | `ApcTemplate` | Template | `id`、`equips`、`gender`、`name`、`buy_money`、`buy_price` |
 | `ApcTemplate.xlsx` | `SelectApcConfig` | Config | `select_apc1`..`select_apc4` |
 
-**新增一张表 = 在 `app/md/` 加一个文件**（需要对外就再加一个 `app.get`）；`index.ts` 和 `server.ts` 的模板相关代码都不用动。启动时 `await initTemplates(config.metadata.base_url)` 一次读完，之后 `getBotTemplate(id)` / `getSelectApcConfig()` 同步、零 IO。表直接用 Excel 维护，没有生成脚本。
+**新增一张表 = 在 `app/md/` 加一个文件**（需要对外就再加一个 `app.get`）；`index.ts` 和 `app/main.ts` 的模板相关代码都不用动。启动时 `await initTemplates(config.metadata.base_url)` 一次读完，之后 `getBotTemplate(id)` / `getSelectApcConfig()` 同步、零 IO。表直接用 Excel 维护，没有生成脚本。
 
 `equips` 在 Excel 里是 `503048|508012|0|0|…`，因为类里写的是 `equips: string[] = []`，库里直接拆成数组（`"0"` 表示该槽位没装备，保留；元素会 trim；空单元格给 `[]`）。`SelectApcConfig` 的四个字段同理。业务侧拿到就是数组，不用自己 `split("|")`。
 
