@@ -1,18 +1,16 @@
 import { metadata } from "./index";
 
 /**
- * 机器人模板。
- * 用 type 不用 interface：泛型约束是 Record<string, unknown>，
- * interface 没有隐式索引签名，TS 7 会报 TS2344。
+ * 机器人模板。类就是 schema：字段默认值决定类型，数组默认值（`[]`）表示该列
+ * 按 `|` 拆；sheet 名默认取类名。
  */
-export type BotTemplate = {
-  id: number;
-  name: string;
-  prompt: string;
-};
+export class BotTemplate {
+  id = 0;
+  name = "";
+  prompt = "";
+}
 
-/** 第一层 key 就是 sheet 名，文件名/所在 xlsx 由启动扫描决定，这里不写。 */
-export const botTemplate = metadata.template<BotTemplate>("BotTemplate");
+export const botTemplate = metadata.template(BotTemplate);
 
 export function getBotTemplate(id: number): BotTemplate | undefined {
   return botTemplate.get(id);

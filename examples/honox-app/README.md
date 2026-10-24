@@ -58,10 +58,12 @@ bun -e 'import { sign } from "hono/jwt"; console.log(await sign({ sub: "u1", exp
 ```
 app/md/
   index.ts                 # createMetadata() + initTemplates(dir)
-  bot-template.ts          # metadata.template<BotTemplate>("BotTemplate")
-  apc-template.ts          # metadata.template<ApcTemplate>("ApcTemplate")
-  select-apc-config.ts     # metadata.config<SelectApcConfig>("SelectApcConfig")
+  bot-template.ts          # class BotTemplate  → metadata.template(BotTemplate)
+  apc-template.ts          # class ApcTemplate  → metadata.template(ApcTemplate)
+  select-apc-config.ts     # class SelectApcConfig → metadata.config(SelectApcConfig)
 ```
+
+**类就是 schema**：字段默认值决定类型，默认值写 `[]` 的字段表示该列按 `|` 拆成数组；sheet 名默认取类名（所以类名要和 sheet 名一致）。
 
 现有三张 sheet：
 
@@ -73,13 +75,19 @@ app/md/
 
 **新增一张表 = 在 `app/md/` 加一个文件**（需要对外就再加一个 `app.get`）；`index.ts` 和 `server.ts` 的模板相关代码都不用动。启动时 `await initTemplates(config.metadata.base_url)` 一次读完，之后 `getBotTemplate(id)` / `getSelectApcConfig()` 同步、零 IO。表直接用 Excel 维护，没有生成脚本。
 
-`equips` 在 Excel 里是 `503048|508012|0|0|…` 这样的串，声明 `{ split: ["equips"] }` 后库里直接拆成 `string[]`（`"0"` 表示该槽位空，保留；元素会 trim；空单元格给 `[]`）。`SelectApcConfig` 的四个字段同理。业务侧拿到就是数组，不用自己 `split("|")`。
+`equips` 在 Excel 里是 `503048|508012|0|0|…`，因为类里写的是 `equips: string[] = []`，库里直接拆成数组（`"0"` 表示该槽位没装备，保留；元素会 trim；空单元格给 `[]`）。`SelectApcConfig` 的四个字段同理。业务侧拿到就是数组，不用自己 `split("|")`。
 
-分隔符默认 `|`；要逐列指定就写成对象（TS 没有 Go 的 struct tag，声明位置就是 `app/md/<名>-template.ts` 那一行）：
+分隔符默认 `|`，逐列换用静态字段：
 
 ```ts
-metadata.template<BotTemplate>("BotTemplate", { split: { tags: ",", prompt: "|" } });
+export class BotTemplate {
+  static separators = { tags: "," };
+  id = 0;
+  tags: string[] = [];
+}
 ```
+
+注意：sheet 名取类名，所以构建产物**不要开 `--minify`**（压缩会把类名抹掉）。真需要压缩时显式补名字：`metadata.template(BotTemplate, "BotTemplate")`。
 
 规则：首行表头（小写 + trim）。Template 每行必须有数字 `id`，缺 id / 非数字 / 重复都会在加载时报错并带 `文件#sheet` 和行号；Config 取第一个非空数据行，一行都没有也报错。同名 sheet 不能出现在两个文件里。`metadata.base_url` 目前只支持本地目录——`app_fat.yml` 里那个 https 地址是 rim.server 的远端元数据用法，本库还没做远端拉取。
 

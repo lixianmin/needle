@@ -16,24 +16,13 @@ const SPREADSHEET_EXTENSIONS: readonly string[] = [".xlsx", ".xlsm"];
 const SPLIT_SEPARATOR = "|";
 
 /**
- * 拆列的声明，两种写法：
- * - `["equips", "tags"]`：这些列按默认分隔符 `|` 拆；
- * - `{ equips: "|", tags: "," }`：逐列指定分隔符（写 `""` 等同默认）。
+ * 模板类就是 schema：字段默认值写 `[]` 的列会被拆成 `string[]`。
  *
- * TS 没有 Go 那样的 struct tag，运行时也没有类型信息，所以分隔符只能这样
- * 跟句柄一起声明——位置就是 `app/md/<名>-template.ts` 里那一行。
+ * TS 的类型在运行时全被擦掉，所以"数组就拆"必须落在运行时可读的地方——
+ * 类的字段默认值正好是这样一个地方，写起来又跟 Go 的 struct 一样直白。
+ * 逐列换分隔符用静态字段：`static separators = { tags: "," }`。
  */
-export type SplitColumns = readonly string[] | Readonly<Record<string, string>>;
-
-export interface TemplateOptions {
-  /**
-   * 这些列在读取时拆成 `string[]`。
-   *
-   * 不拆的话业务侧每次都得自己 `split("|")`，还得处理空单元格；
-   * 拆列结果里 `"0"` 保留（它是有含义的占位），空单元格是 `[]`。
-   */
-  readonly split?: SplitColumns;
-}
+export type TemplateClass<T extends object> = new () => T;
 
 export interface Template<T> {
   readonly name: string;
@@ -56,10 +45,14 @@ export interface MetadataReport {
 export interface Metadata {
   /** 扫描 dir（不递归），整体替换已加载的元数据。 */
   load(dir: string): Promise<MetadataReport>;
-  /** 按 sheet 名取一个 Template 句柄；真正的数据在 load() 之后可读。 */
-  template<T extends Record<string, unknown>>(name: string, options?: TemplateOptions): Template<T>;
-  /** 按 sheet 名取一个 Config 句柄；真正的数据在 load() 之后可读。 */
-  config<T extends Record<string, unknown>>(name: string, options?: TemplateOptions): Config<T>;
+  /** 用类当 schema：字段默认值是 `[]` 的列按 `|` 拆；sheet 名默认取类名。 */
+  template<T extends object>(type: TemplateClass<T>, name?: string): Template<T>;
+  /** 不带 schema 的重载：按 sheet 名取，Excel 里的值原样返回。 */
+  template<T extends Record<string, unknown>>(name: string): Template<T>;
+  /** 用类当 schema 的 Config 句柄。 */
+  config<T extends object>(type: TemplateClass<T>, name?: string): Config<T>;
+  /** 不带 schema 的重载。 */
+  config<T extends Record<string, unknown>>(name: string): Config<T>;
 }
 
 interface TemplateTable {
@@ -130,22 +123,16 @@ function classify(sheetName: string): "template" | "config" | null {
   return null;
 }
 
-/**
- * 归一成 列名 → 分隔符 的表。列名按小写比较（表头在 toRecords 里已经 lowercase 了），
- * 分隔符写空字符串时退回默认的 `|`。
- */
-function normalizeSplit(split: SplitColumns | undefined): ReadonlyMap<string, string> {
+/** 从类实例的字段默认值里读出"哪些列是数组"，顺带取各自的分隔符。 */
+function arrayColumnsOf(type: TemplateClass<object>): ReadonlyMap<string, string> {
+  const overrides = (type as unknown as { separators?: Readonly<Record<string, string>> })
+    .separators;
   const columns = new Map<string, string>();
-  if (split === undefined) {
-    return columns;
-  }
-  if (Array.isArray(split)) {
-    for (const column of split) {
-      columns.set(column.trim().toLowerCase(), SPLIT_SEPARATOR);
+  for (const [column, value] of Object.entries(new type())) {
+    if (!Array.isArray(value)) {
+      continue;
     }
-    return columns;
-  }
-  for (const [column, separator] of Object.entries(split)) {
+    const separator = overrides?.[column] ?? overrides?.[column.toLowerCase()] ?? SPLIT_SEPARATOR;
     columns.set(column.trim().toLowerCase(), separator === "" ? SPLIT_SEPARATOR : separator);
   }
   return columns;
@@ -173,6 +160,22 @@ function applySplit(
             .map((part) => part.trim());
   }
   return shaped;
+}
+
+/** `template(类, name?)` 与 `template("sheet 名")` 两种调用归一。 */
+function resolveSelector<T extends object>(
+  selector: string | TemplateClass<T>,
+  name: string | undefined,
+): { sheetName: string; type: TemplateClass<T> | undefined } {
+  if (typeof selector === "string") {
+    return { sheetName: selector, type: undefined };
+  }
+  const sheetName = name ?? selector.name;
+  if (sheetName === "") {
+    // 压缩后 class.name 会被抹平，那时必须显式补第二个参数。
+    throw new Error("模板类没有类名：压缩产物里请显式传 sheet 名，metadata.template(Xxx, \"XxxTemplate\")");
+  }
+  return { sheetName, type: selector };
 }
 
 function listOf(names: Iterable<string>): string {
@@ -301,21 +304,22 @@ export function createMetadata(): Metadata {
     };
   }
 
-  function template<T extends Record<string, unknown>>(
-    name: string,
-    options: TemplateOptions = {},
+  function template<T extends object>(
+    selector: string | TemplateClass<T>,
+    name?: string,
   ): Template<T> {
-    const columns = normalizeSplit(options.split);
+    const { sheetName, type } = resolveSelector(selector, name);
+    const columns = type === undefined ? new Map<string, string>() : arrayColumnsOf(type);
     let cachedVersion = -1;
     let byId: ReadonlyMap<number, T> = new Map();
     let list: readonly T[] = [];
 
     /**
-     * 拆列视图按句柄缓存：同一张表可以有几个句柄各写各的 split。
-     * version 变了（重新 load）就重建，避免拿到上一份数据的视图。
+     * 拆列视图按句柄缓存；version 变了（重新 load）就重建，
+     * 免得拿到上一份数据的视图。
      */
     function view(): { byId: ReadonlyMap<number, T>; list: readonly T[] } {
-      const table = requireTemplate(name);
+      const table = requireTemplate(sheetName);
       if (cachedVersion === state.version) {
         return { byId, list };
       }
@@ -335,7 +339,7 @@ export function createMetadata(): Metadata {
     }
 
     return {
-      name,
+      name: sheetName,
       get(id: number): T | undefined {
         return view().byId.get(id);
       },
@@ -345,22 +349,20 @@ export function createMetadata(): Metadata {
     };
   }
 
-  function config<T extends Record<string, unknown>>(
-    name: string,
-    options: TemplateOptions = {},
-  ): Config<T> {
-    const columns = normalizeSplit(options.split);
+  function config<T extends object>(selector: string | TemplateClass<T>, name?: string): Config<T> {
+    const { sheetName, type } = resolveSelector(selector, name);
+    const columns = type === undefined ? new Map<string, string>() : arrayColumnsOf(type);
     let cachedVersion = -1;
     let shaped: T | undefined;
 
     return {
-      name,
+      name: sheetName,
       get(): T {
         requireLoaded();
-        const value = state.configs.get(name);
+        const value = state.configs.get(sheetName);
         if (value === undefined) {
           throw new Error(
-            `没有 Config 表：${name}（sheet 名要原样、且以 ${CONFIG_SUFFIX} 结尾；已加载：${listOf(state.configs.keys())}）`,
+            `没有 Config 表：${sheetName}（sheet 名要原样、且以 ${CONFIG_SUFFIX} 结尾；已加载：${listOf(state.configs.keys())}）`,
           );
         }
         if (cachedVersion !== state.version) {
