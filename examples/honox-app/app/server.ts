@@ -1,18 +1,8 @@
 import { createHonox } from "@needle/honox";
 import { loadConfig } from "@needle/honox/node";
-import { ResponseX } from "@needle/shell";
+import { registerApis } from "./api";
+import type { AppConfig } from "./env";
 import { initTemplates } from "./md";
-import { getApcTemplate } from "./md/apc-template";
-import { getBotTemplate } from "./md/bot-template";
-import { getSelectApcConfig } from "./md/select-apc-config";
-
-// 用 type 而不是 interface：createHonox 的泛型约束是 Record<string, unknown>，
-// interface 没有隐式索引签名，TS 7 会直接报 TS2344。
-type AppConfig = {
-  auth: { secret: string };
-  metadata: { base_url: string };
-  server?: { web_port?: number; host?: string };
-};
 
 // 配置跟模板表一起放在 res/ 下，与镜像里的目录结构一致。
 const config = loadConfig<AppConfig>({
@@ -53,34 +43,8 @@ const app = createHonox({
   },
 });
 
-app.get("/", (c) =>
-  c.text("honox-app: GET /health、GET /me、GET /bots/:id、GET /apc/:id、GET /select-apc"),
-);
-
-app.get("/health", (c) => c.json({ ok: true }));
-
-app.get("/me", (c) => c.json({ uid: c.get("uid") }));
-
-app.get("/bots/:id", (c) => {
-  const id = Number(c.req.param("id"));
-  const bot = Number.isFinite(id) ? getBotTemplate(id) : undefined;
-  if (bot === undefined) {
-    return ResponseX.notFound("bot 不存在");
-  }
-  return c.json(bot);
-});
-
-app.get("/apc/:id", (c) => {
-  const id = Number(c.req.param("id"));
-  const apc = Number.isFinite(id) ? getApcTemplate(id) : undefined;
-  if (apc === undefined) {
-    return ResponseX.notFound("apc 不存在");
-  }
-  return c.json(apc);
-});
-
-// Config 类型：全局一份，没有 id。
-app.get("/select-apc", (c) => c.json(getSelectApcConfig()));
+// 接口全在 app/api：一个接口一个文件，这里只负责挂载。
+registerApis(app);
 
 // Bun 认这个默认导出（{ port, hostname, fetch }）并在启动时自己 Bun.serve，
 // 所以 dist/index.js 不需要额外的启动脚本。PORT / HOST 环境变量优先于配置。
