@@ -43,5 +43,5 @@ export function createHonox(options) {
     }
     return app;
 }
-export { api, apiRoute } from "./route.js";
+export { apiRoute, createApi } from "./route.js";
 export { createSnowflake, parseSnowflake } from "./id.js";

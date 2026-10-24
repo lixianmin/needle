@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { newLogger, type LogRecord } from "@needle/logo";
 import { sign } from "hono/jwt";
 import { createHonox } from "../src/index.js";
-import { api, apiRoute } from "../src/route.js";
+import { apiRoute, createApi } from "../src/route.js";
 
 const SECRET = "test-secret";
 
@@ -99,16 +99,25 @@ describe("createHonox", () => {
     expect(end.fn).not.toBe("requestLog");
   });
 
-  test("api()：一条路由 + 位置，省掉 new Hono", async () => {
+  test("createApi()：一个组挂多条路由，每条都记住自己的注册位置", async () => {
     const records: LogRecord[] = [];
     const log = newLogger({ sinks: [(batch) => records.push(...batch)], batch: false });
-    const app = createHonox({ log, auth: { secret: SECRET, public: ["/sub"] } });
-    app.route("/", api("/sub", (c) => c.json({ ok: true })));
+    const app = createHonox({ log, auth: { secret: SECRET, public: ["/one", "/two"] } });
 
-    const res = await app.request("/sub");
+    const group = createApi();
+    group.get("/one", (c) => c.json({ ok: 1 }));
+    group.post("/two", (c) => c.json({ ok: 2 }));
+    app.route("/", group);
 
-    expect(res.status).toBe(200);
-    expect(records.at(-1)?.site).toMatch(/^create-honox\.test\.ts:\d+$/);
+    await app.request("/one");
+    const first = records.at(-1);
+    await app.request("/two", { method: "POST" });
+    const second = records.at(-1);
+
+    expect(first?.site).toMatch(/^create-honox\.test\.ts:\d+$/);
+    expect(second?.site).toMatch(/^create-honox\.test\.ts:\d+$/);
+    // 两条路由的注册行不同，说明是分别抓的，不是复用第一条
+    expect(first?.site).not.toBe(second?.site);
   });
 
   test("Shell 面板挂到 /shell，且不被门禁拦", async () => {

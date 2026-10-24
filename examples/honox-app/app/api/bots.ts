@@ -1,12 +1,14 @@
-import { api } from "@needle/honox";
+import { createApi } from "@needle/honox";
 import { ResponseX } from "@needle/shell";
 import { getBotTemplate, getBotTemplates } from "../md/bot-template";
+
+export const botsApi = createApi();
 
 /**
  * `?id=1` 取单条；不带 id 取全表。
  * 用 query 而不是路径段：id 是可选筛选条件，不是资源路径的一部分。
  */
-export const botsApi = api("/bots", (c) => {
+botsApi.get("/bots", (c) => {
   const raw = c.req.query("id");
   if (raw === undefined) {
     return c.json(getBotTemplates());

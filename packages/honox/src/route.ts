@@ -4,8 +4,12 @@ import type { HonoxEnv } from "./types.js";
 
 export type ApiHandler = Handler<HonoxEnv>;
 
-/** 位置：这个 API 注册在哪个文件:行。请求日志用它当 `site` / `fn`。 */
+/** 位置：这个路由注册在哪个文件:行。请求日志用它当 `site` / `fn`。 */
 type Origin = { site: string; fn: string };
+
+/** 路由注册方法：这些都是"登记一条路由"，注册位置要抓下来。 */
+const ROUTE_METHODS = ["get", "post", "put", "patch", "delete", "all"] as const;
+const ROUTE_METHOD_SET = new Set<string>(ROUTE_METHODS);
 
 /**
  * 包一层 handler，把注册位置写进 context。
@@ -24,39 +28,52 @@ function withOrigin(handler: ApiHandler, origin: Origin | undefined): ApiHandler
 }
 
 /**
- * 建一个只有一条路由的子应用，顺手记下它注册在哪（日志里就能指到本文件的行）。
- *
- * 省掉每个接口文件里的例行代码：
+ * 建一个 API 组：一个文件一个实例，里面 `get` / `post` / ... 挂多条路由。
  *
  * ```ts
- * // 之前
- * export const botsApi = new Hono();
- * botsApi.get("/bots", apiRoute((c) => { ... }));
+ * // app/api/bots.ts
+ * export const botsApi = createApi();
  *
- * // 现在
- * export const botsApi = api("/bots", (c) => { ... });
+ * botsApi.get("/bots", (c) => ...);
+ * botsApi.post("/bots", (c) => ...);
  * ```
  *
- * 只有一条路由时用它；已经有一堆路由的 Hono 实例，用 {@link apiRoute} 单独包。
+ * 与直接用 `new Hono()` 的区别只有一点：**每次 `get` / `post` 会自动抓下注册处
+ * 的「文件:行」**，写进 context 给请求日志用。日志是在中间件里打的，那一刻
+ * handler 不在栈上，只能注册时先记下来。
+ *
+ * 返回值仍是 `Hono`，所以 `app.route("/", botsApi)` 照常挂载。
  */
-export function api(
-  path: string,
-  handler: ApiHandler,
-  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" = "GET",
-): Hono<HonoxEnv> {
-  // 跳 1 帧：第 0 帧是 api() 自己，第 1 帧才是调用它的接口文件。
-  const origin = captureCallSite(1);
+export function createApi(): Hono<HonoxEnv> {
   const app = new Hono<HonoxEnv>();
 
-  const route = method.toLowerCase() as "get" | "post" | "put" | "patch" | "delete";
-  app[route](path, withOrigin(handler, origin));
-  return app;
+  return new Proxy(app, {
+    get(target, prop, receiver) {
+      if (typeof prop === "string" && ROUTE_METHOD_SET.has(prop)) {
+        return (path: string, ...handlers: unknown[]) => {
+          // 第 0 帧是这个箭头函数（route.ts），第 1 帧是调用方（接口文件）。
+          const origin = captureCallSite(1);
+          const wrapped = handlers.map((handler) =>
+            typeof handler === "function" ? withOrigin(handler as ApiHandler, origin) : handler,
+          );
+          (target as unknown as Record<string, (p: string, ...h: unknown[]) => unknown>)[prop]?.(
+            path,
+            ...wrapped,
+          );
+          // 返回代理而不是 target：链式 `.get(...).post(...)` 后续调用也要被包住。
+          return receiver;
+        };
+      }
+      const value = Reflect.get(target, prop, receiver);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  });
 }
 
 /**
- * 只包 handler（不动路由表）。已有 Hono 实例、或者一条路径挂多个方法时用它。
+ * 只包 handler（不动路由表）。已有 `new Hono()` 实例、或者一条路径挂多个方法时用它。
  */
 export function apiRoute(handler: ApiHandler): ApiHandler {
-  // 跳 1 帧：第 0 帧是 apiRoute 自己。
+  // 第 0 帧是 apiRoute 自己。
   return withOrigin(handler, captureCallSite(1));
 }

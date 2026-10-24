@@ -67,7 +67,7 @@ export function createHonox(options: HonoxOptions): Hono<HonoxEnv> {
 }
 
 export type { Config } from "./config.js";
-export { api, apiRoute } from "./route.js";
+export { apiRoute, createApi } from "./route.js";
 export type { ApiHandler } from "./route.js";
 export { createSnowflake, parseSnowflake } from "./id.js";
 export type { Snowflake, SnowflakeOptions } from "./id.js";

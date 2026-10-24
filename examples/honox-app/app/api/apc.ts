@@ -1,9 +1,11 @@
-import { api } from "@needle/honox";
+import { createApi } from "@needle/honox";
 import { ResponseX } from "@needle/shell";
 import { getApcTemplate, getApcTemplates } from "../md/apc-template";
 
+export const apcApi = createApi();
+
 /** `?id=1` 取单条；不带 id 取全表。 */
-export const apcApi = api("/apc", (c) => {
+apcApi.get("/apc", (c) => {
   const raw = c.req.query("id");
   if (raw === undefined) {
     return c.json(getApcTemplates());
