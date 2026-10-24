@@ -14,9 +14,9 @@ import { serve } from "../packages/shell/src/node.js";
 import { logo } from "@needle/logo";
 import { createFileSink, createLogFiles } from "@needle/logo/node";
 
-// 版本号的唯一来源是包的 package.json（AGENTS.md §14），别在这里硬编码。
+// 版本号的唯一来源是根 package.json（AGENTS.md §14），三包由 version:sync 同步。
 const pkg = JSON.parse(
-  readFileSync(new URL("../packages/shell/package.json", import.meta.url), "utf8"),
+  readFileSync(new URL("../package.json", import.meta.url), "utf8"),
 ) as { version: string };
 
 const LOG_DIR = "logs";

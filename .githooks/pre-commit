@@ -4,5 +4,6 @@
 # clone 下来不先构建也能跑测试与 smoke，所以 dist 必须留在仓库里。
 set -e
 
+bun run version:sync
 bun run build
-git add packages/*/dist packages/shell/src/ui/script.generated.ts
+git add packages/*/package.json packages/*/dist packages/shell/src/ui/script.generated.ts
