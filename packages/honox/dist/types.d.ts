@@ -18,10 +18,16 @@ export interface HonoxEnv {
         user: JWTPayload | null;
         authError: AuthErrorReason | null;
         rid: string;
-        /** 由 `apiRoute()` 写入：这个请求命中的 API 注册在哪个文件:行。 */
+        /**
+         * 由 `createApi()` / `apiRoute()` 写入：这个请求属于哪个模块、注册在哪。
+         *
+         * `module` 是手写的一次性身份（打包、压缩后唯一还活着的定位信息）；
+         * `site` / `fn` 来自注册时的栈帧，只当开发期信息。
+         */
         api?: {
-            site: string;
-            fn: string;
+            module?: string;
+            site?: string;
+            fn?: string;
         };
     };
 }
