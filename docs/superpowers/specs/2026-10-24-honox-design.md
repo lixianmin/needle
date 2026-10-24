@@ -332,8 +332,9 @@ export function createMetadata(): Metadata;
 布局照 rim.server：一张表对应 `app/md/` 下一个文件（kebab-case），文件里只声明**类型 + sheet 名**，没有文件名也没有注册清单。
 
 - `app/md/index.ts`：`export const metadata = createMetadata()` + `initTemplates(dir)`（调用 `metadata.load(dir)` 并按 report 打一行启动日志）。
-- `app/md/bot-template.ts` / `apc-template.ts`：类（`id = 0`、`name = ""`…）+ `metadata.template(XxxTemplate)` + `getXxx(id)`；`apc-template` 的 `equips: string[] = []` 就是拆列声明。
-- `app/md/select-apc-config.ts`：类（四个 `string[] = []` 字段）+ `metadata.config(SelectApcConfig)` + `getSelectApcConfig()`。
+- `app/md/bot-template.ts` / `apc-template.ts`：类（`id = 0`、`name = ""`…）+ 文件内私有 `const templates = metadata.template(XxxTemplate)` + `getXxx(id)` / `getXxxs()`；`apc-template` 的 `equips: string[] = []` 就是拆列声明。
+- `app/md/select-apc-config.ts`：类（四个 `string[] = []` 字段）+ 私有 `const config = metadata.config(SelectApcConfig)` + `getSelectApcConfig()`（Config 只有一份，没有复数形式）。
+- 约定：句柄不导出，每个文件只出「类 + 单条 getter + 全表 getter」，调用方按需 import 具体文件，不经 `index.ts` 转手（否则新增表又要改 index）。
 - `app/server.ts`：`await initTemplates(config.metadata.base_url)`（示例配置里是 `res/metadata`）。
 
 **新增一张表 = 在 `app/md/` 加一个文件**（需要路由就再加一个 `app.get`）；`index.ts` 与 `server.ts` 的模板相关代码都不用动。

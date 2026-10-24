@@ -8,8 +8,8 @@ export class SelectApcConfig {
   select_apc4: string[] = [];
 }
 
-export const selectApcConfig = metadata.config(SelectApcConfig);
+const config = metadata.config(SelectApcConfig);
 
 export function getSelectApcConfig(): SelectApcConfig {
-  return selectApcConfig.get();
+  return config.get();
 }

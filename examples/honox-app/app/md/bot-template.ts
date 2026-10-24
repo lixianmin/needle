@@ -10,8 +10,12 @@ export class BotTemplate {
   prompt = "";
 }
 
-export const botTemplate = metadata.template(BotTemplate);
+const templates = metadata.template(BotTemplate);
 
 export function getBotTemplate(id: number): BotTemplate | undefined {
-  return botTemplate.get(id);
+  return templates.get(id);
+}
+
+export function getBotTemplates(): readonly BotTemplate[] {
+  return templates.all();
 }

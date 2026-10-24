@@ -58,12 +58,14 @@ bun -e 'import { sign } from "hono/jwt"; console.log(await sign({ sub: "u1", exp
 ```
 app/md/
   index.ts                 # createMetadata() + initTemplates(dir)
-  bot-template.ts          # class BotTemplate  → metadata.template(BotTemplate)
-  apc-template.ts          # class ApcTemplate  → metadata.template(ApcTemplate)
-  select-apc-config.ts     # class SelectApcConfig → metadata.config(SelectApcConfig)
+  bot-template.ts          # class BotTemplate  → getBotTemplate(id) / getBotTemplates()
+  apc-template.ts          # class ApcTemplate  → getApcTemplate(id) / getApcTemplates()
+  select-apc-config.ts     # class SelectApcConfig → getSelectApcConfig()
 ```
 
 **类就是 schema**：字段默认值决定类型，默认值写 `[]` 的字段表示该列按 `|` 拆成数组；sheet 名默认取类名（所以类名要和 sheet 名一致）。
+
+**每个文件只暴露三个东西**：类（类型）、`getXxx(id)`（单条）、`getXxxs()`（全表；Config 只有 `getXxx()`，它本来就只有一份）。句柄是文件内私有的 `const templates`，外面不需要也不应该碰。
 
 现有三张 sheet：
 
