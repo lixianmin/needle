@@ -20,7 +20,7 @@ Web Shell，支持命令查看当前系统状态，如进程状态、业务数�
 
 ### 1. 登录（auth）
 
-配了 `auth.users` 之后，命令要先 `auth <用户名>` 登录；**未登录只有 `auth` 和 `help` 可用**，`help` 也只列这两条（没配 users 时是匿名放开的）：
+配了 `auth.users` 之后，命令要先 `auth <用户名>` 登录；**未登录只有 `auth` 和 `help` 可用**，`help` 也只列这两条。没配 `users` 时谁都登不进去；本地面板用 `user: "local"` 跳过鉴权（见浏览器那篇）：
 
 账号在 `createServerShell({ auth: { users } })` 里配：用户名 → 口令，想开几个就写几项，登录时 `auth <用户名>`。
 
@@ -181,7 +181,7 @@ process.on("SIGTERM", () => logo.dispose());                                    
 | Chrome 扩展 | DOM 面板 | 无 | [chrome-extension.md](docs/best-practices/chrome-extension.md) |
 | 浏览器纯前端页 | DOM 面板 | 无 | [browser-client.md](docs/best-practices/browser-client.md) |
 
-文件 sink 只在有 `node:fs` 的地方能用：`@needle/logo/node` 顶层 `import "node:fs"`，浏览器和 Workers 打包时不能碰它；`@needle/core`、`@needle/logo`、`@needle/shell` 三个根入口是干净的（`packages/*/test/browser-safety.test.ts` 对打包产物做内容断言）。
+文件 sink 只在有 `node:fs` 的地方能用：`@needle/logo/node` 顶层 `import "node:fs"`，浏览器和 Workers 打包时不能碰它；`@needle/core`、`@needle/logo`、`@needle/shell` 三个根入口都不碰 `node:`（`@needle/core` 本来就没有 `node:` 依赖；logo / shell 由各自的 `browser-safety.test.ts` 对打包产物做内容断言）。
 
 
 
@@ -264,7 +264,7 @@ bun run demo                # 先构建 @needle/logo，再起 demo（改 logo �
 ```bash
 cd ~/needle                 # 已经在 §四.1 克隆过
 bun install
-bun run build               # core → logo → ui → shell，产物写进各自 dist/
+bun run build               # core → logo → UI 脚本 → shell；三份 dist 与内联 UI 脚本
 bunx tsc --noEmit           # 类型检查
 bun test                    # 全部用例
 

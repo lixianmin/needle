@@ -1,5 +1,5 @@
 /**
- * 命令执行失败。router 统一把它转成 `{ ok: false, error }`，所以命令实现
+ * 命令执行失败。source 的 `runCommand` 统一把它转成 `{ ok: false, error }`，所以命令实现
  * 里写 `throw new CommandError("...")` 就够了，不用每层判断 ok。
  */
 export class CommandError extends Error {

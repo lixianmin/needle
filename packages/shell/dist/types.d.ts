@@ -1,5 +1,5 @@
 import type { Logger } from "@needle/logo";
-/** 鉴权配置。core 不读环境变量：Workers 上的 process 语义不可靠，secret 必须由宿主传入。 */
+/** 鉴权配置。库不读环境变量：Workers 上的 process 语义不可靠，secret 必须由宿主传入。 */
 export interface AuthOptions {
     users: Record<string, string>;
     /** 不传就随机生成，重启后所有 token 失效。 */

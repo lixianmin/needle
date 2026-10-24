@@ -1,4 +1,4 @@
-// 这个 sink 依赖 node:fs：虽然放在 logo/sinks/ 下，但它只从 ./node 入口导出，
+// 这个 sink 依赖 node:fs：放在 `sinks/` 下，但只从 `@needle/logo/node` 导出，
 // `.` 入口不会引入它，Workers 打包时也就碰不到 node: 模块。
 import { appendFileSync, existsSync, mkdirSync, readdirSync, renameSync, statSync, unlinkSync } from "node:fs";
 import { join } from "node:path";

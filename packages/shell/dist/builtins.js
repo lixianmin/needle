@@ -1,5 +1,4 @@
-import { formatDuration, toHuman } from "@needle/logo";
-import { formatTime } from "@needle/logo";
+import { formatDuration, formatTime, toHuman } from "@needle/logo";
 import { CommandError } from "./commands.js";
 import { table } from "./table.js";
 /**
