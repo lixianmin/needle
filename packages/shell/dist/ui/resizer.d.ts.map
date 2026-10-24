@@ -1,0 +1,1 @@
+{"version":3,"file":"resizer.d.ts","sourceRoot":"","sources":["../../src/ui/resizer.ts"],"names":[],"mappings":"AAeA,MAAM,WAAW,cAAc;IAC7B,iCAAiC;IACjC,IAAI,EAAE,WAAW,CAAC;IAClB,mBAAmB;IACnB,MAAM,EAAE,WAAW,CAAC;CACrB;AAED,MAAM,WAAW,OAAO;IACtB,OAAO,IAAI,IAAI,CAAC;CACjB;AA0CD;;;;;;;;;GASG;AACH,wBAAgB,YAAY,CAAC,OAAO,EAAE,cAAc,GAAG,OAAO,CA+F7D"}
