@@ -30,20 +30,20 @@ import { createHonox } from "@needle/honox";
 import { loadConfig } from "@needle/honox/node";
 import { createMetadata } from "@needle/honox/excel";
 
-// ENV 决定读 app_<env>.yml（只认 dev / fat / pro）；之后一律走 config.getXxx(...)
-const config = loadConfig({
+// ENV 决定读 app_<env>.yml（只认 dev / fat / pro）；之后一律走 viper.getXxx(...)
+// 配置与日志都是进程级单例，直接 import 用，不进 request context。
+const viper = loadConfig({
   dir: "res/config",
   required: ["auth.secret", "metadata.base_url", "server.web_port"],
 });
 
 const metadata = createMetadata();
-await metadata.load(config.getString("metadata.base_url")); // *Template 按 id 建表，*Config 单例
+await metadata.load(viper.getString("metadata.base_url")); // *Template 按 id 建表，*Config 单例
 
 const app = createHonox({
-  config,
-  auth: { secret: config.getString("auth.secret"), public: ["/health"] },
+  auth: { secret: viper.getString("auth.secret"), public: ["/health"] },
   // /shell 对匿名网络可达（在 JWT 白名单里），账号从配置来，不要写默认值
-  shell: { basePath: "/shell", auth: { users: config.getStringMap("server.shell_users") } },
+  shell: { basePath: "/shell", auth: { users: viper.getStringMap("server.shell_users") } },
 });
 app.get("/orders", (c) => c.json({ uid: c.get("uid") })); // 不声明 = 要登录
 ```

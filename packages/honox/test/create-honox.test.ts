@@ -10,7 +10,6 @@ function setup() {
   const records: LogRecord[] = [];
   const log = newLogger({ sinks: [(batch) => records.push(...batch)], batch: false });
   const app = createHonox({
-    config: { greeting: "hi" },
     log,
     auth: { secret: SECRET, public: ["/health"] },
     shell: {
@@ -22,7 +21,7 @@ function setup() {
     },
   });
   app.get("/health", (c) => c.json({ ok: true }));
-  app.get("/me", (c) => c.json({ uid: c.get("uid"), greeting: c.get("config").greeting }));
+  app.get("/me", (c) => c.json({ uid: c.get("uid") }));
   return { app, records };
 }
 
@@ -35,11 +34,11 @@ describe("createHonox", () => {
     expect(await res.json()).toMatchObject({ code: "unauthorized" });
   });
 
-  test("有效 token 时 handler 能读到 uid 与 config", async () => {
+  test("有效 token 时 handler 能读到 uid", async () => {
     const { app } = setup();
     const token = await sign({ sub: "u1" }, SECRET, "HS256");
     const res = await app.request("/me", { headers: { authorization: `Bearer ${token}` } });
-    expect(await res.json()).toEqual({ uid: "u1", greeting: "hi" });
+    expect(await res.json()).toEqual({ uid: "u1" });
   });
 
   test("请求自带 x-rid 时沿用，并原样回显", async () => {
@@ -88,7 +87,6 @@ describe("createHonox", () => {
     const records: LogRecord[] = [];
     const log = newLogger({ sinks: [(batch) => records.push(...batch)], batch: false });
     const app = createHonox({
-      config: {},
       log,
       auth: { secret: SECRET, public: ["/where"] },
     });
@@ -110,15 +108,14 @@ describe("createHonox", () => {
   });
 
   test("不传 shell 时 /shell 不在白名单，被门禁拦成 401", async () => {
-    const app = createHonox({ config: {}, auth: { secret: SECRET } });
+    const app = createHonox({ auth: { secret: SECRET } });
     expect((await app.request("/shell")).status).toBe(401);
   });
 
   test("shell.basePath 为根路径直接报错（否则整站都被白名单放开）", () => {
     expect(() =>
       createHonox({
-        config: {},
-        auth: { secret: SECRET },
+          auth: { secret: SECRET },
         shell: { basePath: "/", auth: { users: { admin: "pw" } } },
       }),
     ).toThrow(/basePath/);

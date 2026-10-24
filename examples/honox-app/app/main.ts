@@ -5,8 +5,8 @@ import { viper } from "./viper";
 import { initTemplates } from "./md";
 
 // 配置在 app/viper.ts 里加载（ENV 决定读 res/config/app_<env>.yml，只认
-// dev / fat / pro）。别的文件直接 `import { viper } from "../viper"`；
-// 请求内 `c.get("config")` 拿到的也是同一个实例。
+// dev / fat / pro）。任何地方都直接 `import { viper } from "../viper"`，
+// 不经过 request context。
 
 // /shell 在 JWT 白名单里，对匿名网络可达；口令是它唯一的门。
 // 没配 shell_users 就不挂面板，免得留一个没人能管的入口。
@@ -29,7 +29,6 @@ await initTemplates(viper.getString("metadata.base_url"));
 // rid 用 Snowflake：epoch 写死在配置里（不能用启动时间），机器号从网卡 MAC 派生。
 // 多实例部署时 MAC 会变（容器），那种场景请改成显式配置 nodeId。
 const app = createHonox({
-  config: viper,
   id: {
     epoch: viper.getInt("server.epoch_ms"),
     nodeId: nodeIdFromMac(),

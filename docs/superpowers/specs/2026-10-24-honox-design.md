@@ -110,7 +110,7 @@ packages/honox/
 
 ```ts
 export interface HonoxOptions<C extends Record<string, unknown>> {
-  config: C;
+  /** 请求日志用哪个 logger；默认全局 logo。 */
   log?: Logger;                              // 默认 @needle/logo 的 logo 实例
   auth: {
     secret: string;                          // HS256 密钥
@@ -124,10 +124,12 @@ export interface HonoxOptions<C extends Record<string, unknown>> {
 
 export function createHonox<C extends Record<string, unknown>>(
   options: HonoxOptions<C>,
-): Hono<HonoxEnv<C>>;
+): Hono<HonoxEnv>;
 ```
 
-`HonoxEnv<C>` 的 Variables：`uid: string | null`、`user: JwtPayload | null`、`authError: "missing" | "invalid" | "expired" | null`、`config: C`、`log: Logger`、`rid: string`。
+`HonoxEnv` 的 Variables：`uid: string | null`、`user: JwtPayload | null`、`authError: "missing" | "invalid" | "expired" | null`、`rid: string`、`api?: { site, fn }`（由 `apiRoute` 写）。
+
+**只放每个请求独有的东西**：配置是进程级单例（viper 取值器），日志是进程级单例（`logo`），两者都直接 import，不按请求复制进 context——少一份可变的副本，也少一层"配置从哪来"的追问。
 
 **中间件顺序（库内固定，业务改不了）：**
 
@@ -259,7 +261,7 @@ export function loadConfig<C extends Record<string, unknown>>(options?: LoadConf
 - 文件顶层必须是对象（或空文件）；否则抛错带路径。空文件当 `{}`。
 - 合并后按 `required` 逐条检查（点分路径），缺失或空字符串 → 抛 `Error("配置缺少必填项：auth.secret（来源：config 目录 + 环境变量覆盖）")`。
 - **取值语义比 viper 严**：缺值且没给 fallback → 抛 `配置项不存在：<path>`；类型不对 → 抛 `配置项 <path> 类型不对：<原始值>`。viper 返回零值（`""` / `0`），配错时表现成「端口 0」「密钥空」，排查成本比直接报错高。`getStringMap` 缺省给 `{}`（映射类配置本来就可选），值统一 `String()`（YAML 里的数字账号会被转成字符串）。
-- `raw()` 给整段透传用（`c.get("config")` 拿到的就是这个取值器实例）。
+- `raw()` 给整段透传用。配置不进 request context：任何地方要取值就 `import { viper }`。
 - 不引入 zod，也不做 schema 校验；运行时只保证必填项在。
 
 ### 8.6 MongoDB（`@needle/honox/mongo`）

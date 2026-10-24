@@ -4,9 +4,8 @@ import { Hono } from "hono";
 import type { AuthOptions } from "./auth.js";
 import { type SnowflakeOptions } from "./id.js";
 import type { HonoxEnv } from "./types.js";
-export interface HonoxOptions<C extends object> {
-    config: C;
-    /** 默认 @needle/logo 的 logo 实例。 */
+export interface HonoxOptions {
+    /** 请求日志用哪个 logger；默认 `@needle/logo` 的全局 `logo`。 */
     log?: Logger;
     /** rid 的 Snowflake 配置；epoch 与 nodeId 都该显式给（多实例必须不同 nodeId）。 */
     id?: SnowflakeOptions;
@@ -19,7 +18,7 @@ export interface HonoxOptions<C extends object> {
  *
  * 业务路由挂在返回值上，所以自动继承中间件链。
  */
-export declare function createHonox<C extends object>(options: HonoxOptions<C>): Hono<HonoxEnv<C>>;
+export declare function createHonox(options: HonoxOptions): Hono<HonoxEnv>;
 export type { Config } from "./config.js";
 export { apiRoute } from "./middleware.js";
 export { createSnowflake, parseSnowflake } from "./id.js";
