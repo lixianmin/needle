@@ -1,0 +1,21 @@
+{
+  "name": "@needle/logo",
+  "version": "0.3.7",
+  "description": "结构化日志：批量 sink、stdout / 文件 / IndexedDB / 飞书落地",
+  "type": "module",
+  "sideEffects": false,
+  "license": "MIT",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./node": {
+      "types": "./dist/node.d.ts",
+      "default": "./dist/node.js"
+    }
+  },
+  "files": [
+    "dist"
+  ]
+}

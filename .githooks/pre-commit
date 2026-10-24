@@ -4,4 +4,4 @@
 set -e
 
 bun run build
-git add dist src/shell/ui/script.generated.ts
+git add packages/*/dist packages/shell/src/ui/script.generated.ts
