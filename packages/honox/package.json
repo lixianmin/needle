@@ -17,6 +17,10 @@
     "./mongo": {
       "types": "./dist/mongo.d.ts",
       "default": "./dist/mongo.js"
+    },
+    "./excel": {
+      "types": "./dist/excel.d.ts",
+      "default": "./dist/excel.js"
     }
   },
   "files": [
@@ -25,7 +29,8 @@
   "dependencies": {
     "@needle/logo": "workspace:*",
     "@needle/shell": "workspace:*",
-    "yaml": "^2.9.1"
+    "yaml": "^2.9.1",
+    "hucre": "^1.2.0"
   },
   "peerDependencies": {
     "hono": "^4",

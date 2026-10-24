@@ -26,6 +26,7 @@
       "dependencies": {
         "@needle/logo": "workspace:*",
         "@needle/shell": "workspace:*",
+        "hucre": "^1.2.0",
         "yaml": "^2.9.1",
       },
       "devDependencies": {
@@ -218,6 +219,8 @@
     "happy-dom": ["happy-dom@21.0.4", "", { "dependencies": { "@types/node": ">=20.0.0", "@types/whatwg-mimetype": "^3.0.2", "@types/ws": "^8.18.1", "buffer-image-size": "^0.6.4", "entities": "^7.0.1", "whatwg-mimetype": "^3.0.0", "ws": "^8.21.0" } }, "sha512-tFm+GaLBgo6o0awHnvHaNoraVo27qJ+2tZEtZ+cIa08hXbeitrxAJajLI05hsUy/2/YTKcUjQYzHe5mCcraLBw=="],
 
     "hono": ["hono@4.13.13", "", {}, "sha512-CQ46U0ZkAGmbT/4UxdzzGJpacP2IeKgY4a5/tOI9AABbpOMfK739wfDXmv1usCk+3RkKj1hQy4/fjhiwa2xlrA=="],
+
+    "hucre": ["hucre@1.2.0", "", { "bin": { "hucre": "dist/cli.mjs" } }, "sha512-7PU0o0ZEpBmNbS2FZb9I8lD0F40TVxX3qqq/u3tvQ557xs0GPjsxNtR01YHT4nvni3C0FD+scnFErHEhM/x+oQ=="],
 
     "kleur": ["kleur@4.1.5", "", {}, "sha512-o+NO+8WrRiQEE4/7nwRJhN1HWpVmJm511pBHUxPLtp0BUISzlBplORYSmTclCnJvQq2tKu/sgl3xVpkc7ZWuQQ=="],
 
