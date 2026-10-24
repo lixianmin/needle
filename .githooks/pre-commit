@@ -8,4 +8,9 @@ bun run version:sync
 # bun.lock 也记录 workspace 包的版本：同步后刷新它，否则锁文件与 package.json 漂移。
 bun install --silent
 bun run build
+# model class → TypeBox schema：生成物跟 dist 一样随源码提交（spec §5.5）。
+if [ -d examples/honox-app/app/model ]; then
+  bun scripts/gen-models.ts examples/honox-app/app/model/*.ts
+  git add examples/honox-app/app/model/*.generated.ts
+fi
 git add bun.lock packages/*/package.json packages/*/dist packages/shell/src/ui/script.generated.ts
