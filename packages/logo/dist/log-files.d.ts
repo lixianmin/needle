@@ -13,3 +13,4 @@ export interface LogFilesOptions {
  * Shell 那边只拿得到这个名字，拿不到任意路径。
  */
 export declare function createLogFiles(options: LogFilesOptions): LogFiles;
+//# sourceMappingURL=log-files.d.ts.map

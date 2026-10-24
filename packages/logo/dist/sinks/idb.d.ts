@@ -23,3 +23,4 @@ export type LogStore = Sink & LogFiles & {
  * 主线程 IO 打满。清理（过期 + 超限）搭同一趟事务的车，不单开。
  */
 export declare function createIndexedDbStore(options?: IndexedDbStoreOptions): LogStore;
+//# sourceMappingURL=idb.d.ts.map

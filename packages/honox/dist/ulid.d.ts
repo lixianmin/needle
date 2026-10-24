@@ -11,3 +11,4 @@
 export declare function ulid(now?: number): string;
 /** 判断入站请求带来的 id 是不是 ULID。 */
 export declare function isUlid(value: string): boolean;
+//# sourceMappingURL=ulid.d.ts.map

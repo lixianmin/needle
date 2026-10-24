@@ -15,3 +15,4 @@ export declare class CommandError extends Error {
  */
 export declare function splitArgs(line: string): string[];
 export declare function findCommand(commands: readonly Command[], name: string): Command | undefined;
+//# sourceMappingURL=commands.d.ts.map

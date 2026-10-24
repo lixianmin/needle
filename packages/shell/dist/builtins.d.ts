@@ -19,3 +19,4 @@ export declare function createHelpCommand(list: () => readonly Command[]): Comma
  * "新增一个命令"这件事只有一种写法。
  */
 export declare function createBuiltinCommands(deps: BuiltinDeps): Command[];
+//# sourceMappingURL=builtins.d.ts.map

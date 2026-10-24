@@ -32,3 +32,4 @@ export interface BuildOptions {
  */
 export declare function buildRecord(level: Level, args: readonly unknown[], options?: BuildOptions): LogRecord;
 export {};
+//# sourceMappingURL=record.d.ts.map

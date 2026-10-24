@@ -12,3 +12,4 @@ export interface ShellView {
  * （layout / lines / table / output / commands / input），改一处不用读全文。
  */
 export declare function mountShell(root: HTMLElement, adapter: ShellAdapter): ShellView;
+//# sourceMappingURL=view.d.ts.map

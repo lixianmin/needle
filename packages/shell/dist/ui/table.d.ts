@@ -8,3 +8,4 @@ export type TableRenderer = (columns: string[], rows: Cell[][], formats?: Column
  * 免得凭证跟着链接跑出去。
  */
 export declare function createTableRenderer(doc: Document, openFile: (href: string) => void): TableRenderer;
+//# sourceMappingURL=table.d.ts.map

@@ -21,3 +21,4 @@ export declare function createHonox<C extends object>(options: HonoxOptions<C>):
 export type { Config } from "./config.js";
 export type { AuthOptions } from "./auth.js";
 export type { AuthErrorReason, HonoxEnv, PublicEntry } from "./types.js";
+//# sourceMappingURL=index.d.ts.map

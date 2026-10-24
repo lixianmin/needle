@@ -9,3 +9,4 @@ export declare function renderTopicLine(doc: Document, topic: {
     name: string;
     data: unknown;
 }): HTMLElement;
+//# sourceMappingURL=lines.d.ts.map

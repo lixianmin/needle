@@ -3,3 +3,4 @@ export declare function el<K extends keyof HTMLElementTagNameMap>(doc: Document,
 export declare function button(doc: Document, text: string, className: string): HTMLButtonElement;
 /** 样式只插一次：同一个页面挂多个 Shell 也不会重复注入。 */
 export declare function injectStyle(doc: Document): void;
+//# sourceMappingURL=dom.d.ts.map

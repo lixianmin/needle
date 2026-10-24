@@ -23,3 +23,4 @@ export declare const LEVEL_HINTS: Record<string, string>;
 export declare function formatLine(record: LogRecord): string;
 /** 从一行日志里把 JSON 载荷解析回来。前缀不参与解析。 */
 export declare function parseLine(line: string): Record<string, unknown> | null;
+//# sourceMappingURL=line.d.ts.map

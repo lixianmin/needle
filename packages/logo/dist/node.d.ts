@@ -9,3 +9,4 @@ export { createLogFiles } from "./log-files.js";
 export type { LogFilesOptions } from "./log-files.js";
 export { createFileSink } from "./sinks/file.js";
 export type { FileSink, FileSinkOptions } from "./sinks/file.js";
+//# sourceMappingURL=node.d.ts.map

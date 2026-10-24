@@ -25,3 +25,4 @@ export interface LoadConfigOptions {
  * 点分路径的兼容、缺值报错、`APP_SERVER__WEB_PORT` 这类覆盖都收在这一层。
  */
 export declare function loadConfig<C extends Record<string, unknown>>(options?: LoadConfigOptions): Config<C>;
+//# sourceMappingURL=node.d.ts.map

@@ -10,3 +10,4 @@ export interface Auth {
 export declare function createAuth(options: AuthOptions & {
     now?: () => number;
 }): Auth;
+//# sourceMappingURL=auth.d.ts.map

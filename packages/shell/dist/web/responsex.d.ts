@@ -33,3 +33,4 @@ export declare const ResponseX: {
     gatewayTimeout: (message: string) => Response;
 };
 export {};
+//# sourceMappingURL=responsex.d.ts.map

@@ -74,3 +74,4 @@ export type AuthResult = {
     error: string;
 };
 export declare function createShellSource(options: ShellSourceOptions): ShellSource;
+//# sourceMappingURL=source.d.ts.map

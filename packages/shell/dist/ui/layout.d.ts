@@ -22,3 +22,4 @@ export interface ShellLayout {
 }
 /** 拼出 Shell 的整棵 DOM（不含日志列表，那两块由 view 挂上去）。 */
 export declare function buildLayout(doc: Document): ShellLayout;
+//# sourceMappingURL=layout.d.ts.map

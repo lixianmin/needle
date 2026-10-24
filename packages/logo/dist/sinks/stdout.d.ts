@@ -21,3 +21,4 @@ export declare function hasStdout(): boolean;
  * 换来的是这个函数不依赖"进程长什么样"这个模块级快照。
  */
 export declare const stdoutSink: Sink;
+//# sourceMappingURL=stdout.d.ts.map

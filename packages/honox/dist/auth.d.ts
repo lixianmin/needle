@@ -19,3 +19,4 @@ export declare function matchesPublic(entries: readonly PublicEntry[], method: s
  * 让门禁统一决定 401。这样公开接口上带了个坏 token 也不会被拒。
  */
 export declare function createAuth(options: AuthOptions): MiddlewareHandler<HonoxEnv>;
+//# sourceMappingURL=auth.d.ts.map

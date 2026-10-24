@@ -26,3 +26,4 @@ export interface ShellUiState {
 export declare function createState(history: string[]): ShellUiState;
 /** 订阅规格串：`top`，或 `top:2000`（带间隔）。 */
 export declare function topicSpec(subscriptions: Map<string, number | undefined>): string;
+//# sourceMappingURL=state.d.ts.map

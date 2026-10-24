@@ -27,3 +27,4 @@ export declare function complete(input: HTMLInputElement, options: {
     topics: TopicInfo[];
     pushText(text: string, className?: string): void;
 }): void;
+//# sourceMappingURL=commands.d.ts.map
