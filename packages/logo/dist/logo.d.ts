@@ -22,11 +22,11 @@ export interface LoggerOptions {
     /** 缓冲上限（条）。默认 10000；写满立刻 flush，不丢记录。 */
     maxBuffer?: number;
     /**
-     * 额外跳过的栈帧数，对应 Go 版 logo 的 `SetFuncCallDepth`。
-     * 默认 0：调用点就是直接调 logger 的那一行；包了 helper 就调大它。
+     * 从哪个级别开始采集**完整**调用栈。默认 "error"；设 "off" 关闭全栈。
+     *
+     * 调用点（`site`/`fn`）不再逐条抓：打包后栈里报的是 bundle 坐标，付了代价
+     * 拿不到结果。要定位就手写 `module`（`logo.child({ module })`）或 `traceOf(ctx)`。
      */
-    callerDepth?: number;
-    /** 从哪个级别开始采集**完整**调用栈（调用点每级都有）。默认 "error"；设 "off" 关闭全栈。 */
     stackLevel?: Level | "off";
     /** 是否启用定时批量。默认取决于能否同步写 stdout。 */
     batch?: boolean;

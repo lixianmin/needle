@@ -58,16 +58,6 @@ function externalFrames(skip = 0): string[] {
   return skip > 0 ? external.slice(skip) : external;
 }
 
-/** 调用点：`file.ts:12`。每条日志都要，所以每写一条构造一次 Error，这是明码代价。 */
-function callSiteOf(frames: readonly string[]): string | undefined {
-  const frame = parseFrame(frames[0] ?? "");
-  return frame === undefined ? undefined : `${basename(frame.file)}:${frame.line}`;
-}
-
-function functionOf(frames: readonly string[]): string | undefined {
-  return parseFrame(frames[0] ?? "")?.fn;
-}
-
 /**
  * 抓当前调用点的 { site, fn }，`skip` 是额外跳过的帧数（0 = 调用本函数的那一行）。
  *
@@ -100,11 +90,11 @@ export interface LoggerOptions {
   /** 缓冲上限（条）。默认 10000；写满立刻 flush，不丢记录。 */
   maxBuffer?: number;
   /**
-   * 额外跳过的栈帧数，对应 Go 版 logo 的 `SetFuncCallDepth`。
-   * 默认 0：调用点就是直接调 logger 的那一行；包了 helper 就调大它。
+   * 从哪个级别开始采集**完整**调用栈。默认 "error"；设 "off" 关闭全栈。
+   *
+   * 调用点（`site`/`fn`）不再逐条抓：打包后栈里报的是 bundle 坐标，付了代价
+   * 拿不到结果。要定位就手写 `module`（`logo.child({ module })`）或 `traceOf(ctx)`。
    */
-  callerDepth?: number;
-  /** 从哪个级别开始采集**完整**调用栈（调用点每级都有）。默认 "error"；设 "off" 关闭全栈。 */
   stackLevel?: Level | "off";
   /** 是否启用定时批量。默认取决于能否同步写 stdout。 */
   batch?: boolean;
@@ -179,7 +169,6 @@ function buildLogger(options: LoggerOptions, state: LoggerState): Logger {
   const flushIntervalMs = options.flushIntervalMs ?? DEFAULT_FLUSH_INTERVAL_MS;
   const maxBuffer = options.maxBuffer ?? DEFAULT_MAX_BUFFER;
   const stackLevel = options.stackLevel ?? "error";
-  const callerDepth = options.callerDepth ?? 0;
   const batch = options.batch ?? hasStdout();
 
   let level: Level = options.level ?? "info";
@@ -251,13 +240,11 @@ function buildLogger(options: LoggerOptions, state: LoggerState): Logger {
     }
 
     const withStack = stackLevel !== "off" && LEVELS[recordLevel] >= LEVELS[stackLevel];
-    // 调用点每级都要（info/warn 也带）；全栈只给 stackLevel 及以上。
-    const frames = externalFrames(callerDepth);
+    // 只有要完整栈时才构造 Error（一次取帧）。info / warn / debug 零构造。
+    const frames = withStack ? externalFrames() : undefined;
     const built = buildRecord(recordLevel, args, {
       name: options.name,
-      site: callSiteOf(frames),
-      fn: functionOf(frames),
-      stack: withStack ? stackOf(frames) : undefined,
+      stack: frames === undefined ? undefined : stackOf(frames),
       time: now(),
     });
 
@@ -307,7 +294,6 @@ function buildLogger(options: LoggerOptions, state: LoggerState): Logger {
         now,
         flushIntervalMs,
         maxBuffer,
-        callerDepth,
         stackLevel,
         batch,
         fields: { ...fixedFields, ...rest },

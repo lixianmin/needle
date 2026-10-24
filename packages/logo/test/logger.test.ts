@@ -171,45 +171,26 @@ describe("newLogger", () => {
     expect(calls.flat()).toHaveLength(10);
   });
 
-  // 与 Go 版对齐：调用点（file:line）每个级别都有；完整栈只给 stackLevel 及以上。
-  test("调用点：info / warn / error 都带 site 与 fn", () => {
+  // 调用点不再逐条抓：打包后栈里全是 bundle 坐标，付了代价拿不到结果。
+  // 只有 error 级保留完整栈——那是唯一还必须留在记录里的栈信息。
+  test("info / warn 不再抓调用点，error 仍带完整栈", () => {
     const { calls, sink } = collector();
     const logger = newLogger({ ...base, sinks: [sink] });
 
-    function namedCaller(): void {
-      logger.info("i");
-    }
-    namedCaller();
+    logger.info("i");
     logger.warn("w");
-    logger.error("e");
+    logger.error(new Error("boom"));
     logger.flush();
 
     const records = calls.flat();
-    for (const msg of ["i", "w", "e"]) {
-      const record = records.find((entry) => entry.msg === msg);
-      expect(record?.site).toMatch(/^logger\.test\.ts:\d+$/);
-    }
-    expect(records.find((entry) => entry.msg === "i")?.fn).toBe("namedCaller");
-  });
-
-  test("callerDepth 能跳过外包 helper 的帧（对应 Go 的 SetFuncCallDepth）", () => {
-    const { calls, sink } = collector();
-    const direct = newLogger({ ...base, sinks: [sink] });
-    const skipped = newLogger({ ...base, sinks: [sink], callerDepth: 1 });
-
-    function helper(log: typeof direct): void {
-      log.info("x");
-    }
-    helper(direct);
-    helper(skipped);
-    direct.flush();
-    skipped.flush();
-
-    const [directRecord, skippedRecord] = calls.flat();
-    // 不跳过时，调用点落在 helper 内部；跳一帧后，落在 helper 的调用处（测试回调）。
-    expect(directRecord?.fn).toBe("helper");
-    expect(skippedRecord?.fn).not.toBe("helper");
-    expect(skippedRecord?.site).toMatch(/^logger\.test\.ts:\d+$/);
+    const info = records.find((entry) => entry.level === "info");
+    const warn = records.find((entry) => entry.level === "warn");
+    const error = records.find((entry) => entry.level === "error");
+    expect(info?.site).toBeUndefined();
+    expect(info?.fn).toBeUndefined();
+    expect(info?.stack).toBeUndefined();
+    expect(warn?.site).toBeUndefined();
+    expect(error?.stack).toContain("Error: boom");
   });
 
   test("完整栈：默认只有 error 带，info / warn 不带", () => {
