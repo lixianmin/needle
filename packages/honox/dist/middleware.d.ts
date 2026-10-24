@@ -24,7 +24,7 @@ export interface MiddlewareOptions {
     log: Logger;
     /** 解 token 的密钥、claim、token 来源。 */
     auth: AuthOptions;
-    /** 已合并 Shell 路径的完整白名单。 */
+    /** 已合并 Shell 路径的白名单；数组引用共享，后续 append 的条目即生效。 */
     public: readonly PublicEntry[];
 }
 /**

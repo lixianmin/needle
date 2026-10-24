@@ -109,7 +109,7 @@ packages/honox/
 ### 8.2 `createHonox(options)`
 
 ```ts
-export interface HonoxOptions<C extends Record<string, unknown>> {
+export interface HonoxOptions {
   /** 请求日志用哪个 logger；默认全局 logo。 */
   logger?: Logger;                           // 默认 @needle/logo 的 logo 实例
   snowflake?: SnowflakeOptions;               // rid 生成器；默认 epoch 2014-12-09T00:00:00Z、机器号 0
@@ -118,14 +118,15 @@ export interface HonoxOptions<C extends Record<string, unknown>> {
     claim?: string;                          // uid 取哪个 claim，默认 "sub"
     header?: string;                         // 默认 "authorization"（Bearer xxx）
     cookie?: string;                         // 可选：从 cookie 读 token（如 "token"）
-    public?: readonly (string | { method: string; path: string })[];
-  };
+  };                                         // 白名单不在这里，见 8.3
   shell?: ServerShellOptions;                // 传了就把控制台挂到 shell.basePath（默认 "/shell"）
 }
 
-export function createHonox<C extends Record<string, unknown>>(
-  options: HonoxOptions<C>,
-): Hono<HonoxEnv>;
+export type HonoxApp = Hono<HonoxEnv> & {
+  allowAnonymous(entries: readonly PublicEntry[]): HonoxApp;
+};
+
+export function createHonox(options: HonoxOptions): HonoxApp;
 ```
 
 `HonoxEnv` 的 Variables：`uid: string | null`、`user: JwtPayload | null`、`authError: "missing" | "invalid" | "expired" | null`、`rid: string`、`api?: { site, fn }`（由 `api()` / `apiRoute()` 写）。
@@ -143,6 +144,9 @@ export function createHonox<C extends Record<string, unknown>>(
 
 ### 8.3 鉴权与白名单
 
+- **白名单不在 `createHonox` 里声明。** `HonoxOptions.auth` 没有 `public` 字段，改由返回的 `HonoxApp.allowAnonymous([...])` 追加，写在挂载接口的地方（示例是 `app/api/index.ts`）。理由：`main.ts` 是装配（配置、rid、Shell、serve），把安全策略塞进去，加一个公开接口就得动两个文件；挂载点本来就是「这里挂了哪些接口」的唯一清单，公开面写在它旁边才只有一处。
+- `allowAnonymous` 往门禁持有的**同一个数组引用**里 append，多次调用累加，返回实例本身可链式。门禁每请求读该数组，所以调用后下一个请求就生效（实际发生在模块加载期，早于开始服务）。
+- **不提供 `privateRoute` 之类的私有声明。** 默认拒绝已经覆盖「不声明就是受保护」，多一个声明点只多一次忘记的机会。防「有人不小心把接口公开」靠测试：遍历 `app.routes`，断言除白名单外每条裸请求都是 401。
 - token 来源：`Authorization: Bearer <token>`（header 名可配）或指定的 cookie（cookie 优先？**header 优先**，cookie 作为兜底）。
 - 使用 `hono/jwt` 的 `verify(token, secret, "HS256")`，`exp` 由它校验（过期归为 `authError: "expired"`，无效签名/格式归 `invalid`，没带归 `missing`）。
 - 白名单条目两种写法：`"/health"`（任意方法）与 `{ method: "POST", path: "/auth/login" }`（方法精确）。

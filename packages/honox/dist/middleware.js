@@ -86,5 +86,5 @@ export function installMiddleware(app, options) {
         c.header("x-rid", rid);
     });
     app.use("*", createRequestLog(options.log));
-    app.use("*", createAuth({ ...options.auth, public: options.public }));
+    app.use("*", createAuth(options.auth, options.public));
 }

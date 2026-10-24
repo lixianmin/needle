@@ -33,11 +33,12 @@ const app = createHonox({
     epoch: viper.getInt("server.epoch_ms"),
     nodeId: nodeIdFromMac(),
   },
-  auth: { secret: viper.getString("auth.secret"), public: ["/health"] },
+  auth: { secret: viper.getString("auth.secret") },
   shell,
 });
 
 // 接口全在 app/api：一个接口一个文件，这里只负责挂载。
+// 公开路径也在那儿用 allowAnonymous 声明，不写在这份装配代码里。
 registerApis(app);
 
 // Bun 认这个默认导出（{ port, hostname, fetch }）并在启动时自己 Bun.serve，

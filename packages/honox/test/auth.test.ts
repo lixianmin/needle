@@ -15,7 +15,7 @@ function appWith(
   extra: { claim?: string; cookie?: string } = {},
 ) {
   const app = new Hono<HonoxEnv>();
-  app.use("*", createAuth({ secret: SECRET, public: publicEntries, ...extra }));
+  app.use("*", createAuth({ secret: SECRET, ...extra }, publicEntries));
   app.get("/me", (c) => c.json({ uid: c.get("uid"), err: c.get("authError") }));
   app.get("/health", (c) => c.text("ok"));
   app.post("/login", (c) => c.text("in"));

@@ -31,10 +31,7 @@ export function createHonox(options) {
     const shell = options.shell === undefined || shellBasePath === null
         ? null
         : createServerShell({ ...options.shell, basePath: shellBasePath });
-    const publicEntries = [
-        ...(options.auth.public ?? []),
-        ...(shellBasePath === null ? [] : [shellBasePath, `${shellBasePath}/*`]),
-    ];
+    const publicEntries = shellBasePath === null ? [] : [shellBasePath, `${shellBasePath}/*`];
     // 中间件链（rid → 请求日志 → JWT → 门禁）全在 middleware.ts，顺序由库固定。
     installMiddleware(app, {
         log,
@@ -47,7 +44,14 @@ export function createHonox(options) {
         app.all(shellBasePath, handle);
         app.all(`${shellBasePath}/*`, handle);
     }
-    return app;
+    // 门禁持有的是 publicEntries 这个数组的引用，所以这里 append 的条目对
+    // 下一个请求就生效，不用重装中间件。
+    const honox = app;
+    honox.allowAnonymous = (entries) => {
+        publicEntries.push(...entries);
+        return honox;
+    };
+    return honox;
 }
 export { apiRoute, createApi } from "./route.js";
 export { createSnowflake, parseSnowflake } from "./id.js";

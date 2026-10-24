@@ -20,10 +20,26 @@ export interface HonoxOptions {
   logger?: Logger;
   /** rid 的 Snowflake 配置。默认 epoch 2014-12-09T00:00:00Z、机器号 0；多实例必须给不同 nodeId。 */
   snowflake?: SnowflakeOptions;
+  /** 解 token 的配置。白名单不在这里——用返回实例的 `allowAnonymous()`。 */
   auth: AuthOptions;
   /** 传了就把 Shell 控制台挂到 shell.basePath（默认 "/shell"）。 */
   shell?: ServerShellOptions;
 }
+
+/**
+ * `createHonox` 的返回值：Hono 实例 + 白名单声明入口。
+ *
+ * 用交叉类型而不是包装类，`app.route()` / `app.get()` 的 Hono 类型照旧可用。
+ */
+export type HonoxApp = Hono<HonoxEnv> & {
+  /**
+   * 声明这些路径不收 JWT 门禁（见 spec 8.3）。多次调用累加，返回实例本身可链式。
+   *
+   * 在挂载接口的地方调（示例是 `app/api/index.ts`），别塞回 `createHonox`：
+   * 那是装配文件，把安全策略写进去等于加一个公开接口要动两个文件。
+   */
+  allowAnonymous(entries: readonly PublicEntry[]): HonoxApp;
+};
 
 function normalizeBasePath(basePath: string): string {
   const trimmed = basePath.replace(/\/+$/, "");
@@ -35,7 +51,7 @@ function normalizeBasePath(basePath: string): string {
  *
  * 业务路由挂在返回值上，所以自动继承中间件链。
  */
-export function createHonox(options: HonoxOptions): Hono<HonoxEnv> {
+export function createHonox(options: HonoxOptions): HonoxApp {
   const log = options.logger ?? logo;
   const app = new Hono<HonoxEnv>();
 
@@ -50,10 +66,8 @@ export function createHonox(options: HonoxOptions): Hono<HonoxEnv> {
       ? null
       : createServerShell({ ...options.shell, basePath: shellBasePath });
 
-  const publicEntries: PublicEntry[] = [
-    ...(options.auth.public ?? []),
-    ...(shellBasePath === null ? [] : [shellBasePath, `${shellBasePath}/*`]),
-  ];
+  const publicEntries: PublicEntry[] =
+    shellBasePath === null ? [] : [shellBasePath, `${shellBasePath}/*`];
 
   // 中间件链（rid → 请求日志 → JWT → 门禁）全在 middleware.ts，顺序由库固定。
   installMiddleware(app, {
@@ -69,7 +83,15 @@ export function createHonox(options: HonoxOptions): Hono<HonoxEnv> {
     app.all(`${shellBasePath}/*`, handle);
   }
 
-  return app;
+  // 门禁持有的是 publicEntries 这个数组的引用，所以这里 append 的条目对
+  // 下一个请求就生效，不用重装中间件。
+  const honox = app as HonoxApp;
+  honox.allowAnonymous = (entries) => {
+    publicEntries.push(...entries);
+    return honox;
+  };
+
+  return honox;
 }
 
 export type { Config } from "./config.js";
