@@ -16,8 +16,8 @@ Shell 对外只有一个接口：`(req: Request) => Promise<Response>`。Hono �
 ```ts
 import { Hono } from "hono";
 import { serve } from "@hono/node-server";
-import { createLogFiles } from "@needle/needle/node";
-import { createServerShell } from "@needle/needle/shell";
+import { createLogFiles } from "@needle/logo/node";
+import { createServerShell } from "@needle/shell";
 
 const app = new Hono();
 
@@ -39,10 +39,10 @@ const server = serve({ fetch: app.fetch, port: 3000 });
 - **`basePath` 与路由前缀必须一致。** handler 内部按它剥前缀：`/shell/log/info.log` → `/log/info.log`。
 - **Shell 注册在业务中间件之前。** 它自带 token 校验，不该被 CORS、body 解析、登录态中间件影响；注册在它之前的 `app.use("*")` 会把 `/shell` 一起拦掉。
 
-Express / Fastify / 裸 `node:http` 用 `@needle/needle/node` 的两个函数，已有 app 一行不用改：
+Express / Fastify / 裸 `node:http` 用 `@needle/shell/node` 的两个函数，已有 app 一行不用改：
 
 ```ts
-import { attach, serve } from "@needle/needle/node";
+import { attach, serve } from "@needle/shell/node";
 
 await serve(shell.handler, { port: 7701 });            // 自己起端口
 attach(server, shell, { basePath: "/shell" });         // 挂到已有 http server
@@ -92,14 +92,14 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
 
 ### 先看结论
 
-`@needle/needle` 在 Workers 上能直接跑，**不需要为 Workers 改代码**，也不需要 Durable Object、不需要额外配置。代价是有几项能力在这类环境里拿不到，下面逐条说明。
+`@needle/shell` + `@needle/logo` 在 Workers 上能直接跑，**不需要为 Workers 改代码**，也不需要 Durable Object、不需要额外配置。代价是有几项能力在这类环境里拿不到，下面逐条说明。
 
 ### 最小部署
 
 ```ts
 // src/index.ts
-import { createServerShell } from "@needle/needle/shell";
-import { logo } from "@needle/needle";
+import { createServerShell } from "@needle/shell";
+import { logo } from "@needle/logo";
 
 const shell = createServerShell({
   auth: {

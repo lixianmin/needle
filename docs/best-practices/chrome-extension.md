@@ -27,7 +27,7 @@ Chrome 扩展的代码跑在几个互不相同的上下文里，先把名字对�
 
 ```ts
 // sidepanel.ts
-import { createBrowserShell } from "@needle/needle/shell";
+import { createBrowserShell } from "@needle/shell";
 
 const panel = createBrowserShell({
   element: document.getElementById("shell")!,
@@ -81,7 +81,7 @@ document.getElementById("open-shell")!.addEventListener("click", () => {
 
 ```ts
 // shell.ts
-import { createBrowserShell } from "@needle/needle/shell";
+import { createBrowserShell } from "@needle/shell";
 
 const panel = createBrowserShell({
   element: document.getElementById("shell")!,
@@ -114,7 +114,7 @@ content script 拿得到宿主页的 `document`，但两件事会咬人：
 面板也可以连另一台机器上的 Shell，这时换 fetch 适配器，鉴权重新有意义：
 
 ```ts
-import { createFetchAdapter, mountShell } from "@needle/needle/shell";
+import { createFetchAdapter, mountShell } from "@needle/shell";
 
 const view = mountShell(
   document.getElementById("shell")!,
@@ -136,7 +136,7 @@ const view = mountShell(
 
 ```ts
 // sidepanel.ts 与 sw.ts 各来一份（name 保持一致）
-import { createIndexedDbStore, logo } from "@needle/needle";
+import { createIndexedDbStore, logo } from "@needle/logo";
 
 const store = createIndexedDbStore({ name: "my-extension-logs" });
 logo.addSink(store);
