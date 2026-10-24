@@ -1,3 +1,0 @@
-# 只写与 common.yml 不同的项
-auth:
-  secret: dev-secret-change-me

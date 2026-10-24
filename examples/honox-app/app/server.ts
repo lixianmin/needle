@@ -7,10 +7,12 @@ import { getApcTemplate, getBotTemplate, initTemplates } from "./md";
 // interface 没有隐式索引签名，TS 7 会直接报 TS2344。
 type AppConfig = {
   auth: { secret: string };
-  server?: { port?: number };
+  server?: { web_port?: number; host?: string };
 };
 
+// 配置跟模板表一起放在 res/ 下，与镜像里的目录结构一致。
 const config = loadConfig<AppConfig>({
+  dir: "res/config",
   required: ["auth.secret"],
 });
 
@@ -70,9 +72,10 @@ app.get("/apc/:id", (c) => {
   return c.json(apc);
 });
 
-// Bun 认这个默认导出（{ port, fetch }）并在启动时自己 Bun.serve，
-// 所以 dist/index.js 不需要额外的启动脚本。
+// Bun 认这个默认导出（{ port, hostname, fetch }）并在启动时自己 Bun.serve，
+// 所以 dist/index.js 不需要额外的启动脚本。PORT / HOST 环境变量优先于配置。
 export default {
-  port: Number(env.PORT ?? config.server?.port ?? 3000),
+  port: Number(env.PORT ?? config.server?.web_port ?? 3000),
+  hostname: env.HOST ?? config.server?.host ?? "0.0.0.0",
   fetch: app.fetch,
 };
