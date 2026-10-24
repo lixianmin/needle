@@ -5,7 +5,7 @@ Vite / 静态站，没有后端：**没有落盘、没有鉴权、也没有第�
 ## 一、面板
 
 ```ts
-import { createBrowserShell } from "@needle/needle/shell";
+import { createBrowserShell } from "@needle/shell";
 
 const panel = createBrowserShell({
   element: document.getElementById("shell")!,
@@ -39,7 +39,7 @@ if (enabled) {
 页面里默认**不攒批**（库探测不到可同步写的 stdout，和 Workers 一样逐条立即写出），要批量必须显式打开：
 
 ```ts
-import { newLogger } from "@needle/needle";
+import { newLogger } from "@needle/logo";
 
 const log = newLogger({
   name: "web",
@@ -50,15 +50,15 @@ const log = newLogger({
 });
 ```
 
-没有 `node:fs`：`@needle/needle/node` 里全是 Node 专属 API，浏览器打包会把它换成空实现，别在浏览器代码里 import 它。要事后查有两条路：落本机 IndexedDB（下一节），或发到远端收集端（再下一节），两者可并存。
+没有 `node:fs`：`@needle/logo/node` 与 `@needle/shell/node` 里全是 Node 专属 API，浏览器打包会把它换成空实现，别在浏览器代码里 import 它们。要事后查有两条路：落本机 IndexedDB（下一节），或发到远端收集端（再下一节），两者可并存。
 
 ### 落本机：`createIndexedDbStore()`
 
 一个对象两个身份：写是 `Sink`（手动 `addSink`），读是 `LogFiles`（传给 `createBrowserShell` 的 `logFiles`）。接完之后 `log.list` 列出本机日志，点文件名新窗口打开全文，手动保存就能发给排查的人——与服务端同一套交互，文件名 hover 还能看到末尾几行样本：
 
 ```ts
-import { createIndexedDbStore, newLogger } from "@needle/needle";
-import { createBrowserShell } from "@needle/needle/shell";
+import { createIndexedDbStore, newLogger } from "@needle/logo";
+import { createBrowserShell } from "@needle/shell";
 
 const log = newLogger({
   name: "web",
@@ -95,7 +95,7 @@ addEventListener("pagehide", () => log.dispose());   // 先 flush 再关 sink
 页面正在关闭时 `sendBeacon` 是唯一可靠的出口：
 
 ```ts
-import type { Sink } from "@needle/needle";
+import type { Sink } from "@needle/logo";
 
 const queue: string[] = [];
 

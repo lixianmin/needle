@@ -2,17 +2,19 @@
 
 Web Shell，支持命令查看当前系统状态，如进程状态、业务数据等。
 
-零运行时依赖：只导入日志 1.8 KB，连 shell 24.9 KB（min+gzip，`bun run size` 可复现）。
+零运行时依赖：只导入日志 1.8 KB，连 shell 25.4 KB（min+gzip，`bun run size` 可复现）。
 
-一个包 `@needle/needle`，三个入口，按环境取用：
+三个包，按需要取用：
 
 | 你要什么 | 从哪 import | 能跑在哪 |
 |---|---|---|
-| 日志：`logo` / `newLogger` / `createLarkSink` / `formatTime` / `toHuman` | `@needle/needle` | 任何地方（含浏览器、Workers） |
-| Shell：`createServerShell` / `createBrowserShell` / `mountShell` / `createFetchAdapter` | `@needle/needle/shell` | 任何地方（含浏览器、Chrome 扩展） |
-| Node 专属：`createFileSink` / `createLogFiles` / `serve` / `attach` | `@needle/needle/node` | 仅 Node / Bun（`node:fs`、`node:http`） |
+| 通用数据结构：`SortedTable` | `@needle/core` | 任何地方 |
+| 日志：`logo` / `newLogger` / `createLarkSink` / `formatTime` / `toHuman` | `@needle/logo` | 任何地方（含浏览器、Workers） |
+| Shell：`createServerShell` / `createBrowserShell` / `mountShell` / `createFetchAdapter` | `@needle/shell` | 任何地方（含浏览器、Chrome 扩展） |
+| 日志的 Node 专属能力：`createFileSink` / `createLogFiles` | `@needle/logo/node` | 仅 Node / Bun（`node:fs`） |
+| Shell 的 Node 专属能力：`serve` / `attach` | `@needle/shell/node` | 仅 Node / Bun（`node:http`） |
 
-根入口与 `./shell` 都不 import 任何 `node:` 模块，所以浏览器和 Workers 打包时不会把 Node 代码带进来。
+`@needle/core` / `@needle/logo` / `@needle/shell` 的根入口都不 import 任何 `node:` 模块，所以浏览器和 Workers 打包时不会把 Node 代码带进来。依赖是单向的：`shell` → `logo`，`core` 不依赖任何包。
 
 ## 一、Shell
 
@@ -48,9 +50,9 @@ $ auth username
 命令写在 `createServerShell({ commands: [...] })` 里，`run` 拿到的上下文是 `{ args, user, log }`，返回 `text` / `table` / `json` 三种形态之一。下面是装好三个命令的完整文件：
 
 ```ts
-import { createLogFiles } from "@needle/needle/node";
-import { createServerShell, table, type Command } from "@needle/needle/shell";
-import { serve } from "@needle/needle/node";
+import { createLogFiles } from "@needle/logo/node";
+import { createServerShell, table, type Command } from "@needle/shell";
+import { serve } from "@needle/shell/node";
 
 // 命令在进程内执行，直接读它就行，不用先把状态打进日志
 const orders = new Map<string, Record<string, unknown>>();
@@ -123,7 +125,7 @@ export const shell = createServerShell({
   timeoutMs: 10_000,         // 命令超时，超了返回 timeout；默认 10 秒
   logFiles: createLogFiles({ dir: "logs" }),   // 不传的话 log.list 会报"没有配置日志目录"
   commands: [ping, routes, order],
-  // 不传 logger 时，命令里的 log 就是根入口的全局 logo 实例
+  // 不传 logger 时，命令里的 log 就是 @needle/logo 的全局 logo 实例
 });
 
 const server = await serve(shell.handler, { port: 3000 });
@@ -142,7 +144,7 @@ const server = await serve(shell.handler, { port: 3000 });
 所以在日志进 stdout 之前加一层：一次调用变成一条结构化记录，再由你挂的 sink 决定它去哪。
 
 ```ts
-import { logo } from "@needle/needle";
+import { logo } from "@needle/logo";
 
 logo.info("order created", { orderId: 42 });
 // 打印：2026-10-23T10:50:43 [I] {"orderId":42,"msg":"order created"}
@@ -156,8 +158,8 @@ logo.error("paid failed", err, { userId: 7 });
 ### 2. 分发到不同的 sink
 
 ```ts
-import { createLarkSink } from "@needle/needle";
-import { createFileSink } from "@needle/needle/node";
+import { createLarkSink } from "@needle/logo";
+import { createFileSink } from "@needle/logo/node";
 
 logo.addSink(createFileSink({ dir: "logs" }));                                       // 按级别分文件
 logo.addSink(createLarkSink({ webhook: process.env.LARK_HOOK!, minLevel: "error" })); // error 推飞书
@@ -179,7 +181,7 @@ process.on("SIGTERM", () => logo.dispose());                                    
 | Chrome 扩展 | DOM 面板 | 无 | [chrome-extension.md](docs/best-practices/chrome-extension.md) |
 | 浏览器纯前端页 | DOM 面板 | 无 | [browser-client.md](docs/best-practices/browser-client.md) |
 
-文件 sink 只在有 `node:fs` 的地方能用：`@needle/needle/node` 顶层 `import "node:fs"`，浏览器和 Workers 打包时不能碰它；`.` 与 `./shell` 两个入口是干净的（`test/unit/browser-safety.test.ts` 对打包产物做内容断言）。
+文件 sink 只在有 `node:fs` 的地方能用：`@needle/logo/node` 顶层 `import "node:fs"`，浏览器和 Workers 打包时不能碰它；`@needle/core`、`@needle/logo`、`@needle/shell` 三个根入口是干净的（`packages/*/test/browser-safety.test.ts` 对打包产物做内容断言）。
 
 
 
@@ -187,23 +189,26 @@ process.on("SIGTERM", () => logo.dispose());                                    
 
 ### 1. 安装
 
-还没发到 npm，所以走 `bun link`：**仓库只注册一次，之后每个新项目一条命令**。
+还没发到 npm，所以走 `bun link`：先把三个包各注册一次，之后每个新项目一条命令。
 
 ```bash
-# ── 1. 一次性：把仓库拉到本地，注册这个包（以后拉新代码不用再跑）──
+# ── 1. 一次性：把仓库拉到本地，构建并注册三个包（以后拉新代码不用重新 link）──
 git clone https://github.com/lixianmin/needle.git ~/needle
-cd ~/needle && bun install && bun link     # 注册 @needle/needle
+cd ~/needle && bun install && bun run build
+cd ~/needle/packages/core && bun link        # 注册 @needle/core
+cd ~/needle/packages/logo && bun link        # 注册 @needle/logo
+cd ~/needle/packages/shell && bun link       # 注册 @needle/shell
 
-# ── 2. 每个新项目：建目录并接上这个包 ──
+# ── 2. 每个新项目：建目录并接上需要的包 ──
 mkdir -p ~/my-service && cd ~/my-service
 bun init -y
-bun link @needle/needle
+bun link @needle/logo @needle/shell          # 用到哪个就 link 哪个
 
 # ── 3. 写入口：Shell 挂在 /shell，业务日志自动进右栏 ──
 cat > server.ts <<'TS'
-import { createServerShell } from "@needle/needle/shell";
-import { serve } from "@needle/needle/node";
-import { logo } from "@needle/needle";
+import { createServerShell } from "@needle/shell";
+import { serve } from "@needle/shell/node";
+import { logo } from "@needle/logo";
 
 // 不传 logger 时用根入口的全局实例：业务里 logo.info(...) 都会出现在右栏
 const shell = createServerShell({
@@ -235,22 +240,21 @@ bun server.ts
 # 输入 help 回车：列出全部命令
 ```
 
-`bun link` 只是在项目里写一条 `"@needle/needle": "link:@needle/needle"` 指向 `~/needle`，
+`bun link` 只是在项目里写一条 `"@needle/logo": "link:@needle/logo"`（以及 shell 同款）指向 `~/needle/packages/*`，
 拉取新代码后不用重新 link；只有把 `~/needle` 挪走或删掉时才需要重来一次。
 
-改用 git 依赖（`"@needle/needle": "github:lixianmin/needle"`）时，bun 的 lockfile 会钉住具体 sha，
-`bun install` 不会自动跟 `main` 走，升级要显式 `bun update @needle/needle`。两个项目解析到不同 sha
-时会各装一份——那时的 `logo` 是两个对象，sink 互不可见。
+一个包拆成三个之后，不能再靠 git 依赖装（`github:lixianmin/needle` 拿到的是私有根包，workspaces 的子包不在里面）。
+多项目安装只有两条路：本地 `bun link`（上面这种），或等发布到 npm 后 `bun add @needle/logo @needle/shell`。
 
 
 ### 2. 测试
 
 ```bash
 cd ~/needle                 # demo 在仓库里
+bun run demo                # 先构建 @needle/logo，再起 demo（改 logo 源码后必须重建）
 # 打开 http://127.0.0.1:1234/shell
 # 使用 auth xmli 登录，密码 123456
 # 使用 help 查看命令列表
-bun examples/demo.ts
 ```
 
 
@@ -260,11 +264,14 @@ bun examples/demo.ts
 ```bash
 cd ~/needle                 # 已经在 §四.1 克隆过
 bun install
-bun test                    # 全部用例
+bun run build               # core → logo → ui → shell，产物写进各自 dist/
 bunx tsc --noEmit           # 类型检查
+bun test                    # 全部用例
 
-# `dist/` 随源码一起提交，这样 git 依赖不需要构建步骤就能用。
-# 每次提交都会自动重建 `dist/` 并 stage 进同一个 commit。
+# `packages/*/dist/` 随源码一起提交，这样 git 依赖不需要构建步骤就能用。
+# 每次提交都会自动重建三份 dist 并 stage 进同一个 commit。
 git config core.hooksPath .githooks
 ```
+
+跨包只走包名（`@needle/logo` 解析到 `dist`），所以**改了 logo 源码后先跑 `bun run build:logo`**，否则 shell 的测试与 demo 跑的是旧产物。`test/build-fresh.test.ts` 会在产物过期时直接报错。
 
