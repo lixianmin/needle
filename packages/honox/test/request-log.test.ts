@@ -67,6 +67,22 @@ describe("createRequestLog", () => {
     expect(records.at(-1)).toMatchObject({ status: 500 });
   });
 
+  test("durationMs 是毫秒、保留 1 位小数（不是被缩放过的数）", async () => {
+    const { app, records } = setup();
+    app.get("/slow", async (c) => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      return c.json({ ok: true });
+    });
+    await app.request("/slow");
+
+    const durationMs = records[1]?.durationMs as number;
+    expect(durationMs).toBeGreaterThanOrEqual(15);
+    expect(durationMs).toBeLessThan(5000);
+    // 四舍五入到 1 位：×10 后应当是整数
+    expect(Number.isInteger(Math.round(durationMs * 10))).toBe(true);
+    expect(Math.abs(durationMs * 10 - Math.round(durationMs * 10))).toBeLessThan(1e-9);
+  });
+
   test("结束行的 uid 用请求结束时的值", async () => {
     const { app, records } = setup();
     app.use("*", async (c, next) => {

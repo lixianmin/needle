@@ -1,6 +1,6 @@
 {
   "name": "needle",
-  "version": "0.3.39",
+  "version": "0.3.40",
   "private": true,
   "type": "module",
   "workspaces": [
@@ -21,13 +21,15 @@
     "example:install": "cd examples/honox-app && bun install --frozen-lockfile",
     "example:build": "cd examples/honox-app && bun run build",
     "example": "cd examples/honox-app && bun dist/index.js",
-    "example:typecheck": "cd examples/honox-app && bunx tsc --noEmit"
+    "example:typecheck": "cd examples/honox-app && bunx tsc --noEmit",
+    "mutate": "bunx stryker run --inPlace"
   },
   "devDependencies": {
     "@needle/got": "workspace:*",
     "@needle/honox": "workspace:*",
     "@needle/logo": "workspace:*",
     "@needle/shell": "workspace:*",
+    "@stryker-mutator/core": "^10.1.1",
     "@types/bun": "^1.4.3",
     "fake-indexeddb": "^6.2.6",
     "happy-dom": "^21.0.4",

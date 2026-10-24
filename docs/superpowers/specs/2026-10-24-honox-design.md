@@ -456,6 +456,14 @@ Mongo 测试用结构化 fake（`as unknown as MongoClient`），不依赖真实
 
 **依赖解析（重要）：**根 `package.json` 不加 `hono`——`hono` 与 `mongodb` 写在 `packages/honox/package.json` 的 `devDependencies`（同时 hono 是 `peerDependencies: {"hono":"^4"}`），workspace 安装会提升到根 `node_modules`，`packages/honox/src` 因此能解析到类型，而根与三个旧包的依赖表保持干净。这是 §6 那条「no-hono」收窄后仍然成立的前提。
 
+**变异测试（mutation test）**：`bun run mutate` → `stryker run --inPlace`，配置在根 `stryker.conf.json`。
+
+- 变异的是 `packages/honox/src/{auth,config,excel,id,middleware,mongo,node,route}.ts`，测试命令是 `bun test packages/honox/test`（只跑这个包，1.8 分钟跑完 ~880 个变异体）。
+- **必须 `--inPlace`**：仓库根是 TypeScript 7.0.2（原生版），Stryker 的沙盒会给 tsconfig 做预处理、调 `ts.parseConfigFileTextToJson`——这个 API 在 TS 7 里没有，直接崩。`--inPlace` 跳过沙盒（也就跳过那段预处理），改完自动从 `.stryker-tmp/backup-*` 还原。
+- **测试要 import `../src/*`**：从包名（`@needle/honox/excel`）导入会解析到 `dist/`，变异源码根本影响不到测试——这类文件的分母会变成 0 分（早期 config.ts 就是这样暴露的）。所以 config / excel / mongo 的测试改成直接 import `../src/`；`entry.test.ts` / `browser-safety.test.ts` 这类**故意**验证产物的测试保持用包名。
+- 当前分数 82.33%（`id.ts` 95.24、`middleware.ts` 95.65、`config.ts` 85.22、`excel.ts` 82.03、`auth.ts` 76.30、`route.ts` 75.86、`node.ts` 69.51、`mongo.ts` 71.43），阈值 `break: 80`。
+- 剩下的存活变异体主要是两类：错误消息里的字符串（改了也测不出来），以及"等价变异"（`?.` 换成 `.`、`typeof x === "function" ? x.bind(t) : x` 的三个分支——传进来的本来就是函数）。要再往上抬就得为这些等价物补"反直觉"的测试，性价比低。
+
 **验收命令**（沿用根 VERIFY，不改）：
 
 ```

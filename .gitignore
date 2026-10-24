@@ -149,3 +149,7 @@ vite.config.ts.timestamp-*
 
 # macOS
 .DS_Store
+
+# Stryker 变异测试的临时目录
+.stryker-tmp/
+.stryker/
