@@ -57,6 +57,7 @@ export class BotsBody {
     expect(out).toContain('at: Type.Optional(Type.String({ format: "date-time" }))');
     // 依赖在前：Boss 的 const 必须在 BotsBody 之前（TDZ）
     expect(out.indexOf("export const BossSchema")).toBeLessThan(out.indexOf("export const BotsBodySchema"));
+    expect(out).toContain('registerModel("BotsBody", BotsBodySchema);');
   });
 
   test("跨文件嵌套自动 import 对方的生成物", () => {
