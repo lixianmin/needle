@@ -26,6 +26,7 @@ const pairs: Array<[string, string, string]> = [
   ["packages/got/src", "packages/got/dist/index.js", "bun run build:got"],
   ["packages/logo/src", "packages/logo/dist/index.js", "bun run build:logo"],
   ["packages/shell/src", "packages/shell/dist/index.js", "bun run build:shell"],
+  ["packages/honox/src", "packages/honox/dist/index.js", "bun run build:honox"],
 ];
 
 describe("提交的 dist 不比源码旧", () => {

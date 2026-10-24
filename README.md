@@ -35,7 +35,8 @@ await loadSheets([botSheet]);              // Excel 预载后，getter 同步
 const app = createHonox({
   config,
   auth: { secret: config.auth.secret, public: ["/health"] },
-  shell: { basePath: "/shell", auth: { users: { admin: process.env.SHELL_PASSWORD ?? "local" } } },
+  // /shell 对匿名网络可达（在 JWT 白名单里），口令必须由部署方提供，不要写默认值
+  shell: { basePath: "/shell", auth: { users: { admin: process.env.SHELL_PASSWORD! } } },
 });
 app.get("/orders", (c) => c.json({ uid: c.get("uid") })); // 不声明 = 要登录
 ```
