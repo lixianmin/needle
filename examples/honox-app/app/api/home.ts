@@ -1,0 +1,8 @@
+import { Hono } from "hono";
+import type { AppEnv } from "../env";
+
+export const homeApi = new Hono<AppEnv>();
+
+homeApi.get("/", (c) =>
+  c.text("honox-app: GET /health、GET /me、GET /bots?id=、GET /apc?id=、GET /select-apc"),
+);

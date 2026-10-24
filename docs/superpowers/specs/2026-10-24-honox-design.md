@@ -246,7 +246,9 @@ export function createMongo(options: MongoOptions): Mongo;
 
 ```
 examples/honox-app/
-  app/server.ts          # loadConfig({dir:"res/config"}) → createHonox(...) → 路由直接挂 → export default { port, hostname, fetch }
+  app/server.ts          # loadConfig → createHonox(...) → registerApis(app) → export default { port, hostname, fetch }
+  app/env.ts             # AppConfig（配置形状）+ AppEnv（= HonoxEnv<AppConfig>）
+  app/api/               # 一个接口一个文件；index.ts 只做挂载（详见 8.11）
   app/md/                # 一表一文件（bot / apc / select-apc-config），index.ts 持有 manager
   res/config/common.yml  # 服务器端口/host、redis
   res/config/app_dev.yml # 只写与 common 不同的项（含本示例必填的 auth.secret）
@@ -339,7 +341,11 @@ export function createMetadata(): Metadata;
 
 **新增一张表 = 在 `app/md/` 加一个文件**（需要路由就再加一个 `app.get`）；`index.ts` 与 `server.ts` 的模板相关代码都不用动。
 
-路由：`GET /bots/:id`、`GET /apc/:id` 调 `getXxx(Number(c.req.param("id")))`，找不到 id 返回 `ResponseX.notFound(...)`；`GET /select-apc` 返回那份 Config。表不用脚本生成，直接用 Excel 维护。
+HTTP 接口按 `app/api/<name>.ts` 一接口一文件（照 rim.server 的 `app/web/controller/*.go` 分文件思路，但这里粒度到单个接口），`app/api/index.ts` 的 `registerApis(app)` 只做登记，`app/server.ts` 不再出现具体路由。接口类型用 `app/env.ts` 导出的 `AppEnv`（= `HonoxEnv<AppConfig>`）。
+
+参数走 query 而不是路径段：`GET /bots?id=1`、`GET /apc?id=1` 取单条，不带 `id` 返回全表，`id` 非数字 → `ResponseX.badRequest(...)`，查不到 → `ResponseX.notFound(...)`；`GET /select-apc` 返回那份 Config。理由：id 是可选筛选条件，不是资源路径的一部分。
+
+中间件链（reqId → 请求日志 → JWT）由 `createHonox()` 统一装在本库路由之前，因此每个 API 都自动拿到 `c.get("uid")` 并打出 `-->` / `<--` 两行日志（结束行带 status / durationMs / uid / req）。表不用脚本生成，直接用 Excel 维护。
 
 注意：`metadata.base_url` 目前只支持本地目录。`app_fat.yml` 里它是 https 地址（rim.server 用来拉远端元数据），本库还没做远端拉取，跑 `ENV=fat` 会在加载时报目录不存在。
 

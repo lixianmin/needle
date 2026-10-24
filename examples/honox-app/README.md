@@ -34,8 +34,8 @@ SHELL_PASSWORD=dev bun run start   # 默认 8213 端口（res/config/common.yml�
 |---|---|---|
 | `GET /health` | 公开 | `{"ok":true}` |
 | `GET /me` | 需要 JWT | 返回 `{ uid }`（取自 token 的 `sub`） |
-| `GET /bots/:id` | 需要 JWT | 读 `BotTemplate` 表的那一行 |
-| `GET /apc/:id` | 需要 JWT | 读 `ApcTemplate` 表的那一行 |
+| `GET /bots?id=1` | 需要 JWT | 读 `BotTemplate` 表的那一行；不带 `id` 返回全表 |
+| `GET /apc?id=1` | 需要 JWT | 读 `ApcTemplate` 表的那一行；不带 `id` 返回全表 |
 | `GET /select-apc` | 需要 JWT | 返回 `SelectApcConfig` 这份全局配置 |
 | `GET /shell` | 公开（面板自己用 `SHELL_PASSWORD` 登录） | 调试面板 |
 
@@ -44,6 +44,36 @@ SHELL_PASSWORD=dev bun run start   # 默认 8213 端口（res/config/common.yml�
 ```bash
 bun -e 'import { sign } from "hono/jwt"; console.log(await sign({ sub: "u1", exp: Math.floor(Date.now()/1000)+3600 }, "dev-secret-change-me", "HS256"))'
 ```
+
+## 接口目录
+
+每个 HTTP 接口一个文件，全在 `app/api/`；`app/api/index.ts` 只做挂载，`app/server.ts` 只装配中间件。
+
+```
+app/api/
+  index.ts       # registerApis(app)：逐个 app.route("/", xxx)
+  home.ts        # GET /
+  health.ts      # GET /health（JWT 白名单，匿名可访问）
+  me.ts          # GET /me      → { uid }
+  bots.ts        # GET /bots?id=
+  apc.ts         # GET /apc?id=
+  select-apc.ts  # GET /select-apc
+app/env.ts       # AppConfig（配置形状）+ AppEnv（createHonox 的 Env）
+```
+
+新增一个接口：在 `app/api/` 加一个文件（`new Hono<AppEnv>()` + `xxxApi.get(...)`），再到 `index.ts` 里 `app.route("/", xxxApi)` 一行。`server.ts` 不用动。
+
+**uid 与请求日志是自动的**：`createHonox()` 装配的中间件链是 `reqId → 请求日志 → JWT 鉴权`，所有 `app/api/` 里的路由都挂在它后面。于是每条请求都会：
+
+- 由 JWT 中间件写入 `c.get("uid")`（没带 token 就是 `null`，受保护路由直接被 401 短路）；
+- 打两行日志，进 `-->`、出 `<--`，结束行带 `status`、`durationMs`、`uid`、`req`：
+
+```
+[I] {"req":"9d193178-...","method":"GET","path":"/me","msg":"-->"}
+[I] {"req":"9d193178-...","method":"GET","path":"/me","status":200,"durationMs":1.9,"uid":"u1","msg":"<--"}
+```
+
+日志走 `@needle/logo` 的批处理，进程被杀前可能还没刷出来——本地验证时给它 1~2 秒。
 
 ## Excel 元数据
 
