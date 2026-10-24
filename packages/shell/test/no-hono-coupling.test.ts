@@ -21,7 +21,7 @@ describe("needle 自己不依赖 Hono", () => {
   // 框架适配层，也不把任何框架放进依赖表——装了 Hono 的人跟没装的人拿到
   // 的是同一个包。
   test("所有 package.json 的 dependencies 与 devDependencies 里都没有 hono", () => {
-    for (const rel of ["package.json", "packages/core/package.json", "packages/logo/package.json", "packages/shell/package.json"]) {
+    for (const rel of ["package.json", "packages/got/package.json", "packages/logo/package.json", "packages/shell/package.json"]) {
       const pkg = JSON.parse(source(rel)) as {
         dependencies?: Record<string, string>;
         devDependencies?: Record<string, string>;
@@ -36,14 +36,14 @@ describe("needle 自己不依赖 Hono", () => {
       const pkg = JSON.parse(source(rel)) as { dependencies?: Record<string, string> };
       return pkg.dependencies ?? {};
     };
-    expect(deps("packages/core/package.json")).toEqual({});
+    expect(deps("packages/got/package.json")).toEqual({});
     expect(deps("packages/logo/package.json")).toEqual({});
     expect(deps("packages/shell/package.json")).toEqual({ "@needle/logo": "workspace:*" });
   });
 
   test("入口表里没有框架适配入口", () => {
     const entries: Record<string, string[]> = {
-      "packages/core/package.json": ["."],
+      "packages/got/package.json": ["."],
       "packages/logo/package.json": [".", "./node"],
       "packages/shell/package.json": [".", "./node"],
     };

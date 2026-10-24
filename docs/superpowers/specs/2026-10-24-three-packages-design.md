@@ -1,5 +1,7 @@
 # 三包拆分设计：@needle/core / @needle/logo / @needle/shell
 
+> **2026-10-25 更新：`core` 包已改名为 `got`（`@needle/got`，目录 `packages/got`，构建脚本 `build:got`）。** 本文正文保留 2026-10-24 当时的写法，不改写历史；当前包结构以 `docs/01.memory.md` 为准，除包名外本文其余内容仍然有效。
+
 日期：2026-10-24
 状态：已批准（2026-10-24）
 

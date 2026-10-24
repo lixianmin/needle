@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const ROOT = join(import.meta.dir, "..");
-const PACKAGES = ["core", "logo", "shell"];
+const PACKAGES = ["got", "logo", "shell"];
 
 /**
  * 版本号只有根 `package.json` 一个来源。
