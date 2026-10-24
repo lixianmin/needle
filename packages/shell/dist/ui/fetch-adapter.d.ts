@@ -13,3 +13,4 @@ interface FetchAdapterOptions {
  */
 export declare function createFetchAdapter(options: FetchAdapterOptions): ShellAdapter;
 export {};
+//# sourceMappingURL=fetch-adapter.d.ts.map

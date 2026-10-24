@@ -23,3 +23,4 @@ export type LarkSink = Sink & {
  * 日志洪水时宁可少推几条，也不能把 webhook 打成 429 然后整片丢失。
  */
 export declare function createLarkSink(options: LarkSinkOptions): LarkSink;
+//# sourceMappingURL=lark.d.ts.map

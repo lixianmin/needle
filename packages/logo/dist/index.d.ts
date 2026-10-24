@@ -19,3 +19,4 @@ export type { Level, LogFileEntry, LogFiles, LogRecord, Sink } from "./types.js"
  * 依赖从参数传，避免隐藏的单例状态。文件、飞书等 sink 用 addSink 挂上去。
  */
 export declare const logo: import("./logo.js").Logger;
+//# sourceMappingURL=index.d.ts.map

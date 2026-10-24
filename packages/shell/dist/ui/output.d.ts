@@ -8,3 +8,4 @@ export interface OutputSink {
 export declare function createOutputSink(doc: Document, output: HTMLElement): OutputSink;
 /** 把一次命令执行的结果渲染到输出区。 */
 export declare function renderOutput(result: ExecResult, sink: OutputSink, table: TableRenderer): void;
+//# sourceMappingURL=output.d.ts.map

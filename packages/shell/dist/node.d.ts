@@ -33,3 +33,4 @@ export declare function serve(handler: (req: Request) => Promise<Response>, opti
  * 有独立的鉴权。
  */
 export declare function attach(server: Server, target: ShellLike, options?: AttachOptions): void;
+//# sourceMappingURL=node.d.ts.map

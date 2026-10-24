@@ -20,3 +20,4 @@ export interface Mongo {
  * 事务范围跟业务操作绑定，库猜不出来。
  */
 export declare function createMongo(options: MongoOptions): Mongo;
+//# sourceMappingURL=mongo.d.ts.map

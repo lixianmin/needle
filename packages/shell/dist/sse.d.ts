@@ -44,3 +44,4 @@ export interface SseInit {
  * broadcast 摘除。漏掉任何一条，进程里就多一个永远跑着的 interval。
  */
 export declare function createSseResponse(init: SseInit): Response;
+//# sourceMappingURL=sse.d.ts.map

@@ -17,3 +17,4 @@ export interface Metrics {
  * 要么只有个残缺的替身。
  */
 export declare function createMetrics(options?: MetricsOptions): Metrics;
+//# sourceMappingURL=metrics.d.ts.map

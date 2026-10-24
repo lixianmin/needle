@@ -32,3 +32,4 @@ export interface LogList<T> {
  * 变高了就重算一次偏移、把窗口里的行整体挪一遍，避免叠在一起。
  */
 export declare function createLogList<T>(doc: Document, render: (row: T) => HTMLElement, options?: LogListOptions<T>): LogList<T>;
+//# sourceMappingURL=loglist.d.ts.map

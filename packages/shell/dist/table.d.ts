@@ -23,3 +23,4 @@ export interface TableOutput<T> {
 export declare function table<T extends Record<string, Cell>>(schema: {
     [K in keyof T]: Column;
 }): TableOutput<T>;
+//# sourceMappingURL=table.d.ts.map

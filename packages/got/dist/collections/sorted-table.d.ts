@@ -63,3 +63,4 @@ export declare class SortedTable<K, V> implements Iterable<[K, V]> {
     valuesIter(): IterableIterator<V>;
     [Symbol.iterator](): IterableIterator<[K, V]>;
 }
+//# sourceMappingURL=sorted-table.d.ts.map

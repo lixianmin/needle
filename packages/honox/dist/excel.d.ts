@@ -40,3 +40,4 @@ export interface Metadata {
  * 用显式实例而不是模块级全局：测试各建一个，互不串状态。
  */
 export declare function createMetadata(): Metadata;
+//# sourceMappingURL=excel.d.ts.map

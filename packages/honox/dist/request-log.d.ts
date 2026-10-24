@@ -13,3 +13,4 @@ import type { HonoxEnv } from "./types.js";
  * 会把 500 记成 200。500 的响应体长什么样仍由业务决定，本库不插手。
  */
 export declare function createRequestLog(log: Logger): MiddlewareHandler<HonoxEnv>;
+//# sourceMappingURL=request-log.d.ts.map

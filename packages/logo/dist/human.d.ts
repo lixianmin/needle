@@ -30,3 +30,4 @@ export declare function displayNumber(value: number): string;
  *   277_200_000 → "3d 5h"
  */
 export declare function formatDuration(ms: number): string;
+//# sourceMappingURL=human.d.ts.map

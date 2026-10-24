@@ -63,3 +63,4 @@ export interface Topic {
     intervalMs: number;
     read(): Record<string, unknown> | Promise<Record<string, unknown>>;
 }
+//# sourceMappingURL=types.d.ts.map

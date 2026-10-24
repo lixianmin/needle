@@ -18,3 +18,4 @@ export interface HonoxEnv<C extends object = Record<string, unknown>> {
         rid: string;
     };
 }
+//# sourceMappingURL=types.d.ts.map

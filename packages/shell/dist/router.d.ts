@@ -31,3 +31,4 @@ export declare function createRouter(options: {
     basePath?: string;
     routes: Route[];
 }): Router;
+//# sourceMappingURL=router.d.ts.map

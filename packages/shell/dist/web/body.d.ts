@@ -8,3 +8,4 @@
  * 返回 null 表示超过上限；`req.body` 为 null 时返回空串。
  */
 export declare function readTextLimited(req: Request, maxBytes: number): Promise<string | null>;
+//# sourceMappingURL=body.d.ts.map

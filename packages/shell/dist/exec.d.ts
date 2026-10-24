@@ -10,3 +10,4 @@ export interface ExecHttpOptions {
  * 都在 source 里，浏览器里的本地适配器走的是同一段逻辑。
  */
 export declare function createExecHandler(options: ExecHttpOptions): (req: Request) => Promise<Response>;
+//# sourceMappingURL=exec.d.ts.map

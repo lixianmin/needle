@@ -7,3 +7,4 @@ import type { ShellAdapter } from "./adapter.js";
  * 能看到这个进程。鉴权在这一层没有意义，所以 source 用本地用户模式创建。
  */
 export declare function createLocalAdapter(source: ShellSource): ShellAdapter;
+//# sourceMappingURL=local.d.ts.map

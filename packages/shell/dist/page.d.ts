@@ -13,3 +13,4 @@ export interface PageOptions {
  * 不引外部脚本、不引 CDN——Workers 上没有静态资源目录，内联是唯一稳妥的做法。
  */
 export declare function renderPage(options: PageOptions): string;
+//# sourceMappingURL=page.d.ts.map

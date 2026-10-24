@@ -26,3 +26,4 @@ export declare function wireKeys(ctx: InputContext): void;
  * 焦点已经在别的输入控件里（页面里可能嵌着业务表单）就不抢。
  */
 export declare function wireEnterFocus(doc: Document, input: HTMLInputElement): () => void;
+//# sourceMappingURL=input.d.ts.map

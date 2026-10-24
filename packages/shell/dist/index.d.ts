@@ -45,3 +45,4 @@ export { createFetchAdapter } from "./ui/fetch-adapter.js";
 export type { ShellSource, ShellSourceOptions, ExecResult } from "./source.js";
 export type { ShellAdapter, ShellEvent, HandshakeInfo, AuthResult } from "./ui/adapter.js";
 export type { AuthOptions, Command, CommandContext, CommandOutput, Topic } from "./types.js";
+//# sourceMappingURL=index.d.ts.map

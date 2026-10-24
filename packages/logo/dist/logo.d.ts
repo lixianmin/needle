@@ -67,3 +67,4 @@ export interface Logger {
     dispose(): void;
 }
 export declare function newLogger(options?: LoggerOptions): Logger;
+//# sourceMappingURL=logo.d.ts.map

@@ -11,3 +11,4 @@ export interface AuthRouteOptions {
  * 而且请求体上限只有 512 字节。
  */
 export declare function createAuthRoute(options: AuthRouteOptions): (req: Request) => Promise<Response>;
+//# sourceMappingURL=authenticate.d.ts.map

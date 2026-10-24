@@ -75,3 +75,4 @@ export interface ShellAdapter {
     setTopics(spec: string): void;
     subscribe(listener: (event: ShellEvent) => void): () => void;
 }
+//# sourceMappingURL=adapter.d.ts.map

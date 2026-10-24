@@ -29,3 +29,4 @@ export type FileSink = Sink & {
  * 换来的是「warn/error 立即落盘」和「退出前 flush 就真的写下去了」。
  */
 export declare function createFileSink(options: FileSinkOptions): FileSink;
+//# sourceMappingURL=file.d.ts.map

@@ -47,3 +47,4 @@ export interface Config<C extends Record<string, unknown> = Record<string, unkno
  * 配置写错时表现成「端口 0」「密钥空」，排查成本比报错高得多。
  */
 export declare function createConfig<C extends Record<string, unknown>>(data: C, env: string): Config<C>;
+//# sourceMappingURL=config.d.ts.map

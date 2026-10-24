@@ -45,3 +45,4 @@ export interface LogFiles {
     /** 读取整个文件；不在白名单内返回 null。 */
     read(name: string): Promise<string | null>;
 }
+//# sourceMappingURL=types.d.ts.map
