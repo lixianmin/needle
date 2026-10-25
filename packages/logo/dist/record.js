@@ -51,6 +51,24 @@ export function sanitize(value, depth = 0, ancestors = new WeakSet(), budget = {
         if (Array.isArray(value)) {
             return value.map((item) => sanitize(item, depth + 1, ancestors, budget));
         }
+        // Map / Set / Headers / URLSearchParams 的自有可枚举键是空的，走下面的
+        // Object.keys 会变成 `{}`——日志里只剩一个空对象，且不像函数、环、超深那样
+        // 带标记，读的人会以为真的没有内容。按内容摊开，与数组同口径。
+        if (value instanceof Map) {
+            return Object.fromEntries([...value.entries()].map(([key, item]) => [
+                typeof key === "string" ? key : String(sanitize(key, depth + 1, ancestors, budget)),
+                sanitize(item, depth + 1, ancestors, budget),
+            ]));
+        }
+        if (value instanceof Set) {
+            return [...value.values()].map((item) => sanitize(item, depth + 1, ancestors, budget));
+        }
+        if (value instanceof URLSearchParams || (typeof Headers !== "undefined" && value instanceof Headers)) {
+            return Object.fromEntries([...value.entries()].map(([key, item]) => [
+                key,
+                sanitize(item, depth + 1, ancestors, budget),
+            ]));
+        }
         const copy = {};
         let keys;
         try {

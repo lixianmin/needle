@@ -259,6 +259,22 @@ describe("batch:false", () => {
   });
 });
 
+describe("child 的固定字段", () => {
+  // 记录会被 sink 直接序列化（IDB 走 structuredClone），所以 child({ cb: () => {} })
+  // 这种入口也必须脱敏，否则该 child 的每一条日志都写不进去。
+  test("固定字段与本次调用的字段走同一套 sanitize", () => {
+    const { calls, sink } = collector();
+    const logger = newLogger({ ...base, sinks: [sink] });
+    const child = logger.child({ cb: () => {}, when: new Date(0) });
+
+    child.info("x");
+    child.flush();
+
+    expect(calls[0]?.[0]?.cb).toBe("[Function]");
+    expect(calls[0]?.[0]?.when).toBe("1970-01-01T00:00:00.000Z");
+  });
+});
+
 describe("dispose 与 child", () => {
   // 计划里 child 的定义是「共享父的 buffer 与 sinks 快照」，实现曾经只共享 disposed，
   // 于是子缓冲既不会被父 flush 带走，子定时器也不会被父 dispose 清掉。

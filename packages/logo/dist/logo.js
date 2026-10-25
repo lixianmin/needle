@@ -1,4 +1,4 @@
-import { buildRecord } from "./record.js";
+import { buildRecord, sanitize } from "./record.js";
 import { hasStdout } from "./sinks/stdout.js";
 import { LEVELS } from "./types.js";
 /** 默认 100ms 刷一次。服务端够用；客户端要按帧刷可设成 16~33。 */
@@ -52,7 +52,10 @@ function buildLogger(options, state) {
     let level = options.level ?? "info";
     let sinkReported = false;
     const sinks = [...(options.sinks ?? [])];
-    const fixedFields = { ...options.fields };
+    // child 的固定字段会被展开进每条记录，所以必须和 buildRecord 走同一套 sanitize：
+    // 否则 child({ cb: () => {} }) 会让该 child 的每一条记录都不可被 sink 序列化
+    // （IDB 的 put 直接抛 DataCloneError，整批写不进去）。
+    const fixedFields = (sanitize(options.fields ?? {}) ?? {});
     function reportSinkError(error) {
         // 只提示一次：一条坏 sink 可能每 100ms 抛一次，刷屏比沉默更糟。
         if (sinkReported) {

@@ -130,3 +130,20 @@ describe("展开预算", () => {
     expect(json.length).toBeLessThan(2_000_000);
   });
 });
+
+// spec 把这些类型列为「序列化后拼进 msg」的输入；旧实现走 Object.keys 得到 []，
+// 于是 Map / Set / Headers 一律变成 "{}"，日志里只剩一个空对象，且没有任何标记。
+describe("容器类型不被吞成空对象", () => {
+  test("Map 的键值进 msg", () => {
+    expect(buildRecord("info", [new Map([["a", 1]])]).msg).toBe('{"a":1}');
+  });
+
+  test("Set 的元素进 msg", () => {
+    expect(buildRecord("info", [new Set([1, 2])]).msg).toBe("[1,2]");
+  });
+
+  test("Headers 的键值进 msg", () => {
+    const headers = new Headers({ "x-rid": "r1" });
+    expect(buildRecord("info", [headers]).msg).toBe('{"x-rid":"r1"}');
+  });
+});
