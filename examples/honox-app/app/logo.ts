@@ -10,13 +10,13 @@ const APP_NAME = "honox-app";
 export const APP_VERSION = "0.1.0";
 
 /**
- * 日志目录固定是进程工作目录下的 `log/`，不做配置项。
+ * 日志目录固定是进程工作目录下的 `logs/`，不做配置项。
  *
  * 日志目录没有"每个环境不一样"的理由：它在仓库里是被 gitignore 的产物，
  * 部署时跟着工作目录走。多一个配置项只会多一处能配错、也多一处要在
  * Dockerfile 和 .gitignore 里对齐。
  */
-const LOG_DIR = "log";
+const LOG_DIR = "logs";
 
 /** 单文件上限：10MB 够放好几天的请求日志，再大就是 grep 不动了。 */
 const DEFAULT_MAX_BYTES = 10 * 1024 * 1024;
