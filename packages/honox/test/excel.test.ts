@@ -186,13 +186,13 @@ describe("类即 schema：数组字段自动拆列", () => {
     }
     const dir = await oneFile("BotTemplate", [
       ["id", "tags", "prompt"],
-      [1, "a,b, c", "x|y"],
+      [1, "a,b, ctx", "x|y"],
     ]);
     const metadata = createMetadata();
     await metadata.load(dir);
     expect(metadata.template(BotTemplate).get(1)).toEqual({
       id: 1,
-      tags: ["a", "b", "c"],
+      tags: ["a", "b", "ctx"],
       prompt: "x|y",
     });
   });

@@ -59,11 +59,11 @@ describe("loadConfig：文件与环境", () => {
   test("深合并：对象递归、数组整体替换", () => {
     const dir = configDir({
       "common.yml": "list: [1, 2, 3]\nnested:\n  a: 1\n  b: 2\n",
-      "app_dev.yml": "list: [9]\nnested:\n  b: 20\n  c: 30\n",
+      "app_dev.yml": "list: [9]\nnested:\n  b: 20\n  ctx: 30\n",
     });
     const config = loadConfig({ dir, env: "dev" });
     expect(config.get("list")).toEqual([9]);
-    expect(config.get("nested")).toEqual({ a: 1, b: 20, c: 30 });
+    expect(config.get("nested")).toEqual({ a: 1, b: 20, ctx: 30 });
   });
 
   test("APP_* 环境变量覆盖嵌套字段并做类型转换", () => {
@@ -186,17 +186,17 @@ describe("配置工具函数（被 loadConfig 间接用到，也单独钉住）"
   });
 
   test("readPath：深路径、缺失、穿过数组/非对象", () => {
-    const data = { a: { b: { c: 1 } }, list: [1, 2] };
-    expect(readPath(data, "a.b.c")).toBe(1);
+    const data = { a: { b: { ctx: 1 } }, list: [1, 2] };
+    expect(readPath(data, "a.b.ctx")).toBe(1);
     expect(readPath(data, "a.b.missing")).toBeUndefined();
     expect(readPath(data, "list.length")).toBeUndefined();
-    expect(readPath(data, "a.b.c.d")).toBeUndefined();
+    expect(readPath(data, "a.b.ctx.d")).toBeUndefined();
   });
 
   test("assertRequired：缺失、空串、null、嵌套路径", () => {
     expect(() => assertRequired({ a: { b: null } }, ["a.b"])).toThrow(/a\.b/);
     expect(() => assertRequired({ a: { b: "  " } }, ["a.b"])).not.toThrow();
-    expect(() => assertRequired({ a: 1 }, ["a.b.c"])).toThrow(/a\.b\.c/);
+    expect(() => assertRequired({ a: 1 }, ["a.b.ctx"])).toThrow(/a\.b\.ctx/);
   });
 
   test("createConfig：取值转换、truncate、异常与 raw", () => {

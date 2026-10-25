@@ -117,7 +117,7 @@ export interface Trace {
 - **慢请求 warn 只在没有 error 时发**（error 行已带 `durationMs`），避免一次慢失败记两条。
 - `slowMs` 默认 **1000ms**，`0` 关闭。取值理由：人肉等待可接受的上界，覆盖慢数据库往返的典型量级。
 - 计时包装装在 rid 之后、鉴权之前，包住鉴权 + 门禁 + handler 全程；`uid`/`module` 结束后读。
-- 401 由 `createAuth` 直接拿注入的 logger 写（它有独立单测，不依赖 ctx 上的东西）。401/404 拿不到 `module`（路由未匹配）。
+- 401 由 `createAuthGuard` 直接拿注入的 logger 写（它有独立单测，不依赖 ctx 上的东西）。401/404 拿不到 `module`（路由未匹配）。
 
 ### 5.4 `createApi(module)` 与路由注册
 

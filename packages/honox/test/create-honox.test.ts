@@ -25,9 +25,9 @@ const SECRET = "test-secret";
 
 function setup() {
   const records: LogRecord[] = [];
-  const log = newLogger({ sinks: [(batch) => records.push(...batch)], batch: false });
+  const logger = newLogger({ sinks: [(batch) => records.push(...batch)], batch: false });
   const app = createHonox({
-    logger: log,
+    logger,
     auth: { secret: SECRET },
     shell: {
       basePath: "/shell",
@@ -38,8 +38,8 @@ function setup() {
     },
   });
   app.allowAnonymous(["/health"]);
-  app.get("/health", (c) => c.json({ ok: true }));
-  app.get("/me", (c) => c.json({ uid: c.get("uid") }));
+  app.get("/health", (ctx) => ctx.json({ ok: true }));
+  app.get("/me", (ctx) => ctx.json({ uid: ctx.get("uid") }));
   return { app, records };
 }
 
@@ -85,7 +85,7 @@ describe("createHonox", () => {
 
   test("没带 rid 时自己生成：26 位 ULID，时间前缀就是当前时间", async () => {
     const app = createHonox({ auth: { secret: SECRET } });
-    app.get("/rid", (c) => c.json({}));
+    app.get("/rid", (ctx) => ctx.json({}));
     const before = Date.now();
     const res = await app.request("/rid");
     const rid = res.headers.get("x-rid")!;
@@ -98,9 +98,9 @@ describe("createHonox", () => {
   test("响应头有 x-rid，业务日志里的 rid 与它一致", async () => {
     const { app, records } = setup();
     app.allowAnonymous(["/logged"]);
-    app.get("/logged", (c) => {
-      traceOf(c).info({ note: "hi" });
-      return c.json({ ok: true });
+    app.get("/logged", (ctx) => {
+      traceOf(ctx).info({ note: "hi" });
+      return ctx.json({ ok: true });
     });
 
     const res = await app.request("/logged");
@@ -114,14 +114,14 @@ describe("createHonox", () => {
 
   test("apiRoute：日志里的位置指向 API 注册处，不是中间件那一行", async () => {
     const records: LogRecord[] = [];
-    const log = newLogger({ sinks: [(batch) => records.push(...batch)], batch: false });
-    const app = createHonox({ logger: log, auth: { secret: SECRET } });
+    const logger = newLogger({ sinks: [(batch) => records.push(...batch)], batch: false });
+    const app = createHonox({ logger, auth: { secret: SECRET } });
     app.allowAnonymous(["/where"]);
     app.get(
       "/where",
-      apiRoute("api/where", (c) => {
-        traceOf(c, log).info({ note: "where" });
-        return c.json({ ok: true });
+      apiRoute("api/where", (ctx) => {
+        traceOf(ctx, logger).info({ note: "where" });
+        return ctx.json({ ok: true });
       }),
     );
 
@@ -134,18 +134,18 @@ describe("createHonox", () => {
 
   test("createApi(module)：每条路由各自记住注册位置，日志带 module", async () => {
     const records: LogRecord[] = [];
-    const log = newLogger({ sinks: [(batch) => records.push(...batch)], batch: false });
-    const app = createHonox({ logger: log, auth: { secret: SECRET } });
+    const logger = newLogger({ sinks: [(batch) => records.push(...batch)], batch: false });
+    const app = createHonox({ logger, auth: { secret: SECRET } });
     app.allowAnonymous(["/one", "/two"]);
 
     const group = createApi("api/group");
-    group.get("/one", (c) => {
-      traceOf(c, log).info({ note: "one" });
-      return c.json({ ok: 1 });
+    group.get("/one", (ctx) => {
+      traceOf(ctx, logger).info({ note: "one" });
+      return ctx.json({ ok: 1 });
     });
-    group.post("/two", (c) => {
-      traceOf(c, log).info({ note: "two" });
-      return c.json({ ok: 2 });
+    group.post("/two", (ctx) => {
+      traceOf(ctx, logger).info({ note: "two" });
+      return ctx.json({ ok: 2 });
     });
     app.route("/", group);
 
@@ -246,8 +246,8 @@ describe("onError", () => {
   function boomApp() {
     const app = createHonox({ auth: { secret: SECRET } });
     app.allowAnonymous(["/boom"]);
-    app.get("/boom", (c) => {
-      const status = Number(c.req.query("s")) as ContentfulStatusCode;
+    app.get("/boom", (ctx) => {
+      const status = Number(ctx.req.query("s")) as ContentfulStatusCode;
       throw new HTTPException(status, { message: "boom" });
     });
     return app;
@@ -324,8 +324,8 @@ describe("onError", () => {
 describe("allowAnonymous", () => {
   test("挂载完之后声明，门禁按声明放行；没声明的仍然 401", async () => {
     const app = createHonox({ auth: { secret: SECRET } });
-    app.get("/health", (c) => c.json({ ok: true }));
-    app.get("/me", (c) => c.json({ uid: c.get("uid") }));
+    app.get("/health", (ctx) => ctx.json({ ok: true }));
+    app.get("/me", (ctx) => ctx.json({ uid: ctx.get("uid") }));
     expect((await app.request("/health")).status).toBe(401);
 
     app.allowAnonymous(["/health"]);
@@ -336,8 +336,8 @@ describe("allowAnonymous", () => {
 
   test("多次调用是累加，不是覆盖", async () => {
     const app = createHonox({ auth: { secret: SECRET } });
-    app.get("/a", (c) => c.text("a"));
-    app.get("/b", (c) => c.text("b"));
+    app.get("/a", (ctx) => ctx.text("a"));
+    app.get("/b", (ctx) => ctx.text("b"));
     app.allowAnonymous(["/a"]);
     app.allowAnonymous(["/b"]);
     expect((await app.request("/a")).status).toBe(200);
@@ -346,8 +346,8 @@ describe("allowAnonymous", () => {
 
   test("方法限定条目与尾通配都按 8.3 的语义生效", async () => {
     const app = createHonox({ auth: { secret: SECRET } });
-    app.post("/login", (c) => c.text("in"));
-    app.get("/assets/x", (c) => c.text("asset"));
+    app.post("/login", (ctx) => ctx.text("in"));
+    app.get("/assets/x", (ctx) => ctx.text("asset"));
     app.allowAnonymous([{ method: "POST", path: "/login" }, "/assets/*"]);
     expect((await app.request("/login", { method: "POST" })).status).toBe(200);
     expect((await app.request("/login")).status).toBe(401);
@@ -356,7 +356,7 @@ describe("allowAnonymous", () => {
 
   test("返回实例本身，可以与 route() 链式接", async () => {
     const app = createHonox({ auth: { secret: SECRET } });
-    app.allowAnonymous(["/health"]).get("/health", (c) => c.text("ok"));
+    app.allowAnonymous(["/health"]).get("/health", (ctx) => ctx.text("ok"));
     expect((await app.request("/health")).status).toBe(200);
   });
 

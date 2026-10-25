@@ -45,7 +45,7 @@ function isModelClass(value: unknown): value is ModelClass<unknown> {
 }
 
 /** 解析过参数的 handler：第二个参数是模型实例形状的对象。 */
-export type ParsedHandler<T> = (c: Context<HonoxEnv>, request: T) => Response | Promise<Response>;
+export type ParsedHandler<T> = (ctx: Context<HonoxEnv>, request: T) => Response | Promise<Response>;
 
 /** 不解析参数的 handler 类型（与 Hono 的 Handler 一致，单拎出来给业务标注用）。 */
 export type ApiHandler = Handler<HonoxEnv>;
@@ -63,9 +63,9 @@ export type ApiGroup = Hono<HonoxEnv> &
   Record<(typeof ROUTE_METHODS)[number], RouteMethod>;
 
 function withOrigin(handler: Handler<HonoxEnv>, origin: Origin): Handler<HonoxEnv> {
-  return (c, next) => {
-    c.set("api", origin);
-    return handler(c, next);
+  return (ctx, next) => {
+    ctx.set("api", origin);
+    return handler(ctx, next);
   };
 }
 
@@ -82,11 +82,11 @@ function withModel<T>(
   handler: ParsedHandler<T>,
 ): Handler<HonoxEnv> {
   const readsQuery = QUERY_METHODS.has(method);
-  return async (c) => {
-    c.set("api", origin);
+  return async (ctx) => {
+    ctx.set("api", origin);
     const schema = modelSchema(model);
-    const request = readsQuery ? parseQuery(c, schema) : await parseBody(c, schema);
-    return handler(c, request as T);
+    const request = readsQuery ? parseQuery(ctx, schema) : await parseBody(ctx, schema);
+    return handler(ctx, request as T);
   };
 }
 

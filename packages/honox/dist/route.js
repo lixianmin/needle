@@ -36,9 +36,9 @@ function isModelClass(value) {
     return Object.getOwnPropertyDescriptor(value, "prototype")?.writable === false;
 }
 function withOrigin(handler, origin) {
-    return (c, next) => {
-        c.set("api", origin);
-        return handler(c, next);
+    return (ctx, next) => {
+        ctx.set("api", origin);
+        return handler(ctx, next);
     };
 }
 /**
@@ -49,11 +49,11 @@ function withOrigin(handler, origin) {
  */
 function withModel(origin, method, model, handler) {
     const readsQuery = QUERY_METHODS.has(method);
-    return async (c) => {
-        c.set("api", origin);
+    return async (ctx) => {
+        ctx.set("api", origin);
         const schema = modelSchema(model);
-        const request = readsQuery ? parseQuery(c, schema) : await parseBody(c, schema);
-        return handler(c, request);
+        const request = readsQuery ? parseQuery(ctx, schema) : await parseBody(ctx, schema);
+        return handler(ctx, request);
     };
 }
 /**

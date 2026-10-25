@@ -67,7 +67,7 @@ function normalizeBasePath(basePath: string): string {
  * 业务路由挂在返回值上，所以自动继承中间件链。
  */
 export function createHonox(options: HonoxOptions): HonoxApp {
-  const log = options.logger ?? logo;
+  const logger = options.logger ?? logo;
   const app = new Hono<HonoxEnv>();
 
   const shellBasePath =
@@ -88,17 +88,17 @@ export function createHonox(options: HonoxOptions): HonoxApp {
 
   // 中间件链（rid → 兜底日志 → JWT → 门禁）全在 middleware.ts，顺序由库固定。
   installMiddleware(app, {
-    log,
+    logger,
     auth: options.auth,
     public: publicEntries,
     slowMs: options.slowMs,
   });
 
   // 没命中任何路由：业务补不了，库记。
-  app.notFound((c) => {
-    log.info({
-      rid: c.get("rid"),
-      path: c.req.path,
+  app.notFound((ctx) => {
+    logger.info({
+      rid: ctx.get("rid"),
+      path: ctx.req.path,
       status: 404,
     });
     return ResponseX.notFound("接口不存在");
@@ -126,12 +126,12 @@ export function createHonox(options: HonoxOptions): HonoxApp {
 
   // Stryker disable next-line ConditionalExpression,LogicalOperator: shell 与 shellBasePath 总是同时为 null（上面同一行推导），改运算符不产生新分支
   if (shell !== null && shellBasePath !== null) {
-    const handle = async (c: Context<HonoxEnv>) => {
-      const res = await shell.handler(c.req.raw);
+    const handle = async (ctx: Context<HonoxEnv>) => {
+      const res = await shell.handler(ctx.req.raw);
       // 面板不在 Hono 的路由表里，未命中的 404 由 shell 自己回——不在这里记，
       // 这条路径就一条日志都没有（而它恰好是唯一允许匿名访问的子树）。
       if (res.status === 404) {
-        log.info({ rid: c.get("rid"), path: c.req.path, status: 404 });
+        logger.info({ rid: ctx.get("rid"), path: ctx.req.path, status: 404 });
       }
       return res;
     };

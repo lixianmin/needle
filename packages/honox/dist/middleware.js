@@ -1,5 +1,5 @@
 import { nextUlid } from "@needle/got";
-import { createAuth } from "./auth.js";
+import { createAuthGuard } from "./auth.js";
 import { isRequestError } from "./request.js";
 /** 入站请求可以自带 rid：`x-rid` 优先，其次是网关常见的 `x-request-id`。 */
 const RID_HEADERS = ["x-rid", "x-request-id"];
@@ -29,8 +29,8 @@ function elapsedMs(start) {
     return Math.round((performance.now() - start) * 10) / 10;
 }
 /** 路由注册时记下的模块身份（没包 createApi / apiRoute 就没有）。 */
-function moduleOf(c) {
-    const where = c.get("api");
+function moduleOf(ctx) {
+    const where = ctx.get("api");
     return where === undefined ? {} : { module: where.module };
 }
 /**
@@ -39,61 +39,61 @@ function moduleOf(c) {
  * 本来就该是零日志）。
  *
  * 500 的日志放在这里而不是 `onError`：业务可以自己 `app.onError`（单槽替换），
- * 替换掉之后库里的日志就没了；而 `c.error` 是 compose 写的，与谁处理无关。
+ * 替换掉之后库里的日志就没了；而 `ctx.error` 是 compose 写的，与谁处理无关。
  *
  * 非 Error 抛出不会进 `onError`（compose 只认 `instanceof Error`），会穿到这里，
  * 所以 catch 那一路也必须记一条，然后原样 rethrow。
  */
-function createFallbackLog(log, slowMs) {
-    return async function fallbackLog(c, next) {
+function createFallbackLog(logger, slowMs) {
+    return async function fallbackLog(ctx, next) {
         const started = performance.now();
         const base = () => ({
-            rid: c.get("rid"),
-            path: c.req.path,
-            ...moduleOf(c),
+            rid: ctx.get("rid"),
+            path: ctx.req.path,
+            ...moduleOf(ctx),
         });
         try {
             await next();
         }
         catch (error) {
             // compose 只把 Error 交给 onError；非 Error 抛出会穿到这里，所以这一路也得记。
-            log.error({ ...base(), status: 500, durationMs: elapsedMs(started), uid: c.get("uid") }, error);
+            logger.error({ ...base(), status: 500, durationMs: elapsedMs(started), uid: ctx.get("uid") }, error);
             throw error;
         }
         const durationMs = elapsedMs(started);
-        const uid = c.get("uid");
-        // 没 finalize 时读 c.res 会惰性造一个 200，那会把失败记成成功。
-        // 另外 `c.res` 运行时可能被塞进一个 Context（中间件 `return next()` 时的老写法），
+        const uid = ctx.get("uid");
+        // 没 finalize 时读 ctx.res 会惰性造一个 200，那会把失败记成成功。
+        // 另外 `ctx.res` 运行时可能被塞进一个 Context（中间件 `return next()` 时的老写法），
         // 所以还要判 instance Response，否则 status 会是 undefined。
-        const response = c.finalized ? c.res : undefined;
+        const response = ctx.finalized ? ctx.res : undefined;
         const responded = response instanceof Response;
         const status = responded ? response.status : 500;
-        if (c.error !== undefined) {
+        if (ctx.error !== undefined) {
             // 客户端传错参数不是服务端故障：onError 已经把它映射成 4xx。但
             // `new RequestError(503, …)` 这类 5xx 是服务端故障，必须留一行。
-            if (isRequestError(c.error) && c.error.status < 500) {
+            if (isRequestError(ctx.error) && ctx.error.status < 500) {
                 return;
             }
             // HTTPException 这类自带 4xx 的错误同样不是服务端故障，记 warn 就够。
             const line = { ...base(), status, durationMs, uid };
             if (status >= 500) {
-                log.error(line, c.error);
+                logger.error(line, ctx.error);
             }
             else {
-                log.warn(line, c.error);
+                logger.warn(line, ctx.error);
             }
             return;
         }
         if (!responded) {
             // handler 既没返回 Response 也没 await next()：Hono 到更外层才抛这个错，
             // 中间件这层看不到异常，只能自己判——否则这次请求一条日志都没有。
-            log.error({ ...base(), status: 500, durationMs, uid }, new Error("请求没有 finalize：handler 既没返回 Response，也没 await next()"));
+            logger.error({ ...base(), status: 500, durationMs, uid }, new Error("请求没有 finalize：handler 既没返回 Response，也没 await next()"));
             return;
         }
         // 401 / 404 已经由门禁 / notFound 记过一行；error 行也带 durationMs。
         // 慢请求只补「没人记过」的那一类，避免一次请求记两条。
         if (slowMs > 0 && durationMs >= slowMs && status !== 401 && status !== 404) {
-            log.warn({ ...base(), status, durationMs, uid });
+            logger.warn({ ...base(), status, durationMs, uid });
         }
     };
 }
@@ -104,14 +104,14 @@ function createFallbackLog(log, slowMs) {
  * 门禁才看得到 uid。这两个顺序错一个，症状都很隐蔽。
  */
 export function installMiddleware(app, options) {
-    app.use("*", async (c, next) => {
+    app.use("*", async (ctx, next) => {
         // 调用方带了就用它的（网关/上游的链路 id 才能串起来），没带才自己生成。
-        const rid = resolveRid((name) => c.req.header(name));
-        c.set("rid", rid);
-        c.set("log", options.log);
+        const rid = resolveRid((name) => ctx.req.header(name));
+        ctx.set("rid", rid);
+        ctx.set("logger", options.logger);
         await next();
-        c.header("x-rid", rid);
+        ctx.header("x-rid", rid);
     });
-    app.use("*", createFallbackLog(options.log, options.slowMs ?? DEFAULT_SLOW_MS));
-    app.use("*", createAuth(options.auth, options.public, options.log));
+    app.use("*", createFallbackLog(options.logger, options.slowMs ?? DEFAULT_SLOW_MS));
+    app.use("*", createAuthGuard(options.auth, options.public, options.logger));
 }

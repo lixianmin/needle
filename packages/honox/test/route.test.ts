@@ -20,11 +20,11 @@ class BotsBody {
 /** 最小宿主：只装一条 onError 把 RequestError 映射成 400，其余 500 带 message。 */
 function host(): Hono<HonoxEnv> {
   const app = new Hono<HonoxEnv>();
-  app.onError((error, c) => {
+  app.onError((error, ctx) => {
     if (isRequestError(error)) {
       return ResponseX.fail(error.status, error.code, error.message);
     }
-    return c.text(String(error), 500);
+    return ctx.text(String(error), 500);
   });
   return app;
 }
@@ -45,7 +45,7 @@ describe("createApi", () => {
   test("POST + 模型：body 解析后作为第二个参数", async () => {
     const app = host();
     const api = createApi("api/bots");
-    api.post("/bots", BotsBody, (c, body) => c.json({ got: body.ids }));
+    api.post("/bots", BotsBody, (ctx, body) => ctx.json({ got: body.ids }));
     app.route("/", api);
 
     const ok = await app.request("/bots", json({ ids: [1, 2] }));
@@ -56,7 +56,7 @@ describe("createApi", () => {
   test("POST + 模型：body 不合法 → 400", async () => {
     const app = host();
     const api = createApi("api/bots");
-    api.post("/bots", BotsBody, (c, body) => c.json({ got: body.ids }));
+    api.post("/bots", BotsBody, (ctx, body) => ctx.json({ got: body.ids }));
     app.route("/", api);
 
     const bad = await app.request("/bots", json({ ids: ["1"] }));
@@ -67,7 +67,7 @@ describe("createApi", () => {
   test("GET + 模型：解析的是 query", async () => {
     const app = host();
     const api = createApi("api/bots");
-    api.get("/bots", BotsQuery, (c, query) => c.json({ id: query.id ?? null }));
+    api.get("/bots", BotsQuery, (ctx, query) => ctx.json({ id: query.id ?? null }));
     app.route("/", api);
 
     expect(await (await app.request("/bots?id=7")).json()).toEqual({ id: 7 });
@@ -76,7 +76,7 @@ describe("createApi", () => {
   test("不传模型的老写法照旧", async () => {
     const app = host();
     const api = createApi("api/health");
-    api.get("/health", (c) => c.json({ ok: true }));
+    api.get("/health", (ctx) => ctx.json({ ok: true }));
     app.route("/", api);
 
     expect(await (await app.request("/health")).json()).toEqual({ ok: true });
@@ -88,7 +88,7 @@ describe("createApi", () => {
     }
     const app = host();
     const api = createApi("api/x");
-    api.post("/orphan", Orphan, (c) => c.json({ ok: true }));
+    api.post("/orphan", Orphan, (ctx) => ctx.json({ ok: true }));
     app.route("/", api);
 
     const res = await app.request("/orphan", json({}));
@@ -99,9 +99,9 @@ describe("createApi", () => {
   test("组内 handler 抛错时父 onError 收得到（Proxy 只绑原型方法）", async () => {
     const app = host();
     let seen = "";
-    app.onError((error, c) => {
+    app.onError((error, ctx) => {
       seen = String(error);
-      return c.text("caught", 500);
+      return ctx.text("caught", 500);
     });
     const api = createApi("api/x");
     api.get("/boom", () => {
@@ -118,11 +118,11 @@ describe("createApi", () => {
     const app = host();
     const api = createApi("api/chain");
     const trace: string[] = [];
-    const mw: Handler<HonoxEnv> = async (_c, next) => {
+    const mw: Handler<HonoxEnv> = async (_ctx, next) => {
       trace.push("mw");
       await next();
     };
-    api.get("/many", mw, mw, (c) => c.json({ ok: true }));
+    api.get("/many", mw, mw, (ctx) => ctx.json({ ok: true }));
     app.route("/", api);
 
     const res = await app.request("/many");
@@ -134,8 +134,8 @@ describe("createApi", () => {
   test("function 声明当第二个参数时不会被当成模型", async () => {
     const app = host();
     const api = createApi("api/fn");
-    const middleware: Handler<HonoxEnv> = (_c, next) => next();
-    api.get("/fn", middleware, (c) => c.json({ ok: true }));
+    const middleware: Handler<HonoxEnv> = (_ctx, next) => next();
+    api.get("/fn", middleware, (ctx) => ctx.json({ ok: true }));
     app.route("/", api);
 
     const res = await app.request("/fn");
@@ -152,21 +152,21 @@ describe("createApi", () => {
 
   test("use / route 链式之后仍然包装：后续登记的路由不会丢 module", async () => {
     const records: LogRecord[] = [];
-    const log = newLogger({ sinks: [(batch) => records.push(...batch)], batch: false });
+    const logger = newLogger({ sinks: [(batch) => records.push(...batch)], batch: false });
     const app = new Hono<HonoxEnv>();
-    app.use("*", async (c, next) => {
-      c.set("rid", "r1");
-      c.set("uid", null);
-      c.set("log", log);
+    app.use("*", async (ctx, next) => {
+      ctx.set("rid", "r1");
+      ctx.set("uid", null);
+      ctx.set("logger", logger);
       await next();
     });
     const api = createApi("api/u");
-    const mw: Handler<HonoxEnv> = async (_c, next) => {
+    const mw: Handler<HonoxEnv> = async (_ctx, next) => {
       await next();
     };
-    api.use("/u", mw).get("/u", (c) => {
-      traceOf(c).info({ hit: 1 });
-      return c.json({ ok: true });
+    api.use("/u", mw).get("/u", (ctx) => {
+      traceOf(ctx).info({ hit: 1 });
+      return ctx.json({ ok: true });
     });
     app.route("/", api);
 
@@ -187,7 +187,7 @@ describe("createApi", () => {
   test("options / query 也走同一套包装（Hono 的 METHODS 里都有）", async () => {
     const app = host();
     const api = createApi("api/probe");
-    api.options("/probe", (c) => c.text("ok"));
+    api.options("/probe", (ctx) => ctx.text("ok"));
     app.route("/", api);
 
     expect(await (await app.request("/probe", { method: "OPTIONS" })).text()).toBe("ok");
@@ -196,8 +196,8 @@ describe("createApi", () => {
   test("链式登记：返回的是代理，后续调用照样抓位置", async () => {
     const app = host();
     const api = createApi("api/chain")
-      .get("/a", (c) => c.json({ a: 1 }))
-      .get("/b", (c) => c.json({ b: 2 }));
+      .get("/a", (ctx) => ctx.json({ a: 1 }))
+      .get("/b", (ctx) => ctx.json({ b: 2 }));
     app.route("/", api);
 
     expect(await (await app.request("/a")).json()).toEqual({ a: 1 });

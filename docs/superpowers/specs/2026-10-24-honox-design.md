@@ -129,7 +129,7 @@ export type HonoxApp = Hono<HonoxEnv> & {
 export function createHonox(options: HonoxOptions): HonoxApp;
 ```
 
-`HonoxEnv` 的 Variables：`uid: string | null`、`user: JwtPayload | null`、`authError: "missing" | "invalid" | "expired" | null`、`rid: string`、`log?: Logger`（`installMiddleware` 写的，`traceOf` 读）、`api?: { module?: string; site?: string; fn?: string }`（由 `createApi()` / `apiRoute()` 写）。
+`HonoxEnv` 的 Variables：`uid: string | null`、`user: JwtPayload | null`、`authError: "missing" | "invalid" | "expired" | null`、`rid: string`、`logger?: Logger`（`installMiddleware` 写的，`traceOf` 读）、`api?: { module?: string; site?: string; fn?: string }`（由 `createApi()` / `apiRoute()` 写）。
 
 **只放每个请求独有的东西**：配置是进程级单例（viper 取值器），日志是进程级单例（`logo`），两者都直接 import，不按请求复制进 context——少一份可变的副本，也少一层"配置从哪来"的追问。
 
@@ -176,7 +176,7 @@ botsApi.post("/bots", BotsBody, (ctx, body) => {
 ```
 
 `traceOf(ctx)` 生成时把 `rid` / `uid` / `path` / `module`（`createApi` / `apiRoute`
-注册时写入）取干净，之后打日志不再碰 `ctx`。用的是装配时注入的 logger（`HonoxEnv.Variables.log`），
+注册时写入）取干净，之后打日志不再碰 `ctx`。用的是装配时注入的 logger（`HonoxEnv.Variables.logger`），
 没有才退回全局 `logo`——这是「日志不进 request context」那条决策的唯一例外，否则
 `createHonox({ logger })` 配的实例会被业务日志绕过。
 

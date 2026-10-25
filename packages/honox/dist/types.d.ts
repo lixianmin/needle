@@ -8,7 +8,7 @@ export type PublicEntry = string | {
     path: string;
 };
 /**
- * 中间件塞进 c.var 的全部内容。
+ * 中间件塞进 ctx.var 的全部内容。
  *
  * 只放**每个请求独有**的东西：配置是进程级单例（用 viper 取值器直接 import），
  * 日志是进程级单例（直接用 `logo`），都不该按请求复制一份进 context。
@@ -25,7 +25,7 @@ export interface HonoxEnv {
          * 这是「日志不进 request context」那条决策的唯一例外：`traceOf(ctx)` 要拿到
          * `createHonox({ logger })` 配的那个实例，否则业务日志会绕过装配跑进全局 logo。
          */
-        log?: Logger;
+        logger?: Logger;
         /**
          * 由 `createApi()` / `apiRoute()` 写入：这个请求属于哪个模块、注册在哪。
          *

@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { Hono } from "hono";
 import { newLogger } from "@needle/logo";
 import { sign } from "hono/jwt";
-import { createAuth, matchesPublic } from "../src/auth.js";
+import { createAuthGuard, matchesPublic } from "../src/auth.js";
 import type { HonoxEnv, PublicEntry } from "../src/types.js";
 
 const SECRET = "test-secret";
@@ -16,15 +16,15 @@ function appWith(
   extra: { claim?: string; cookie?: string } = {},
 ) {
   const app = new Hono<HonoxEnv>();
-  const log = newLogger({ sinks: [], batch: false });
-  app.use("*", createAuth({ secret: SECRET, ...extra }, publicEntries, log));
-  app.get("/me", (c) => c.json({ uid: c.get("uid"), err: c.get("authError") }));
-  app.get("/health", (c) => c.text("ok"));
-  app.post("/login", (c) => c.text("in"));
-  app.get("/users/:id", (c) => c.text("user"));
-  app.get("/assets", (c) => c.text("assets"));
-  app.get("/assets/path", (c) => c.text("asset"));
-  app.get("/assets/*", (c) => c.text("asset-deep"));
+  const logger = newLogger({ sinks: [], batch: false });
+  app.use("*", createAuthGuard({ secret: SECRET, ...extra }, publicEntries, logger));
+  app.get("/me", (ctx) => ctx.json({ uid: ctx.get("uid"), err: ctx.get("authError") }));
+  app.get("/health", (ctx) => ctx.text("ok"));
+  app.post("/login", (ctx) => ctx.text("in"));
+  app.get("/users/:id", (ctx) => ctx.text("user"));
+  app.get("/assets", (ctx) => ctx.text("assets"));
+  app.get("/assets/path", (ctx) => ctx.text("asset"));
+  app.get("/assets/*", (ctx) => ctx.text("asset-deep"));
   return app;
 }
 
@@ -41,7 +41,7 @@ describe("matchesPublic", () => {
   });
 });
 
-describe("createAuth", () => {
+describe("createAuthGuard", () => {
   test("有效 token 放行并设置 uid", async () => {
     const res = await appWith([]).request("/me", {
       headers: { authorization: `Bearer ${await token({ sub: "u1" })}` },

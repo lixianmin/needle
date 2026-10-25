@@ -39,7 +39,7 @@ POST /login   {"uid":"alice"}   # uid 可省（body 可空 {}），默认 "mock-
   一条不从框架入口进来的路由。body 模型见 `app/beans/login.ts`（`LoginBody`）。
 - `uid` 可选：`{}` 签 `mock-user`；`{"uid":""}` 也当没给——不该签出一枚 `sub` 为空的
   token。
-- token 用 `auth.secret` 签，payload `{ sub: uid, iat, exp }`——与 `createAuth` 的校验口径
+- token 用 `auth.secret` 签，payload `{ sub: uid, iat, exp }`——与 `createAuthGuard` 的校验口径
   完全一致（`sub` 取 uid、HS256）。所以这枚 token 与线上签出来的没有区别，测试台测的是
   真实链路，不是一条假路径。
 - `exp` = 现在 + 1 小时（`TOKEN_TTL_SECONDS`）。够点完一轮按钮，又不会在浏览器里留一个

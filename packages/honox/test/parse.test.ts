@@ -9,19 +9,19 @@ import type { HonoxEnv } from "../src/types.js";
 async function attempt<T>(
   path: string,
   init: RequestInit | undefined,
-  parse: (c: Context<HonoxEnv>) => T,
+  parse: (ctx: Context<HonoxEnv>) => T,
 ): Promise<{ value: T; error?: undefined } | { value?: undefined; error: unknown }> {
   let outcome: { value: T; error?: undefined } | { value?: undefined; error: unknown } = {
     value: undefined as T,
   };
   const app = new Hono<HonoxEnv>();
-  app.all("*", async (c) => {
+  app.all("*", async (ctx) => {
     try {
-      outcome = { value: await parse(c) };
+      outcome = { value: await parse(ctx) };
     } catch (error) {
       outcome = { error };
     }
-    return c.text("ok");
+    return ctx.text("ok");
   });
   await app.request(path, init);
   return outcome;
@@ -36,11 +36,11 @@ function jsonInit(payload: unknown): RequestInit {
 }
 
 async function parseBodyOf(schema: Parameters<typeof parseBody>[1], payload: unknown) {
-  return attempt("/x", jsonInit(payload), (c) => parseBody(c, schema));
+  return attempt("/x", jsonInit(payload), (ctx) => parseBody(ctx, schema));
 }
 
 async function parseQueryOf(schema: Parameters<typeof parseQuery>[1], path: string) {
-  return attempt(path, undefined, (c) => parseQuery(c, schema));
+  return attempt(path, undefined, (ctx) => parseQuery(ctx, schema));
 }
 
 function messageOf(error: unknown): string {
@@ -89,14 +89,14 @@ describe("parseBody", () => {
   test("body 已经被读过：原样抛错，不当成 400", async () => {
     const app = new Hono<HonoxEnv>();
     let caught: unknown;
-    app.post("/x", async (c) => {
-      await c.req.raw.text(); // 典型场景：签名校验先把原始流读走
+    app.post("/x", async (ctx) => {
+      await ctx.req.raw.text(); // 典型场景：签名校验先把原始流读走
       try {
-        await parseBody(c, BotsBody);
+        await parseBody(ctx, BotsBody);
       } catch (error) {
         caught = error;
       }
-      return c.text("ok");
+      return ctx.text("ok");
     });
     await app.request("/x", jsonInit({ ids: [1] }));
 

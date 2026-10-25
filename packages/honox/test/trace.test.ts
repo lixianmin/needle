@@ -6,23 +6,23 @@ import type { HonoxEnv } from "../src/types.js";
 
 function setup() {
   const records: LogRecord[] = [];
-  const log = newLogger({ sinks: [(batch) => records.push(...batch)], batch: false });
-  return { records, log };
+  const logger = newLogger({ sinks: [(batch) => records.push(...batch)], batch: false });
+  return { records, logger };
 }
 
 describe("traceOf", () => {
   test("绑定 rid / uid / path / module / site / fn（不带 method）", async () => {
-    const { records, log } = setup();
+    const { records, logger } = setup();
     const app = new Hono<HonoxEnv>();
-    app.use("*", async (c, next) => {
-      c.set("rid", "r1");
-      c.set("uid", "u1");
-      c.set("api", { module: "api/bots", site: "bots.ts:9", fn: "handler" });
+    app.use("*", async (ctx, next) => {
+      ctx.set("rid", "r1");
+      ctx.set("uid", "u1");
+      ctx.set("api", { module: "api/bots", site: "bots.ts:9", fn: "handler" });
       await next();
     });
-    app.post("/bots", (c) => {
-      traceOf(c, log).info({ ids: [1] });
-      return c.json({ ok: true });
+    app.post("/bots", (ctx) => {
+      traceOf(ctx, logger).info({ ids: [1] });
+      return ctx.json({ ok: true });
     });
 
     await app.request("/bots", { method: "POST" });
@@ -41,16 +41,16 @@ describe("traceOf", () => {
   });
 
   test("业务字段覆盖同名绑定字段", async () => {
-    const { records, log } = setup();
+    const { records, logger } = setup();
     const app = new Hono<HonoxEnv>();
-    app.use("*", async (c, next) => {
-      c.set("rid", "r1");
-      c.set("uid", "u1");
+    app.use("*", async (ctx, next) => {
+      ctx.set("rid", "r1");
+      ctx.set("uid", "u1");
       await next();
     });
-    app.get("/x", (c) => {
-      traceOf(c, log).warn({ uid: "override" });
-      return c.json({ ok: true });
+    app.get("/x", (ctx) => {
+      traceOf(ctx, logger).warn({ uid: "override" });
+      return ctx.json({ ok: true });
     });
 
     await app.request("/x");
@@ -59,18 +59,18 @@ describe("traceOf", () => {
   });
 
   test("级别方法返回 trace 自己，可以一行写完「建 trace + 打日志」", async () => {
-    const { records, log } = setup();
+    const { records, logger } = setup();
     const app = new Hono<HonoxEnv>();
-    app.use("*", async (c, next) => {
-      c.set("rid", "r1");
-      c.set("uid", null);
+    app.use("*", async (ctx, next) => {
+      ctx.set("rid", "r1");
+      ctx.set("uid", null);
       await next();
     });
     let same = false;
-    app.post("/x", (c) => {
-      const trace = traceOf(c, log).info({ step: 1 });
-      same = trace === traceOf(c, log) ? false : trace.info({ step: 2 }) === trace;
-      return c.json({ ok: true });
+    app.post("/x", (ctx) => {
+      const trace = traceOf(ctx, logger).info({ step: 1 });
+      same = trace === traceOf(ctx, logger) ? false : trace.info({ step: 2 }) === trace;
+      return ctx.json({ ok: true });
     });
 
     await app.request("/x", { method: "POST" });
@@ -80,14 +80,14 @@ describe("traceOf", () => {
   });
 
   test("json：记一条 info（status + result），返回 JSON 响应", async () => {
-    const { records, log } = setup();
+    const { records, logger } = setup();
     const app = new Hono<HonoxEnv>();
-    app.use("*", async (c, next) => {
-      c.set("rid", "r1");
-      c.set("uid", null);
+    app.use("*", async (ctx, next) => {
+      ctx.set("rid", "r1");
+      ctx.set("uid", null);
       await next();
     });
-    app.get("/x", (c) => traceOf(c, log).json({ bots: [1] }));
+    app.get("/x", (ctx) => traceOf(ctx, logger).json({ bots: [1] }));
 
     const res = await app.request("/x");
 
@@ -98,14 +98,14 @@ describe("traceOf", () => {
   });
 
   test("json：可以指定状态码", async () => {
-    const { records, log } = setup();
+    const { records, logger } = setup();
     const app = new Hono<HonoxEnv>();
-    app.use("*", async (c, next) => {
-      c.set("rid", "r1");
-      c.set("uid", null);
+    app.use("*", async (ctx, next) => {
+      ctx.set("rid", "r1");
+      ctx.set("uid", null);
       await next();
     });
-    app.post("/x", (c) => traceOf(c, log).json({ id: "a" }, 201));
+    app.post("/x", (ctx) => traceOf(ctx, logger).json({ id: "a" }, 201));
 
     const res = await app.request("/x", { method: "POST" });
 
@@ -114,14 +114,14 @@ describe("traceOf", () => {
   });
 
   test("notFound：记一条 info（status 404 + 响应体），返回 404", async () => {
-    const { records, log } = setup();
+    const { records, logger } = setup();
     const app = new Hono<HonoxEnv>();
-    app.use("*", async (c, next) => {
-      c.set("rid", "r1");
-      c.set("uid", null);
+    app.use("*", async (ctx, next) => {
+      ctx.set("rid", "r1");
+      ctx.set("uid", null);
       await next();
     });
-    app.get("/x", (c) => traceOf(c, log).notFound("bot 不存在"));
+    app.get("/x", (ctx) => traceOf(ctx, logger).notFound("bot 不存在"));
 
     const res = await app.request("/x");
 
@@ -136,15 +136,15 @@ describe("traceOf", () => {
   });
 
   test("notFound 默认 message；想记业务字段就链一个 info", async () => {
-    const { records, log } = setup();
+    const { records, logger } = setup();
     const app = new Hono<HonoxEnv>();
-    app.use("*", async (c, next) => {
-      c.set("rid", "r1");
-      c.set("uid", null);
+    app.use("*", async (ctx, next) => {
+      ctx.set("rid", "r1");
+      ctx.set("uid", null);
       await next();
     });
-    app.get("/x", (c) => {
-      const trace = traceOf(c, log);
+    app.get("/x", (ctx) => {
+      const trace = traceOf(ctx, logger);
       return trace.info({ id: 9, reason: "gone" }).notFound();
     });
 
@@ -158,16 +158,16 @@ describe("traceOf", () => {
   });
 
   test("没有 api 上下文时不出 module / site / fn", async () => {
-    const { records, log } = setup();
+    const { records, logger } = setup();
     const app = new Hono<HonoxEnv>();
-    app.use("*", async (c, next) => {
-      c.set("rid", "r1");
-      c.set("uid", null);
+    app.use("*", async (ctx, next) => {
+      ctx.set("rid", "r1");
+      ctx.set("uid", null);
       await next();
     });
-    app.get("/x", (c) => {
-      traceOf(c, log).debug({ a: 1 });
-      return c.json({ ok: true });
+    app.get("/x", (ctx) => {
+      traceOf(ctx, logger).debug({ a: 1 });
+      return ctx.json({ ok: true });
     });
 
     await app.request("/x");

@@ -4,7 +4,7 @@ import type { HonoxEnv } from "./types.js";
 /** 登记路由的方法：这些调用要抓注册位置（与 Hono 的 METHODS + all 对齐）。 */
 declare const ROUTE_METHODS: readonly ["get", "post", "put", "delete", "options", "patch", "query", "all"];
 /** 解析过参数的 handler：第二个参数是模型实例形状的对象。 */
-export type ParsedHandler<T> = (c: Context<HonoxEnv>, request: T) => Response | Promise<Response>;
+export type ParsedHandler<T> = (ctx: Context<HonoxEnv>, request: T) => Response | Promise<Response>;
 /** 不解析参数的 handler 类型（与 Hono 的 Handler 一致，单拎出来给业务标注用）。 */
 export type ApiHandler = Handler<HonoxEnv>;
 type RouteMethod = {

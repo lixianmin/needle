@@ -17,8 +17,12 @@ export declare function matchesPublic(entries: readonly PublicEntry[], method: s
  * 解 token + 门禁，一个中间件做完：解析失败不抛错，只把 uid 留空，
  * 让门禁统一决定 401。这样公开接口上带了个坏 token 也不会被拒。
  *
+ * 叫 Guard 而不是 authenticate：这个函数真正有策略的是后半段（白名单 + 401 + 那条
+ * warn 日志），前半段只是解 JWT。只认证不管放行的那种，叫 `createAuth`——
+ * `@needle/shell` 里就是它（登录 / 验签原语），两者不撞名。
+ *
  * 白名单是第二个参数而不是 options 的字段：它是策略，不是「怎么解 token」的配置。
  * 传数组引用（不是拷贝），调用方后续往里 append 的条目对每个请求都生效。
  */
-export declare function createAuth(options: AuthOptions, entries: readonly PublicEntry[], log: Logger): MiddlewareHandler<HonoxEnv>;
+export declare function createAuthGuard(options: AuthOptions, entries: readonly PublicEntry[], logger: Logger): MiddlewareHandler<HonoxEnv>;
 //# sourceMappingURL=auth.d.ts.map

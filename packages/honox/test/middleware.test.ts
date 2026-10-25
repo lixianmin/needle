@@ -8,15 +8,15 @@ const SECRET = "test-secret";
 
 function setup(options: { slowMs?: number } = {}) {
   const records: LogRecord[] = [];
-  const log = newLogger({ sinks: [(batch) => records.push(...batch)], batch: false });
-  const app = createHonox({ logger: log, auth: { secret: SECRET }, slowMs: options.slowMs });
+  const logger = newLogger({ sinks: [(batch) => records.push(...batch)], batch: false });
+  const app = createHonox({ logger, auth: { secret: SECRET }, slowMs: options.slowMs });
   return { app, records };
 }
 
 describe("兜底日志", () => {
   test("401：门禁拒绝记一条 warn，带 authError", async () => {
     const { app, records } = setup();
-    app.get("/me", (c) => c.json({ uid: c.get("uid") }));
+    app.get("/me", (ctx) => ctx.json({ uid: ctx.get("uid") }));
 
     const res = await app.request("/me");
 
@@ -159,9 +159,9 @@ describe("兜底日志", () => {
   test("慢请求：超过 slowMs 记一条 warn，带 durationMs", async () => {
     const { app, records } = setup({ slowMs: 10 });
     app.allowAnonymous(["/slow"]);
-    app.get("/slow", async (c) => {
+    app.get("/slow", async (ctx) => {
       await new Promise((resolve) => setTimeout(resolve, 30));
-      return c.json({ ok: true });
+      return ctx.json({ ok: true });
     });
 
     await app.request("/slow");
@@ -174,9 +174,9 @@ describe("兜底日志", () => {
   test("慢请求阈值 0 时关闭", async () => {
     const { app, records } = setup({ slowMs: 0 });
     app.allowAnonymous(["/slow"]);
-    app.get("/slow", async (c) => {
+    app.get("/slow", async (ctx) => {
       await new Promise((resolve) => setTimeout(resolve, 20));
-      return c.json({ ok: true });
+      return ctx.json({ ok: true });
     });
 
     await app.request("/slow");
@@ -190,7 +190,7 @@ describe("兜底日志", () => {
     app.get("/own", () => {
       throw new Error("own");
     });
-    app.onError((_error, c) => c.text("我自己的错误页", 500));
+    app.onError((_error, ctx) => ctx.text("我自己的错误页", 500));
 
     const res = await app.request("/own");
 
@@ -202,7 +202,7 @@ describe("兜底日志", () => {
   test("不写日志的路由零日志", async () => {
     const { app, records } = setup();
     app.allowAnonymous(["/health"]);
-    app.get("/health", (c) => c.json({ ok: true }));
+    app.get("/health", (ctx) => ctx.json({ ok: true }));
 
     await app.request("/health");
 

@@ -38,14 +38,14 @@ function assert(label, schema, value) {
  * **不做类型转换**：`Value.Parse` / `Value.Convert` 会把 `true` 变成 `1`，
  * 那是替客户端掩饰 bug 的口子，所以这里只用 `Value.Errors` 严格判。
  */
-export async function parseBody(c, schema) {
+export async function parseBody(ctx, schema) {
     let parsed;
     try {
-        parsed = await c.req.json();
+        parsed = await ctx.req.json();
     }
     catch (error) {
         // 只有 JSON 语法错才是客户端的锅。流已经被读过（比如前面的中间件为了校验
-        // 签名先读了 `c.req.raw`）属于接线错误，必须原样抛——否则它会被记成 400，
+        // 签名先读了 `ctx.req.raw`）属于接线错误，必须原样抛——否则它会被记成 400，
         // 而 RequestError 又不写 error 日志，服务端的 bug 就此彻底隐身。
         if (!(error instanceof SyntaxError)) {
             throw error;
@@ -54,7 +54,7 @@ export async function parseBody(c, schema) {
     }
     // Stryker disable next-line ConditionalExpression,LogicalOperator: TypeBox 的 Value.Default 对 null / 标量是 no-op，这层护栏不改变可观测行为
     if (typeof parsed === "object" && parsed !== null) {
-        // 就地补默认值：`c.req.json()` 出来的对象是本次请求独占的，改它没有副作用。
+        // 就地补默认值：`ctx.req.json()` 出来的对象是本次请求独占的，改它没有副作用。
         Value.Default(schema, parsed);
     }
     return assert("body", schema, parsed);
@@ -67,11 +67,11 @@ export async function parseBody(c, schema) {
  * - 空串视为未传：`?id=` 不该变成 `0`；
  * - schema 里该键是数组时收集全部重复值，否则取最后一个。
  */
-export function parseQuery(c, schema) {
+export function parseQuery(ctx, schema) {
     const declared = declaredKeysOf(schema);
     const arrays = arrayKeysOf(schema);
     const raw = {};
-    for (const [key, values] of Object.entries(c.req.queries())) {
+    for (const [key, values] of Object.entries(ctx.req.queries())) {
         if (!declared.has(key)) {
             continue;
         }
