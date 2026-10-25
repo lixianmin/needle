@@ -148,7 +148,8 @@
       }
       .free {
         display: grid;
-        grid-template-columns: 90px 1fr;
+        /* 方法固定 POST 后只剩一列：路径输入框与下面的 body 框同宽 */
+        grid-template-columns: 1fr;
         gap: 8px;
       }
       .free textarea {
