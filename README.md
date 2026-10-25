@@ -16,7 +16,7 @@ Web Shell，支持命令查看当前系统状态，如进程状态、业务数�
 | Hono 底座：`createHonox` | `@needle/honox` | 有 Hono 的运行时（Node / Bun / Workers） |
 | 配置加载：`loadConfig` | `@needle/honox/node` | 仅 Node / Bun（`node:fs`） |
 | Mongo：`createMongo` / `withTransaction` | `@needle/honox/mongo` | Node / Bun（要装 `mongodb`，选装） |
-| Excel 配置：`defineSheet` / `loadSheets` | `@needle/honox/excel` | Node / Bun |
+| Excel 配置：`createMetadata` | `@needle/honox/excel` | Node / Bun |
 
 
 `@needle/got` / `@needle/logo` / `@needle/shell` / `@needle/honox` 的根入口都不 import 任何 `node:` 模块，所以浏览器和 Workers 打包时不会把 Node 代码带进来。依赖是单向的：`honox` → `shell` → `logo`，`got` 不依赖任何包；`hono` 只在 `@needle/honox` 的 peerDependencies 里。
