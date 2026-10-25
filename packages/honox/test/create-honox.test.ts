@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { newLogger, type LogRecord } from "@needle/logo";
+import { formatLine, newLogger, type LogRecord } from "@needle/logo";
 import { sign } from "hono/jwt";
 import { HTTPException } from "hono/http-exception";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
@@ -112,7 +112,7 @@ describe("createHonox", () => {
     expect(records[0]).not.toHaveProperty("method");
   });
 
-  test("apiRoute：日志里的位置指向 API 注册处，不是中间件那一行", async () => {
+  test("apiRoute：日志带 module，模块名进前缀而不是中间件那一行", async () => {
     const records: LogRecord[] = [];
     const logger = newLogger({ sinks: [(batch) => records.push(...batch)], batch: false });
     const app = createHonox({ logger, auth: { secret: SECRET } });
@@ -129,10 +129,12 @@ describe("createHonox", () => {
 
     expect(records).toHaveLength(1);
     expect(records[0]?.module).toBe("api/where");
-    expect(records[0]?.site).toMatch(/^create-honox\.test\.ts:\d+$/);
+    expect(records[0]?.site).toBeUndefined();
+    expect(formatLine(records[0]!)).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2} \[I\] api\/where \{/);
+    expect(formatLine(records[0]!)).not.toContain('"module"');
   });
 
-  test("createApi(module)：每条路由各自记住注册位置，日志带 module", async () => {
+  test("createApi(module)：每条路由的日志都带同一个 module", async () => {
     const records: LogRecord[] = [];
     const logger = newLogger({ sinks: [(batch) => records.push(...batch)], batch: false });
     const app = createHonox({ logger, auth: { secret: SECRET } });
@@ -156,10 +158,9 @@ describe("createHonox", () => {
 
     expect(first?.module).toBe("api/group");
     expect(second?.module).toBe("api/group");
-    expect(first?.site).toMatch(/^create-honox\.test\.ts:\d+$/);
-    expect(second?.site).toMatch(/^create-honox\.test\.ts:\d+$/);
-    // 两条路由的注册行不同，说明是分别抓的，不是复用第一条
-    expect(first?.site).not.toBe(second?.site);
+    // 注册位置不再进日志：同一个模块的多条路由共用一个 module 前缀
+    expect(first?.site).toBeUndefined();
+    expect(second?.site).toBeUndefined();
   });
 
   test("Shell 未命中的路径也记一条 404（这条路径不在 Hono 路由表里）", async () => {

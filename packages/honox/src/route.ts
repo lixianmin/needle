@@ -1,13 +1,9 @@
-import { captureCallSite } from "@needle/logo";
 import { Hono, type Context, type Handler } from "hono";
 import { modelSchema, type ModelClass } from "./model.js";
 import { parseBody, parseQuery } from "./parse.js";
 import type { HonoxEnv } from "./types.js";
 
-/** 位置：这个路由注册在哪个文件:行，属于哪个模块。请求日志用它当 `module` / `site` / `fn`。 */
-type Origin = { module: string; site?: string; fn?: string };
-
-/** 登记路由的方法：这些调用要抓注册位置（与 Hono 的 METHODS + all 对齐）。 */
+/** 登记路由的方法：这些调用各自包一层 handler（与 Hono 的 METHODS + all 对齐）。 */
 const ROUTE_METHODS = [
   "get",
   "post",
@@ -62,9 +58,9 @@ type RouteMethod = {
 export type ApiGroup = Hono<HonoxEnv> &
   Record<(typeof ROUTE_METHODS)[number], RouteMethod>;
 
-function withOrigin(handler: Handler<HonoxEnv>, origin: Origin): Handler<HonoxEnv> {
+function withOrigin(handler: Handler<HonoxEnv>, module: string): Handler<HonoxEnv> {
   return (ctx, next) => {
-    ctx.set("api", origin);
+    ctx.set("api", { module });
     return handler(ctx, next);
   };
 }
@@ -76,14 +72,14 @@ function withOrigin(handler: Handler<HonoxEnv>, origin: Origin): Handler<HonoxEn
  * 构造响应，错误出口只有一个。
  */
 function withModel<T>(
-  origin: Origin,
+  module: string,
   method: string,
   model: ModelClass<T>,
   handler: ParsedHandler<T>,
 ): Handler<HonoxEnv> {
   const readsQuery = QUERY_METHODS.has(method);
   return async (ctx) => {
-    ctx.set("api", origin);
+    ctx.set("api", { module });
     const schema = modelSchema(model);
     const request = readsQuery ? parseQuery(ctx, schema) : await parseBody(ctx, schema);
     return handler(ctx, request as T);
@@ -92,7 +88,7 @@ function withModel<T>(
 
 /**
  * 建一个 API 组：一个文件一个实例，`module` 是这个文件在生产日志里的身份
- * （打包、压缩后唯一还活着的定位信息，所以必须手写一次）。
+ * （打包、压缩后唯一还活着的定位信息，所以必须手写一次；日志行里它当前缀，不进 JSON）。
  *
  * ```ts
  * export const botsApi = createApi("api/bots");
@@ -101,7 +97,8 @@ function withModel<T>(
  * botsApi.get("/health", (ctx) => ctx.json({ ok: true })); // 不校验参数
  * ```
  *
- * 与直接用 `new Hono()` 的区别：登记路由时抓下「文件:行」，`module` 写进 context。
+ * 与直接用 `new Hono()` 的区别：登记路由时把 `module` 写进 context，
+ * `traceOf(ctx)` 据此给每条日志加模块前缀。
  */
 export function createApi(module: string): ApiGroup {
   const app = new Hono<HonoxEnv>();
@@ -117,8 +114,8 @@ export function createApi(module: string): ApiGroup {
           if (typeof path !== "string") {
             throw new Error(`createApi 的路由必须带路径：${prop}("/path", handler)`);
           }
-          // 第 0 帧是这个箭头函数（route.ts），第 1 帧是调用方（接口文件）。
-          const origin: Origin = { module, ...captureCallSite(1) };
+          // 第 0 帧是这个箭头函数（route.ts），不再抓注册行：打包后栈里只剩
+          // bundle 坐标，定位靠 `module`（日志前缀）。
           const withModelForm =
             args.length === 2 && typeof args[1] === "function" && isModelClass(args[0]);
           if (withModelForm && prop === "all") {
@@ -132,10 +129,10 @@ export function createApi(module: string): ApiGroup {
             );
           }
           const handlers: Handler<HonoxEnv>[] = withModelForm
-            ? [withModel(origin, prop, args[0] as ModelClass<unknown>, args[1] as ParsedHandler<unknown>)]
+            ? [withModel(module, prop, args[0] as ModelClass<unknown>, args[1] as ParsedHandler<unknown>)]
             : args
                 .filter((entry): entry is Handler<HonoxEnv> => typeof entry === "function")
-                .map((entry) => withOrigin(entry, origin));
+                .map((entry) => withOrigin(entry, module));
           const register = (
             target as unknown as Record<string, (p: string, ...h: Handler<HonoxEnv>[]) => void>
           )[prop];
@@ -166,6 +163,5 @@ export function createApi(module: string): ApiGroup {
 
 /** 只包 handler（不动路由表）：已有 `new Hono()` 实例、或一条路径挂多个方法时用它。 */
 export function apiRoute(module: string, handler: Handler<HonoxEnv>): Handler<HonoxEnv> {
-  // 第 0 帧是 apiRoute 自己。
-  return withOrigin(handler, { module, ...captureCallSite(1) });
+  return withOrigin(handler, module);
 }

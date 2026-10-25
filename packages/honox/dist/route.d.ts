@@ -1,7 +1,7 @@
 import { Hono, type Context, type Handler } from "hono";
 import { type ModelClass } from "./model.js";
 import type { HonoxEnv } from "./types.js";
-/** 登记路由的方法：这些调用要抓注册位置（与 Hono 的 METHODS + all 对齐）。 */
+/** 登记路由的方法：这些调用各自包一层 handler（与 Hono 的 METHODS + all 对齐）。 */
 declare const ROUTE_METHODS: readonly ["get", "post", "put", "delete", "options", "patch", "query", "all"];
 /** 解析过参数的 handler：第二个参数是模型实例形状的对象。 */
 export type ParsedHandler<T> = (ctx: Context<HonoxEnv>, request: T) => Response | Promise<Response>;
@@ -18,7 +18,7 @@ type RouteMethod = {
 export type ApiGroup = Hono<HonoxEnv> & Record<(typeof ROUTE_METHODS)[number], RouteMethod>;
 /**
  * 建一个 API 组：一个文件一个实例，`module` 是这个文件在生产日志里的身份
- * （打包、压缩后唯一还活着的定位信息，所以必须手写一次）。
+ * （打包、压缩后唯一还活着的定位信息，所以必须手写一次；日志行里它当前缀，不进 JSON）。
  *
  * ```ts
  * export const botsApi = createApi("api/bots");
@@ -27,7 +27,8 @@ export type ApiGroup = Hono<HonoxEnv> & Record<(typeof ROUTE_METHODS)[number], R
  * botsApi.get("/health", (ctx) => ctx.json({ ok: true })); // 不校验参数
  * ```
  *
- * 与直接用 `new Hono()` 的区别：登记路由时抓下「文件:行」，`module` 写进 context。
+ * 与直接用 `new Hono()` 的区别：登记路由时把 `module` 写进 context，
+ * `traceOf(ctx)` 据此给每条日志加模块前缀。
  */
 export declare function createApi(module: string): ApiGroup;
 /** 只包 handler（不动路由表）：已有 `new Hono()` 实例、或一条路径挂多个方法时用它。 */

@@ -30,7 +30,7 @@ export function traceOf(ctx, logger) {
         rid: ctx.get("rid"),
         uid: ctx.get("uid"),
         path: ctx.req.path,
-        ...(where === undefined ? {} : { module: where.module, site: where.site, fn: where.fn }),
+        ...(where === undefined ? {} : { module: where.module }),
     };
     const trace = {};
     for (const level of LEVELS) {

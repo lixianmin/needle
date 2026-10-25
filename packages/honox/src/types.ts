@@ -27,11 +27,11 @@ export interface HonoxEnv {
      */
     logger?: Logger;
     /**
-     * 由 `createApi()` / `apiRoute()` 写入：这个请求属于哪个模块、注册在哪。
+     * 由 `createApi()` / `apiRoute()` 写入：这个请求属于哪个模块。
      *
-     * `module` 是手写的一次性身份（打包、压缩后唯一还活着的定位信息）；
-     * `site` / `fn` 来自注册时的栈帧，只当开发期信息。
+     * `module` 是手写的一次性身份（打包、压缩后唯一还活着的定位信息），
+     * `traceOf(ctx)` 把它放进日志前缀，不重复写进 JSON。
      */
-    api?: { module?: string; site?: string; fn?: string };
+    api?: { module: string };
   };
 }

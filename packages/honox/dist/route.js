@@ -1,8 +1,7 @@
-import { captureCallSite } from "@needle/logo";
 import { Hono } from "hono";
 import { modelSchema } from "./model.js";
 import { parseBody, parseQuery } from "./parse.js";
-/** 登记路由的方法：这些调用要抓注册位置（与 Hono 的 METHODS + all 对齐）。 */
+/** 登记路由的方法：这些调用各自包一层 handler（与 Hono 的 METHODS + all 对齐）。 */
 const ROUTE_METHODS = [
     "get",
     "post",
@@ -35,9 +34,9 @@ function isModelClass(value) {
     }
     return Object.getOwnPropertyDescriptor(value, "prototype")?.writable === false;
 }
-function withOrigin(handler, origin) {
+function withOrigin(handler, module) {
     return (ctx, next) => {
-        ctx.set("api", origin);
+        ctx.set("api", { module });
         return handler(ctx, next);
     };
 }
@@ -47,10 +46,10 @@ function withOrigin(handler, origin) {
  * 解析失败抛 `RequestError`，交给 app 的 `onError` 映射成 4xx——不在路由层
  * 构造响应，错误出口只有一个。
  */
-function withModel(origin, method, model, handler) {
+function withModel(module, method, model, handler) {
     const readsQuery = QUERY_METHODS.has(method);
     return async (ctx) => {
-        ctx.set("api", origin);
+        ctx.set("api", { module });
         const schema = modelSchema(model);
         const request = readsQuery ? parseQuery(ctx, schema) : await parseBody(ctx, schema);
         return handler(ctx, request);
@@ -58,7 +57,7 @@ function withModel(origin, method, model, handler) {
 }
 /**
  * 建一个 API 组：一个文件一个实例，`module` 是这个文件在生产日志里的身份
- * （打包、压缩后唯一还活着的定位信息，所以必须手写一次）。
+ * （打包、压缩后唯一还活着的定位信息，所以必须手写一次；日志行里它当前缀，不进 JSON）。
  *
  * ```ts
  * export const botsApi = createApi("api/bots");
@@ -67,7 +66,8 @@ function withModel(origin, method, model, handler) {
  * botsApi.get("/health", (ctx) => ctx.json({ ok: true })); // 不校验参数
  * ```
  *
- * 与直接用 `new Hono()` 的区别：登记路由时抓下「文件:行」，`module` 写进 context。
+ * 与直接用 `new Hono()` 的区别：登记路由时把 `module` 写进 context，
+ * `traceOf(ctx)` 据此给每条日志加模块前缀。
  */
 export function createApi(module) {
     const app = new Hono();
@@ -82,8 +82,8 @@ export function createApi(module) {
                     if (typeof path !== "string") {
                         throw new Error(`createApi 的路由必须带路径：${prop}("/path", handler)`);
                     }
-                    // 第 0 帧是这个箭头函数（route.ts），第 1 帧是调用方（接口文件）。
-                    const origin = { module, ...captureCallSite(1) };
+                    // 第 0 帧是这个箭头函数（route.ts），不再抓注册行：打包后栈里只剩
+                    // bundle 坐标，定位靠 `module`（日志前缀）。
                     const withModelForm = args.length === 2 && typeof args[1] === "function" && isModelClass(args[0]);
                     if (withModelForm && prop === "all") {
                         throw new Error(`all ${path}：all 会按 body 解析参数，GET 之类没有 body 的请求必然 400；请分开写具体方法`);
@@ -92,10 +92,10 @@ export function createApi(module) {
                         throw new Error(`${prop} ${path}：带模型的写法只支持 (path, Model, handler)，模型不能出现在 handler 位置`);
                     }
                     const handlers = withModelForm
-                        ? [withModel(origin, prop, args[0], args[1])]
+                        ? [withModel(module, prop, args[0], args[1])]
                         : args
                             .filter((entry) => typeof entry === "function")
-                            .map((entry) => withOrigin(entry, origin));
+                            .map((entry) => withOrigin(entry, module));
                     const register = target[prop];
                     register?.call(target, path, ...handlers);
                     // 返回代理而不是 target：链式 `.get(...).post(...)` 后续调用也要被包住。
@@ -123,6 +123,5 @@ export function createApi(module) {
 }
 /** 只包 handler（不动路由表）：已有 `new Hono()` 实例、或一条路径挂多个方法时用它。 */
 export function apiRoute(module, handler) {
-    // 第 0 帧是 apiRoute 自己。
-    return withOrigin(handler, { module, ...captureCallSite(1) });
+    return withOrigin(handler, module);
 }

@@ -250,7 +250,7 @@ app.get("/apc", apiRoute("api/apc", (c) => …));
 ```
 
 - **`module` 必填**：它是生产环境唯一的定位信息来源（§8.4.3），可选就等于允许一批没有身份的日志。
-- 带模型的写法：注册时 `captureCallSite(1)` 抓 `文件:行`，连同 `module` 写进 `c.set("api", …)`；
+- 带模型的写法：注册时只把 `module` 写进 `c.set("api", …)`（不再抓注册位置）；
   请求到达时按方法决定解析哪一侧（GET/DELETE 读 query，其余读 body），把校验后的对象作为
   handler 的第二个参数。失败抛 `RequestError`，由 `onError` 映射成 4xx。
   代价：一个路由只校验一侧参数（当前没有接口同时需要 query 与 body）。
@@ -271,14 +271,15 @@ app.get("/apc", apiRoute("api/apc", (c) => …));
 `info` / `warn` / `debug` 零构造。
 
 生产环境的定位靠**手写一次的 `module`**：`createApi("api/bots")` / `apiRoute("api/bots", h)`
-里的那个字符串，等于 C++ 里 `LOG_INFO` 宏带的 `__FILE__`。它经 `c.set("api", …)` 进 context，
-由 `traceOf(ctx)` 写进每条业务日志（`logo.child({ module })` 是同一件事，给非请求场景用）。
+里的那个字符串，等于 C++ 里 `LOG_INFO` 宏带的 `__FILE__`。它经 `c.set("api", { module })` 进 context，
+由 `traceOf(ctx)` 写进每条业务日志的**行前缀**（JSON 载荷里不再重复；`logo.child({ module })` 是同一件事，给非请求场景用）。
 
-- `captureCallSite()` 仍保留：`createApi` / `apiRoute` 注册时抓一次 `文件:行`，写进 `site` / `fn`。
-  它**只当开发期信息**——打包后同样是 bundle 坐标，不许当生产定位手段。
+- `captureCallSite()` 已经删除：注册位置不再抓，打包后它同样是 bundle 坐标，从来不是生产定位手段；
+  honox 改用 `module` 之后包里也没有别的消费者。
 - `callerDepth`（对应 Go 的 `SetFuncCallDepth`）删掉了：它存在的唯一目的是修补「助手包一层
   位置就歪」，自动抓栈没了之后没有意义。
-- 行格式仍是 `日期T时间 [级别] 文件:行 [函数()] 载荷`；`site` / `fn` 只在前缀里，不进 JSON。
+- 行格式是 `日期T时间 [级别] 模块名 载荷`（logo 直调用 payload 给 `site`/`fn` 时仍是
+  `文件:行 [函数()]`）；`module` / `site` / `fn` 只在前缀里，不进 JSON。
 
 ### 8.5 配置加载（`@needle/honox/node`）### 8.5 配置加载（`@needle/honox/node`）
 

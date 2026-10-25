@@ -14,7 +14,7 @@
 
 目标：
 
-- 业务在 handler 里 `traceOf(ctx).info({ ... })` 拿到带 `rid` / `uid` / `path` / `module` 的日志；health 这类不写就是零日志。
+- 业务在 handler 里 `traceOf(ctx).info({ ... })` 拿到带 `rid` / `uid` / `path` 的日志，`module` 进行前缀；health 这类不写就是零日志。
 - 库内自己产生的失败（401 / 404 / 500 / 慢请求）仍然有日志——这些地方没有 handler，业务补不了。
 - `botsApi.post("/bots", BotsBody, (ctx, body) => …)`：一处声明、无花括号对象、无 TypeBox。
 - 日志在**打包后**仍能看出「来自哪个模块」。
@@ -70,8 +70,8 @@
 
 - `emit` 不再无条件 `externalFrames()`：`withStack` 命中（默认只有 `error`）时构造一次 `Error` 取栈，`info`/`warn`/`debug` **零构造**。
 - 删 `LoggerOptions.callerDepth` 与 `child()` 里的透传（它只为修补「助手包一层位置就歪」，入口没了就没有意义）。包未发布，直接删。
-- **保留** `captureCallSite(skip)`：`createApi()` / `apiRoute()` 注册时仍要抓一次 `site`/`fn`。
-- `buildRecord` / `formatPayload` / `formatLine` 不动：`site`/`fn` 仍可由 payload 提供，只进前缀。
+- **删除 `captureCallSite`**：路由注册不再抓 `文件:行`——打包后那是 bundle 坐标，`module` 已经是定位手段；包内没有别的消费者。
+- `buildRecord` / `formatPayload` / `formatLine`：`site`/`fn` 仍可由 payload 提供，只进前缀；新增同义的 `module`（模块名）也走前缀、不进 JSON，两者都有时 `site` 优先。
 
 ### 5.2 `traceOf(ctx)`
 
@@ -93,7 +93,7 @@ export interface Trace {
   所以两个方法都只有一个参数，不存在「第一个参数是日志负载、第二个是响应」那种读不出意图的形状。
   业务想额外记字段就显式链一个 `.info({...})`（它返回 trace 自己），不想要就 `trace.notFound("…")` 一行。
   不想记这条响应日志就直接用 `ctx.json`。
-- 生成时把 `rid` / `uid` / `path` / `module` / `site` / `fn` 从 `ctx` 取干净，之后打日志不再碰 `ctx`（`json` / `notFound` 要造响应，仍要用它）。
+- 生成时把 `rid` / `uid` / `path` / `module` 从 `ctx` 取干净，之后打日志不再碰 `ctx`（`json` / `notFound` 要造响应，仍要用它）。`module` 只进行前缀，不重复写进 JSON。
 - 每次调用等价于 `log[level](base, ...args)`：**绑定字段在前、业务参数在后**，同名时业务覆盖（与 logo「后写的赢」一致）。
 - 不往 `Context` 上挂任何东西（`c.error` 已被 Hono 占用；挂 `c.log` 又要声明合并污染所有 `Context`）。
 - 用装配时注入的 logger：`installMiddleware` 把 `log` 写进 `ctx`（`HonoxEnv.Variables.log`），
@@ -130,10 +130,10 @@ botsApi.get("/health", (ctx) => ctx.json({ ok: true }));  // 不校验参数
 第二个参数统一叫 `request`：GET 时是 query 参数、其余是 body，业务只关心「这次请求的参数」。
 
 - `module` 必填（`"api/bots"` 形态）：`traceOf(ctx)` 的 `module` 只能从注册处来。
-- 注册时 `captureCallSite(1)` 抓 `site`/`fn`（dev-only，见 §8），连同 `module` 一起 `c.set("api", …)`。
+- 注册时只把 `module` 写进 context（`c.set("api", { module })`）：不再抓注册位置。
 - 模型按方法决定解析哪一侧：GET/DELETE → query，POST/PUT/PATCH → body。代价：一个路由不能同时校验 query 与 body（当前没有这种接口；真出现时再加）。
 - **`createApi()` 的 Proxy 必须只绑原型方法**，实例自有字段（`errorHandler` / `routes`）原样返回——否则父 `onError` 收不到该组路由的异常（§3 实测）。
-- `HonoxEnv.Variables.api` 变成 `{ module?: string; site?: string; fn?: string }`（类型上可选，`createApi` / `apiRoute` 一定写；裸 `app.get` 没有）。
+- `HonoxEnv.Variables.api` 是 `{ module: string }`（`createApi` / `apiRoute` 一定写；裸 `app.get` 没有）。
 
 ### 5.5 model → schema 生成
 
@@ -213,16 +213,16 @@ type _BotsBodyInSync = Assert<Equals<Static<typeof BotsBodySchema>, BotsBody>>;
 
 ## 7 测试
 
-- logo：`info`/`warn` 不再产生 `site`；`error` 仍有 `stack`；`captureCallSite()` 仍返回 `文件:行`；删掉 `callerDepth` 的两条测试。
+- logo：`info`/`warn` 不再产生 `site`；`error` 仍有 `stack`；`captureCallSite` 与其测试删除；`formatLine` 的 `module` 进前缀、不进 JSON。
 - honox 路由：`(path, Model, handler)` 能解析 query/body；裸 `(path, handler)` 照旧；模型未注册 → 明确报错；query 多余键不 400、body 多余字段 400。
 - honox 日志：401 / 404 / 500 / 慢请求各一条且字段正确；业务自装 `onError` 时 500 仍有日志；`throw "字符串"` 有日志且响应 500；`RequestError` 不记 error；health 零日志。
 - 代理：`createApi()` 挂到父 app 后，组内路由抛错仍走父 `onError`（钉住 §3 那个 bug）。
 - 生成器：嵌套/跨文件/数组/可选/漂移检查（双向）/循环引用报错/重名报错/方法声明报错。
-- 示例：`example:typecheck` + `bun run example` 后 `/health` 无日志、`/bots` 带 `module`。
+- 示例：`example:typecheck` + `bun run example` 后 `/health` 无日志、`/bots` 的日志前缀是 `api/bots`。
 
 ## 8 已知限制
 
-- **打包后 `site`/`fn` 是 bundle 坐标**；`module` 才是生产定位手段。
+- **日志里没有 `site`/`fn`**：注册位置不再抓，打包后那只会是 bundle 坐标；定位靠手写的 `module`（行前缀）。
 - **Workers / 浏览器侧开 `drop: ["console"]` 会让日志全部消失**：那些环境里 stdout sink 退回 `console.log`（`packages/logo/src/sinks/stdout.ts:40`）；Node/Bun 走 `process.stdout.write`，不受影响。
 - Shell 面板自身请求不再有访问日志（exec 失败仍记 error）。
 - 走 `createHonox` 但直接 `app.get(...)` 注册的路由：有 `traceOf(ctx)`、没有 `module`。

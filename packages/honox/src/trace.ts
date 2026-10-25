@@ -63,7 +63,7 @@ export function traceOf(ctx: Context<HonoxEnv>, logger?: Logger): Trace {
     rid: ctx.get("rid"),
     uid: ctx.get("uid"),
     path: ctx.req.path,
-    ...(where === undefined ? {} : { module: where.module, site: where.site, fn: where.fn }),
+    ...(where === undefined ? {} : { module: where.module }),
   };
 
   const trace = {} as Trace;

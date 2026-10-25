@@ -20,6 +20,12 @@ export interface LogRecord {
      * 库不再逐条抓栈：打包后栈里只是 bundle 坐标（与 Go 版 FlagShortFile 同口径）。
      */
     site?: string;
+    /**
+     * 请求来源的模块身份，如 `api/bots`，由 payload 提供（`traceOf` 抄注册时的 `createApi(module)`）。
+     * 与 `site` 同义：两者都只进行前缀，不重复写进 JSON；都有时 `site` 优先。
+     * 打包后它是唯一还活着的定位信息。
+     */
+    module?: string;
     /** 调用点所在函数名。 */
     fn?: string;
     stack?: string;

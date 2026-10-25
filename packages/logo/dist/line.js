@@ -32,15 +32,19 @@ export const LEVEL_HINTS = {
  *
  *   [I] request-log.ts:28 [requestLog()] {"rid":"01JB..."}
  *
- * 前缀给人看，后面那段给机器解析。`time` / `level` / `site` / `fn` 只出现在前缀里，
+ * 前缀给人看，后面那段给机器解析。`time` / `level` / `site` / `module` / `fn` 只出现在前缀里，
  * 不再重复进 JSON——同一条信息写两遍，既是浪费，也给了两个可能不一致的来源。
+ *
+ * `site`（文件:行）与 `module`（模块名）同义：都是「这条日志属于哪儿」，谁有就用谁。
+ * honox 只给 `module`（注册时的文件:行打包后就是 bundle 坐标），logo 直调时一般给 `site`。
  *
  * 控制台面板按行渲染时用它（时间单独一个 span），落盘用 `formatLine`。
  */
 export function formatPayload(record) {
-    const { time: _time, level, site, fn: fnName, ...rest } = record;
+    const { time: _time, level, site, module, fn: fnName, ...rest } = record;
     const hint = LEVEL_HINTS[level] ?? "[?]";
-    const where = site === undefined ? "" : `${site} `;
+    const label = site ?? module;
+    const where = label === undefined ? "" : `${label} `;
     const who = fnName === undefined || fnName === "" ? "" : `[${fnName}()] `;
     return `${hint} ${where}${who}${safeStringify(rest)}`;
 }

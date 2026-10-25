@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { newLogger, type LogRecord } from "@needle/logo";
+import { formatLine, newLogger, type LogRecord } from "@needle/logo";
 import { Hono } from "hono";
 import { traceOf } from "../src/trace.js";
 import type { HonoxEnv } from "../src/types.js";
@@ -11,13 +11,13 @@ function setup() {
 }
 
 describe("traceOf", () => {
-  test("绑定 rid / uid / path / module / site / fn（不带 method）", async () => {
+  test("绑定 rid / uid / path / module（不带 method；module 只进前缀）", async () => {
     const { records, logger } = setup();
     const app = new Hono<HonoxEnv>();
     app.use("*", async (ctx, next) => {
       ctx.set("rid", "r1");
       ctx.set("uid", "u1");
-      ctx.set("api", { module: "api/bots", site: "bots.ts:9", fn: "handler" });
+      ctx.set("api", { module: "api/bots" });
       await next();
     });
     app.post("/bots", (ctx) => {
@@ -33,11 +33,16 @@ describe("traceOf", () => {
       uid: "u1",
       path: "/bots",
       module: "api/bots",
-      site: "bots.ts:9",
-      fn: "handler",
       ids: [1],
       level: "info",
     });
+    // 注册位置不再进日志
+    expect(records[0]).not.toHaveProperty("site");
+    expect(records[0]).not.toHaveProperty("fn");
+    // module 只出现在前缀：JSON 载荷里只有业务字段与 path
+    expect(formatLine(records[0]!)).toMatch(
+      /\[I\] api\/bots \{"rid":"r1","uid":"u1","path":"\/bots","ids":\[1\]\}$/,
+    );
   });
 
   test("业务字段覆盖同名绑定字段", async () => {
@@ -157,7 +162,7 @@ describe("traceOf", () => {
     expect(await res.json()).toEqual({ code: "not_found", message: "接口不存在" });
   });
 
-  test("没有 api 上下文时不出 module / site / fn", async () => {
+  test("没有 api 上下文时不出 module", async () => {
     const { records, logger } = setup();
     const app = new Hono<HonoxEnv>();
     app.use("*", async (ctx, next) => {
@@ -175,6 +180,5 @@ describe("traceOf", () => {
     const record = records[0];
     expect(record?.module).toBeUndefined();
     expect(record?.site).toBeUndefined();
-    expect(record?.fn).toBeUndefined();
   });
 });

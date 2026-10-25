@@ -1,13 +1,4 @@
 import { type Level, type Sink } from "./types.js";
-/**
- * 抓当前调用点的 { site, fn }，`skip` 是额外跳过的帧数（0 = 调用本函数的那一行）。
- *
- * 给需要"在别处记录位置、稍后再打日志"的场景用（例如 HTTP 路由注册时记下文件:行）。
- */
-export declare function captureCallSite(skip?: number): {
-    site: string;
-    fn: string;
-} | undefined;
 export interface LoggerOptions {
     /** 低于这个级别不记录。默认 "info"。 */
     level?: Level;
