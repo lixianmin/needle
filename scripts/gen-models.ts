@@ -14,8 +14,8 @@
  * 它不提供 `createSourceFile` 这类 AST API。
  */
 import ts from "typescript-6";
-import { readFileSync, writeFileSync } from "node:fs";
-import { basename, dirname, relative, resolve, sep } from "node:path";
+import { existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { basename, dirname, join, relative, resolve, sep } from "node:path";
 
 const SCALARS: Partial<Record<ts.SyntaxKind, string>> = {
   [ts.SyntaxKind.NumberKeyword]: "Type.Number()",
@@ -348,6 +348,37 @@ ${registrations}
 `;
 }
 
+/**
+ * 删掉「源文件已经没了」的生成物。
+ *
+ * 生成器只按本次输入写文件，从不删旧的：把 `bots.ts` 改名成 `robot.ts` 之后，
+ * `bots.generated.ts` 会一直留在目录里，内容还 import 已删除的 `./bots.js`，
+ * 而 pre-commit 的 `git add <dir>` 只增不减，坏文件就这样进了 commit。
+ *
+ * 只删**源文件不存在**的生成物：源文件还在、只是这次没传进来时不动它。
+ */
+function removeOrphans(files: readonly string[]): string[] {
+  const dirs = new Set(files.map((file) => dirname(resolve(file))));
+  const removed: string[] = [];
+  for (const dir of dirs) {
+    for (const entry of readdirSync(dir)) {
+      if (!entry.endsWith(".generated.ts")) {
+        continue;
+      }
+
+      const source = join(dir, `${entry.slice(0, -".generated.ts".length)}.ts`);
+      if (existsSync(source)) {
+        continue;
+      }
+
+      rmSync(join(dir, entry));
+      removed.push(entry);
+    }
+  }
+
+  return removed;
+}
+
 function main(files: readonly string[]): void {
   const models = collect(files);
   validate(models);
@@ -356,6 +387,10 @@ function main(files: readonly string[]): void {
   for (const file of new Set(all.map((model) => model.file))) {
     const ordered = orderedFor(all, file);
     writeFileSync(resolve(dirname(file), `${basename(file, ".ts")}.generated.ts`), render(file, ordered, all));
+  }
+
+  for (const orphan of removeOrphans(files)) {
+    console.log(`删除孤儿生成物：${orphan}`);
   }
 }
 

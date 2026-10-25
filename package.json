@@ -17,7 +17,7 @@
     "test": "bun test",
     "typecheck": "tsc --noEmit",
     "size": "bun build scripts/size-log-only.ts --minify --target=browser | gzip -c | wc -c && bun build packages/shell/dist/index.js --minify --target=browser | gzip -c | wc -c",
-    "version:sync": "bun scripts/sync-version.mjs",
+    "version:sync": "bun scripts/sync-version.ts",
     "example:install": "cd examples/honox-app && bun install --frozen-lockfile",
     "example:build": "cd examples/honox-app && bun run build",
     "example": "cd examples/honox-app && bun dist/index.js",

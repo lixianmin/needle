@@ -490,7 +490,7 @@ HTTP 接口按 `app/api/<name>.ts` 一接口一文件（照 rim.server 的 `app/
 
 - 根 `package.json`：`build:honox`（排在 `build:shell` 之后），并加进 `build` 链。
 - 各包 `tsconfig.build.json` 开 `declarationMap`：dist 是提交进仓库的，`exports.types` 指到 `dist/*.d.ts`；没有 map 时编辑器只能跳到 `.d.ts`，有 map 才落到 `src/*.ts`。`.map` 与 dist 一起提交。
-- `scripts/sync-version.mjs`：targets 加 `packages/honox/package.json`。
+- `scripts/sync-version.ts`：包清单从根 `workspaces` 的 glob 推导，新增包自动纳入（`scripts/workspaces.ts`）。
 - `test/version-lock.test.ts`：把 honox 纳入「各包版本 == 根版本」。
 - `packages/shell/test/no-hono-coupling.test.ts`：按 §6 收窄口径（core/logo/shell 不变 + honox 例外），依赖图与入口表补 honox。
 - 根 `tsconfig.json`：`exclude: ["examples/honox-app"]`。

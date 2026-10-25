@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, test } from "bun:test";
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const ROOT = join(import.meta.dir, "..");
@@ -145,5 +145,37 @@ export class BotsBody {
     const dup = run([a, b]);
     expect(dup.code).toBe(1);
     expect(dup.stderr).toMatch(/模型重名：Same/);
+  });
+});
+
+describe("孤儿生成物", () => {
+  // 改名 / 删除 bean 之后，旧生成物会一直留着并 import 已删除的模块；pre-commit 的
+  // git add 只增不减，坏文件随之进 commit。
+  test("源文件被删掉后，对应的 *.generated.ts 一并删除", () => {
+    reset();
+    write(
+      "keep.ts",
+      `export class Keep {
+  id: number = 0;
+}
+`,
+    );
+    const gone = write(
+      "gone.ts",
+      `export class Gone {
+  id: number = 0;
+}
+`,
+    );
+
+    expect(run([join(TMP, "keep.ts"), gone]).code).toBe(0);
+    expect(existsSync(join(TMP, "gone.generated.ts"))).toBe(true);
+
+    rmSync(gone);
+    const second = run([join(TMP, "keep.ts")]);
+
+    expect(second.code).toBe(0);
+    expect(existsSync(join(TMP, "gone.generated.ts"))).toBe(false);
+    expect(existsSync(join(TMP, "keep.generated.ts"))).toBe(true);
   });
 });

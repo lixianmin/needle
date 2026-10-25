@@ -1,5 +1,6 @@
 import { readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, relative } from "node:path";
+import { workspacePackageDirs } from "./workspaces.js";
 
 /**
  * 把根 package.json 的 version 写进每个 workspace 包。
@@ -14,16 +15,10 @@ if (typeof root.version !== "string" || root.version === "") {
   process.exit(1);
 }
 
-const targets = [
-  "packages/got/package.json",
-  "packages/logo/package.json",
-  "packages/shell/package.json",
-  "packages/honox/package.json",
-];
+const targets = workspacePackageDirs().map((dir) => join(dir, "package.json"));
 
 let changed = 0;
-for (const path of targets) {
-  const full = join(process.cwd(), path);
+for (const full of targets) {
   const pkg = JSON.parse(readFileSync(full, "utf8"));
   if (pkg.version === root.version) {
     continue;
@@ -31,7 +26,7 @@ for (const path of targets) {
 
   pkg.version = root.version;
   writeFileSync(full, `${JSON.stringify(pkg, null, 2)}\n`);
-  console.log(`${path}: ${root.version}`);
+  console.log(`${relative(process.cwd(), full)}: ${root.version}`);
   changed += 1;
 }
 
