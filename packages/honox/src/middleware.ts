@@ -59,7 +59,6 @@ function createFallbackLog(log: Logger, slowMs: number): MiddlewareHandler<Honox
     const started = performance.now();
     const base = () => ({
       rid: c.get("rid"),
-      method: c.req.method,
       path: c.req.path,
       ...moduleOf(c),
     });

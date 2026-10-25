@@ -14,7 +14,7 @@
 
 目标：
 
-- 业务在 handler 里 `traceOf(ctx).info({ ... })` 拿到带 `rid` / `uid` / `method` / `path` / `module` 的日志；health 这类不写就是零日志。
+- 业务在 handler 里 `traceOf(ctx).info({ ... })` 拿到带 `rid` / `uid` / `path` / `module` 的日志；health 这类不写就是零日志。
 - 库内自己产生的失败（401 / 404 / 500 / 慢请求）仍然有日志——这些地方没有 handler，业务补不了。
 - `botsApi.post("/bots", BotsBody, (ctx, body) => …)`：一处声明、无花括号对象、无 TypeBox。
 - 日志在**打包后**仍能看出「来自哪个模块」。
@@ -93,7 +93,7 @@ export interface Trace {
   所以两个方法都只有一个参数，不存在「第一个参数是日志负载、第二个是响应」那种读不出意图的形状。
   业务想额外记字段就显式链一个 `.info({...})`（它返回 trace 自己），不想要就 `trace.notFound("…")` 一行。
   不想记这条响应日志就直接用 `ctx.json`。
-- 生成时把 `rid` / `uid` / `method` / `path` / `module` / `site` / `fn` 从 `ctx` 取干净，之后打日志不再碰 `ctx`（`json` / `notFound` 要造响应，仍要用它）。
+- 生成时把 `rid` / `uid` / `path` / `module` / `site` / `fn` 从 `ctx` 取干净，之后打日志不再碰 `ctx`（`json` / `notFound` 要造响应，仍要用它）。
 - 每次调用等价于 `log[level](base, ...args)`：**绑定字段在前、业务参数在后**，同名时业务覆盖（与 logo「后写的赢」一致）。
 - 不往 `Context` 上挂任何东西（`c.error` 已被 Hono 占用；挂 `c.log` 又要声明合并污染所有 `Context`）。
 - 用装配时注入的 logger：`installMiddleware` 把 `log` 写进 `ctx`（`HonoxEnv.Variables.log`），
@@ -105,10 +105,10 @@ export interface Trace {
 
 | 场景 | 位置 | 级别 | 字段 |
 |---|---|---|---|
-| 401 门禁拒绝 | `auth.ts` 门禁分支 | warn | `rid` `path` `method` `status:401` `authError` |
-| 404 未命中 | `createHonox` 装的 `app.notFound` | info | `rid` `path` `method` `status:404` |
-| 未捕获异常 | 计时包装 | error | `rid` `path` `method` `status:500` `durationMs` `uid` `module`（有则带）+ `error`（含栈） |
-| 慢请求 | 计时包装 | warn | `rid` `path` `method` `status` `durationMs` `uid` `module`（有则带） |
+| 401 门禁拒绝 | `auth.ts` 门禁分支 | warn | `rid` `path` `status:401` `authError` |
+| 404 未命中 | `createHonox` 装的 `app.notFound` | info | `rid` `path` `status:404` |
+| 未捕获异常 | 计时包装 | error | `rid` `path` `status:500` `durationMs` `uid` `module`（有则带）+ `error`（含栈） |
+| 慢请求 | 计时包装 | warn | `rid` `path` `status` `durationMs` `uid` `module`（有则带） |
 
 - **500 的日志只有一个来源：计时包装，不是 `onError`**（业务自装 `onError` 会替换掉库里的；计时包装读 `c.error` 不受影响）。`onError` 只做映射，不记日志。
 - 计时包装同时收非 Error 抛出（compose 不会把它们交给 `onError`），记一条后原样 rethrow。

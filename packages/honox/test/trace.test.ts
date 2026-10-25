@@ -11,7 +11,7 @@ function setup() {
 }
 
 describe("traceOf", () => {
-  test("绑定 rid / uid / method / path / module / site / fn", async () => {
+  test("绑定 rid / uid / path / module / site / fn（不带 method）", async () => {
     const { records, log } = setup();
     const app = new Hono<HonoxEnv>();
     app.use("*", async (c, next) => {
@@ -31,7 +31,6 @@ describe("traceOf", () => {
     expect(records[0]).toMatchObject({
       rid: "r1",
       uid: "u1",
-      method: "POST",
       path: "/bots",
       module: "api/bots",
       site: "bots.ts:9",

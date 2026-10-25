@@ -154,7 +154,7 @@ botsApi.post("/bots", BotsBody, (ctx, request) => {
 ```
 
 ```
-[I] bots.ts:35 {"rid":"01M5Q4VBM312ET9MKN9RRYB40N","uid":"u1","method":"POST","path":"/bots","module":"api/bots","ids":[1,99]}
+[I] bots.ts:35 {"rid":"01M5Q4VBM312ET9MKN9RRYB40N","uid":"u1","path":"/bots","module":"api/bots","ids":[1,99]}
 ```
 
 （`bots.ts:35` 是注册那一行；`fn` 为空所以没有 `[fn()]`。打包后这个行号会变成 bundle 坐标，`module` 才是生产环境的定位依据。）

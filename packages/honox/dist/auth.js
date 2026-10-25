@@ -99,7 +99,6 @@ export function createAuth(options, entries, log) {
             // 门禁是能拦下请求的最后一层，这里不记就没有任何地方会记。
             log.warn({
                 rid: c.get("rid"),
-                method: c.req.method,
                 path: c.req.path,
                 status: 401,
                 authError,

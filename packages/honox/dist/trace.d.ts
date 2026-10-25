@@ -38,6 +38,9 @@ export interface Trace {
  * Error 抛出都会写它），挂同名方法会在类型层冲突、运行期被覆盖。
  *
  * 字段顺序：绑定字段在前、业务参数在后，同名时业务覆盖（与 logo 的「后写的赢」一致）。
+ *
+ * 不绑 `method`：`path` 已经说明是哪个接口；同一路径上的 GET/POST 由 `module` 与
+ * 业务参数区分，实测下来那半个字段只是让每行更长。
  */
 export declare function traceOf(ctx: Context<HonoxEnv>, log?: Logger): Trace;
 //# sourceMappingURL=trace.d.ts.map

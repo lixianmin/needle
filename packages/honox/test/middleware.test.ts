@@ -22,7 +22,8 @@ describe("兜底日志", () => {
 
     expect(res.status).toBe(401);
     expect(records).toHaveLength(1);
-    expect(records[0]).toMatchObject({ method: "GET", path: "/me", status: 401, authError: "missing", level: "warn" });
+    expect(records[0]).toMatchObject({ path: "/me", status: 401, authError: "missing", level: "warn" });
+    expect(records[0]).not.toHaveProperty("method");
   });
 
   test("404：记一条 info", async () => {

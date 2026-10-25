@@ -53,7 +53,6 @@ export function createHonox(options) {
     app.notFound((c) => {
         log.info({
             rid: c.get("rid"),
-            method: c.req.method,
             path: c.req.path,
             status: 404,
         });
@@ -84,7 +83,7 @@ export function createHonox(options) {
             // 面板不在 Hono 的路由表里，未命中的 404 由 shell 自己回——不在这里记，
             // 这条路径就一条日志都没有（而它恰好是唯一允许匿名访问的子树）。
             if (res.status === 404) {
-                log.info({ rid: c.get("rid"), method: c.req.method, path: c.req.path, status: 404 });
+                log.info({ rid: c.get("rid"), path: c.req.path, status: 404 });
             }
             return res;
         };

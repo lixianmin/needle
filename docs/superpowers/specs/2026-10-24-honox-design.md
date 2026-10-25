@@ -175,7 +175,7 @@ botsApi.post("/bots", BotsBody, (ctx, body) => {
 });
 ```
 
-`traceOf(ctx)` 生成时把 `rid` / `uid` / `method` / `path` / `module`（`createApi` / `apiRoute`
+`traceOf(ctx)` 生成时把 `rid` / `uid` / `path` / `module`（`createApi` / `apiRoute`
 注册时写入）取干净，之后打日志不再碰 `ctx`。用的是装配时注入的 logger（`HonoxEnv.Variables.log`），
 没有才退回全局 `logo`——这是「日志不进 request context」那条决策的唯一例外，否则
 `createHonox({ logger })` 配的实例会被业务日志绕过。
@@ -184,9 +184,9 @@ botsApi.post("/bots", BotsBody, (ctx, body) => {
 
 | 场景 | 位置 | 级别 | 字段 |
 |---|---|---|---|
-| 401 门禁拒绝 | `auth.ts` 门禁分支 | warn | `rid` `path` `method` `status:401` `authError` |
-| 404 未命中 | `createHonox` 装的 `app.notFound` | info | `rid` `path` `method` `status:404` |
-| 未捕获异常 | 中间件的计时包装 | error | `rid` `path` `method` `status:500` `durationMs` `uid` `module` + `error`（含栈） |
+| 401 门禁拒绝 | `auth.ts` 门禁分支 | warn | `rid` `path` `status:401` `authError` |
+| 404 未命中 | `createHonox` 装的 `app.notFound` | info | `rid` `path` `status:404` |
+| 未捕获异常 | 中间件的计时包装 | error | `rid` `path` `status:500` `durationMs` `uid` `module` + `error`（含栈） |
 | 慢请求 | 中间件的计时包装 | warn | 同上一行，但只在无 error 时发 |
 
 - **500 的日志在中间件而不是 `onError`**：业务可以自己 `app.onError`（单槽替换），换掉之后库里的

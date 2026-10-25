@@ -1,6 +1,6 @@
 {
   "name": "@needle/shell",
-  "version": "0.3.60",
+  "version": "0.3.61",
   "description": "浏览器 / 扩展里的 Web Shell 面板",
   "type": "module",
   "sideEffects": false,

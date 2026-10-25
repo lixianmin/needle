@@ -49,7 +49,6 @@ function createFallbackLog(log, slowMs) {
         const started = performance.now();
         const base = () => ({
             rid: c.get("rid"),
-            method: c.req.method,
             path: c.req.path,
             ...moduleOf(c),
         });

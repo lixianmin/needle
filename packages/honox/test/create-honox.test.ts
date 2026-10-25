@@ -105,7 +105,8 @@ describe("createHonox", () => {
     const id = res.headers.get("x-rid");
     expect(id).toBeTruthy();
     expect(records).toHaveLength(1);
-    expect(records[0]).toMatchObject({ rid: id, note: "hi", method: "GET", path: "/logged" });
+    expect(records[0]).toMatchObject({ rid: id, note: "hi", path: "/logged" });
+    expect(records[0]).not.toHaveProperty("method");
   });
 
   test("apiRoute：日志里的位置指向 API 注册处，不是中间件那一行", async () => {

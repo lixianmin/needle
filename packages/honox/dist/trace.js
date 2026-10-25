@@ -12,6 +12,9 @@ const DEFAULT_NOT_FOUND = "接口不存在";
  * Error 抛出都会写它），挂同名方法会在类型层冲突、运行期被覆盖。
  *
  * 字段顺序：绑定字段在前、业务参数在后，同名时业务覆盖（与 logo 的「后写的赢」一致）。
+ *
+ * 不绑 `method`：`path` 已经说明是哪个接口；同一路径上的 GET/POST 由 `module` 与
+ * 业务参数区分，实测下来那半个字段只是让每行更长。
  */
 export function traceOf(ctx, log) {
     // 优先用本次请求装配的 logger（createHonox 传进来的），没有才退回全局 logo。
@@ -20,7 +23,6 @@ export function traceOf(ctx, log) {
     const base = {
         rid: ctx.get("rid"),
         uid: ctx.get("uid"),
-        method: ctx.req.method,
         path: ctx.req.path,
         ...(where === undefined ? {} : { module: where.module, site: where.site, fn: where.fn }),
     };
