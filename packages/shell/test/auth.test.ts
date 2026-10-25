@@ -121,4 +121,20 @@ describe("配置校验", () => {
   test("空 secret 在构造时就报错", () => {
     expect(() => createAuth({ users: { admin: "secret" }, secret: "" })).toThrow(/secret/);
   });
+
+  // 宿主照 docs/best-practices 的写法传 process.env.XXX!，环境变量没配时运行时是 undefined。
+  // 不校验就编码成 0 字节，登录时「空口令 == 空口令」成立，等于空密码即可登录。
+  test("口令为空串在构造时就报错", () => {
+    expect(() => createAuth({ users: { admin: "" }, secret: "s" })).toThrow(/口令/);
+  });
+
+  test("口令缺失（漏配环境变量）在构造时就报错", () => {
+    const users = { admin: undefined as unknown as string };
+    expect(() => createAuth({ users, secret: "s" })).toThrow(/口令/);
+  });
+
+  test("口令非字符串在构造时就报错", () => {
+    const users = { admin: 123 as unknown as string };
+    expect(() => createAuth({ users, secret: "s" })).toThrow(/口令/);
+  });
 });

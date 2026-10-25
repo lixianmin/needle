@@ -86,6 +86,13 @@ export function createAuth(options: AuthOptions & { now?: () => number }): Auth 
   // 预先编码成字节，比较时不用再分配。
   const credentials = new Map<string, Uint8Array>();
   for (const [name, password] of Object.entries(options.users)) {
+    // 口令同样要 fail-fast：宿主写 `process.env.SHELL_PASSWORD!` 而环境变量没配时，
+    // 运行时是 undefined，`encode(undefined)` 得到 0 字节，空口令与空口令相等——
+    // 于是少配一个环境变量就把鉴权退化成「空密码可登录」。
+    if (typeof password !== "string" || password === "") {
+      throw new Error(`auth.users["${name}"] 的口令必须是非空字符串：漏配环境变量时不能静默退化成空密码`);
+    }
+
     credentials.set(name, encoder.encode(password));
   }
 
