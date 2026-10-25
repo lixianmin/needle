@@ -67,7 +67,7 @@ viper.env / viper.isDev() / viper.isFat() / viper.isPro()
 | 路径 | 鉴权 | 说明 |
 |---|---|---|
 | `GET /` | 公开 | 测试台页面（见下节） |
-| `POST /login` | 公开 | mock 登录，body `{"uid":"alice"}`（可省），返回 `{uid, token, expiresAt}`；token 是 `auth.secret` 签的真 JWT |
+| `POST /login` | 公开 | body `{"user":"alice","passcode":"<sha256hex(盐+密码)>"}`，返回 `{uid, token, expiresAt}`；token 是 `auth.secret` 签的真 JWT，口令不对 → 401 |
 | `GET /health` | 公开 | `{"ok":true}` |
 | `GET /bots?id=1` | 需要 JWT | 命中返回 `{ baseUrl, bot }`；不带 `id` 返回 `{ baseUrl, bots }`（全表）；`id` 非数字 → 400，查不到 → 404 |
 | `POST /bots` | 需要 JWT | body `{"ids":[1,99]}`，命中放 `bots`、找不到放 `missing`（批量里部分不存在不算失败）；body 不合规 → 400 |
@@ -77,19 +77,23 @@ viper.env / viper.isDev() / viper.isFat() / viper.isPro()
 
 `bun run dev` 之后打开 <http://localhost:8001/>，根目录是一张测试页（`res/web/home.html`，单文件、零依赖、零构建）。它解决的是「接口都在 JWT 后面，没有 token 就只能看到 401」这件事：
 
-1. 点右上角**登录**，`POST /login`（body `{"uid":<输入框里的 uid>}`）发一枚真 token（HS256、uid 在 `sub`、1 小时过期），存进 localStorage；
+1. 在右上角输用户名 + 密码（默认 `alice` / `alice123`），点**登录**：页面算 `sha256(盐+密码)` 当 passcode，`POST /login` 换回一枚真 token（HS256、uid 在 `sub`、1 小时过期），存进 localStorage；
 2. 点左边的按钮打 `/bots` 的各个分支——200 / 400（`?id=abc` 与空 body）/ 404（`?id=999`）/ 401（故意不带 token 的对照组）；
 3. 右侧显示状态码、`x-rid`、耗时和格式化后的 JSON，底部是本次会话的历史。
 
-登录是 **mock**：只把 uid 签进 token，不校验密码，也不是安全边界；接真登录时替换 `app/api/login.ts` 即可，路由形状不用改。它只记 `{uid}` 不记 token——`trace.json()` 会把响应体原样落盘，凭据不能这么走。
+登录会**真校验**：服务端按用户名查记录，用同一份盐比对 passcode。测试用户硬编码在 `app/api/login.ts`（`alice`/`alice123`、`bob`/`bob123`），用户名不存在与口令不对回同一个 401（否则就是个用户名枚举接口）。
+
+**但它不是完整的安全方案**：盐是固定的、写在前端，不防重放、不防离线爆破，也没有限流和锁定。真实项目要每用户独立盐 + 一次性挑战（nonce / 短信验证码），服务端用同一份盐和那次挑战重算并当场作废。日志只记 `{user, uid}`，不记 passcode 也不记 token——`trace.json()` 会把响应体原样落盘，凭据不能这么走。
 
 右上角**Shell 面板 ↗** 是另一个入口，用 `server.shell_users` 的账号密码登录，和这枚 JWT 是两套凭据。
 
 不想开浏览器时，命令行同样一条命令拿 token：
 
 ```bash
+# passcode = sha256hex("needle-demo-salt" + 密码)，与页面算的是同一个值
+PASSCODE=$(bun -e 'const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode("needle-demo-saltalice123")); console.log([...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, "0")).join(""))')
 curl -s -X POST "http://127.0.0.1:8001/login" \
-  -H 'content-type: application/json' -d '{"uid":"u1"}' \
+  -H 'content-type: application/json' -d "{\"user\":\"alice\",\"passcode\":\"$PASSCODE\"}" \
   | bun -e 'const j = await Bun.stdin.json(); console.log(j.token)'
 ```
 
@@ -101,7 +105,7 @@ curl -s -X POST "http://127.0.0.1:8001/login" \
 app/api/
   index.ts       # registerApis(app)：逐个 app.route("/", xxx)
   home.ts        # GET /（测试台页面，JWT 白名单）
-  login.ts       # POST /login（mock 登录，JWT 白名单）
+  login.ts       # POST /login（用户名 + passcode 换 JWT，白名单）
   health.ts      # GET /health（JWT 白名单，匿名可访问）
   bots.ts        # 一个路由组：GET /bots?id= + POST /bots
 app/viper.ts     # 配置实例（viper 风格取值器）+ c.get 的键声明
@@ -140,7 +144,7 @@ handler 的参数不用写类型注解：`botsApi.post("/bots", BotsBody, (ctx, 
 
 **uid 是自动的，请求日志不是**：`createHonox()` 装配的中间件链是 `rid → 兜底日志 → JWT 鉴权`，所有 `app/api/` 里的路由都挂在它后面。于是每条请求：
 
-- 由 JWT 中间件写入 `c.get("uid")`（没带 token 就是 `null`，受保护路由直接被 401 短路）；
+- 由 JWT 中间件写入 `ctx.get("uid")`（没带 token 就是 `null`，受保护路由直接被 401 短路）；
 - **不写请求日志**。打不打、打什么由业务决定：
 
 ```ts

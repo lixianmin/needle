@@ -6,9 +6,11 @@ import "./login.generated.js";
  * `/login` 的请求体模型。手写 class 是唯一真值：`login.generated.ts` 由
  * `scripts/gen-models.ts` 从这些字段生成 TypeBox schema，业务代码里不出现 DSL。
  *
- * `uid` 可选：mock 登录不校验身份，不给就签 `mock-user`。接真登录时这里换成
- * `{ user, password }` 即可，路由形状不用改。
+ * `passcode` 是 `sha256hex(盐 + 明文密码)`，不是密码本身：明文密码不出浏览器。
+ * 服务端按用户名查记录，用同一份盐重算并比对。两个字段都必填——缺了就是
+ * schema 校验的 400，不会走到「没给密码所以放行」这种分支。
  */
 export class LoginBody {
-  uid?: string;
+  user: string = "";
+  passcode: string = "";
 }

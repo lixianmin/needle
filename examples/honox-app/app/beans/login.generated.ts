@@ -4,7 +4,8 @@ import { registerModel } from "@needle/honox";
 import type { LoginBody } from "./login.js";
 
 export const LoginBodySchema = Type.Object({
-  uid: Type.Optional(Type.String()),
+  user: Type.String(),
+  passcode: Type.String(),
 }, { additionalProperties: false });
 
 // 漂移断言：class 改了没重新生成，tsc 会在这里报错。
