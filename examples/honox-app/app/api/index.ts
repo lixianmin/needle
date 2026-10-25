@@ -8,9 +8,8 @@ import { createLoginApi } from "./login.js";
 /**
  * 业务接口的版本前缀。
  *
- * 版本号只在这里出现一次：组内路径一律是「挂载点之后」的相对路径，升 v2 就是再加
- * 一个 `v2.route(...)` 组，不用去每个接口文件里改字符串（那种写法迟早会漂移成
- * 一个文件 /v1、另一个文件 /v2）。
+ * 版本号只在这里出现一次：组内路径一律从挂载点之后算起，升 v2 就是再建一个 v2 组，
+ * 不用去每个接口文件里改字符串（那种写法迟早会漂移成一个文件 /v1、另一个文件 /v2）。
  *
  * 只给业务接口版本化，health / shell / 首页都不带：探针和运维面是部署配置里写死的
  * 一次性契约（Kubernetes 自己的 /healthz、/livez、/readyz 也在根上），跟着业务
@@ -32,12 +31,15 @@ export function registerApis(app: HonoxApp): void {
   app.route("/", createHomeApi());
   app.route("/", createHealthApi());
 
-  // 业务面：先按版本分组，组内再按领域分组。组里写的是相对路径，
-  // `/api/v1/login`、`/api/v1/bots/get_bots` 各自只有挂载点这一处出现完整拼写。
-  const v1 = new Hono<HonoxEnv>();
-  v1.route("/login", createLoginApi());
-  v1.route("/bots", createBotsApi());
-  app.route(API_PREFIX, v1);
+  // 业务面：版本组。注意不能用 `const v1 = app.route(...)`——Hono 的 route() 返回的是
+  // 父 app，拿它登记会把 /login 挂到根上；而且 route() 只在挂载那一刻拷贝旧路由，
+  // 先挂空组、后登记也无效。所以是「先建组并 basePath，组内登记，最后挂到根」。
+  const v1 = new Hono<HonoxEnv>().basePath(API_PREFIX);
+  {
+    v1.route("/login", createLoginApi());
+    v1.route("/bots", createBotsApi());
+  }
+  app.route("/", v1);
 
   // 测试台（`/`）与 mock 登录（`/api/v1/login`）必须匿名可达：页面本身就是拿 token
   // 的入口，被门禁挡住就永远拿不到第一枚 token。
