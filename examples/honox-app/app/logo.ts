@@ -33,6 +33,7 @@ function readLevel(path: string, fallback: Level): Level {
   if (!(value in LEVELS)) {
     throw new Error(`${path} 只能是 ${Object.keys(LEVELS).join(" / ")}，拿到 "${value}"`);
   }
+
   return value as Level;
 }
 
@@ -50,6 +51,7 @@ function localIp(): string {
       }
     }
   }
+
   return "127.0.0.1";
 }
 
@@ -122,6 +124,7 @@ export function initLog(): LogInit {
       if (lark === undefined) {
         return;
       }
+
       // 标题空着，跟 Go 版那个例子一致：级别 + 前缀已经说明了来源，内容全放正文。
       void lark.notify("info", "", JSON.stringify(startupInfo()));
     },

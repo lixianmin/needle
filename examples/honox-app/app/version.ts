@@ -29,6 +29,7 @@ function fromGit(): string | undefined {
     if (result.exitCode !== 0 || value === "") {
       return undefined;
     }
+
     return value;
   } catch {
     return undefined;

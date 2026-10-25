@@ -24,6 +24,7 @@ async function bundle(entry: string): Promise<string> {
   if (output === undefined) {
     throw new Error(`没有构建产物: ${entry}`);
   }
+
   return output.text();
 }
 

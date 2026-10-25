@@ -38,6 +38,7 @@ function bearer(header: string | null): string | null {
   if (header === null) {
     return null;
   }
+
   const match = /^bearer\s+(.+)$/i.exec(header.trim());
   return match?.[1] ?? null;
 }
@@ -75,6 +76,7 @@ export function createServerShell(options: ServerShellOptions): ServerShell {
     if (source.user !== null) {
       return source.user;
     }
+
     const verified = await source.auth.verify(bearer(req.headers.get("authorization")));
     return verified === null ? null : verified.sub;
   }

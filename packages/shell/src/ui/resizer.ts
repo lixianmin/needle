@@ -30,6 +30,7 @@ function readSavedWidth(): number | null {
     if (raw === null) {
       return null;
     }
+
     const width = Number(raw);
     return Number.isFinite(width) && width > 0 ? width : null;
   } catch {
@@ -56,6 +57,7 @@ function clampWidth(width: number, hostWidth: number): number {
   if (!Number.isFinite(hostWidth) || hostWidth <= 0) {
     return Math.round(width);
   }
+
   const max = Math.max(MIN_SIDE_WIDTH, Math.min(hostWidth - MIN_MAIN_WIDTH, hostWidth * MAX_SIDE_RATIO));
   return Math.round(Math.min(Math.max(width, MIN_SIDE_WIDTH), max));
 }
@@ -81,6 +83,7 @@ export function mountResizer(options: ResizerOptions): Resizer {
   if (container === null) {
     return { dispose: () => {} };
   }
+
   // 显式非空类型：下面几个函数体在闭包里，TS 不会把窄化带进去。
   const host: HTMLElement = container;
 
@@ -114,6 +117,7 @@ export function mountResizer(options: ResizerOptions): Resizer {
   if (saved !== null) {
     host.style.setProperty("--side-width", `${width}px`);
   }
+
   syncAria();
 
   let dragging = false;
@@ -133,6 +137,7 @@ export function mountResizer(options: ResizerOptions): Resizer {
     if (!dragging) {
       return;
     }
+
     // 往左拖 = 右栏变宽，所以差值取反。
     apply(startWidth + (startX - event.clientX), false);
   };
@@ -141,6 +146,7 @@ export function mountResizer(options: ResizerOptions): Resizer {
     if (!dragging) {
       return;
     }
+
     dragging = false;
     saveWidth(width);
   };
@@ -149,6 +155,7 @@ export function mountResizer(options: ResizerOptions): Resizer {
     if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") {
       return;
     }
+
     event.preventDefault();
     apply(width + (event.key === "ArrowLeft" ? KEY_STEP : -KEY_STEP), true);
   };

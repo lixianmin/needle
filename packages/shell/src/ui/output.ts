@@ -19,6 +19,7 @@ export function createOutputSink(doc: Document, output: HTMLElement): OutputSink
     while (output.childElementCount > MAX_LINES) {
       output.firstElementChild?.remove();
     }
+
     output.scrollTop = output.scrollHeight;
   }
 
@@ -44,12 +45,15 @@ export function renderOutput(result: ExecResult, sink: OutputSink, table: TableR
       // 空行要占一行高：空的 div 高度是 0，help 里分组之间那条空行会被吃掉。
       sink.pushText(line === "" ? "\u00A0" : line);
     }
+
     return;
   }
+
   if (value.kind === "table") {
     sink.push(table(value.columns, value.rows, value.formats));
     return;
   }
+
   // 命令返回的 JSON 可能有循环引用或 BigInt：JSON.stringify 会抛，页面就停在
   // 上一条输出。先试格式化，失败再退回 safeStringify（它会标 [Circular]）。
   let text: string;
@@ -58,5 +62,6 @@ export function renderOutput(result: ExecResult, sink: OutputSink, table: TableR
   } catch {
     text = safeStringify(value.value);
   }
+
   sink.pushText(text, "raw");
 }

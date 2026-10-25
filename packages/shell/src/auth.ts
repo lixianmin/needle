@@ -19,10 +19,12 @@ function equalBytes(a: Uint8Array, b: Uint8Array): boolean {
   if (a.length !== b.length) {
     return false;
   }
+
   let diff = 0;
   for (let i = 0; i < a.length; i += 1) {
     diff |= (a[i] as number) ^ (b[i] as number);
   }
+
   return diff === 0;
 }
 
@@ -31,6 +33,7 @@ function toBase64Url(bytes: Uint8Array): string {
   for (const byte of bytes) {
     binary += String.fromCharCode(byte);
   }
+
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
@@ -42,6 +45,7 @@ function fromBase64Url(text: string): Uint8Array | null {
     for (let i = 0; i < binary.length; i += 1) {
       bytes[i] = binary.charCodeAt(i);
     }
+
     return bytes;
   } catch {
     return null;
@@ -68,6 +72,7 @@ export function createAuth(options: AuthOptions & { now?: () => number }): Auth 
     // 空 key 会让 crypto.subtle.importKey 抛 DataError，表现为第一次登录 500。
     throw new Error("auth.secret 不能是空字符串：要么给一个值，要么不传让库随机生成");
   }
+
   let secret = options.secret === undefined ? undefined : encoder.encode(options.secret);
   if (secret === undefined) {
     // 随机 secret 只在这个进程里有效。重启后已签发的 token 全部作废，
@@ -75,6 +80,7 @@ export function createAuth(options: AuthOptions & { now?: () => number }): Auth 
     secret = crypto.getRandomValues(new Uint8Array(32));
     console.warn("[logo] 未提供 auth.secret，已生成临时密钥：重启后所有登录态失效");
   }
+
   const keyBytes = secret;
 
   // 预先编码成字节，比较时不用再分配。
@@ -96,6 +102,7 @@ export function createAuth(options: AuthOptions & { now?: () => number }): Auth 
       if (expected === undefined) {
         return null;
       }
+
       if (!equalBytes(expected, encoder.encode(password))) {
         return null;
       }
@@ -130,13 +137,16 @@ export function createAuth(options: AuthOptions & { now?: () => number }): Auth 
         if (typeof decoded !== "object" || decoded === null) {
           return null;
         }
+
         const { sub, exp } = decoded as { sub?: unknown; exp?: unknown };
         if (typeof sub !== "string" || typeof exp !== "number") {
           return null;
         }
+
         if (exp <= now()) {
           return null;
         }
+
         return { sub };
       } catch {
         return null;

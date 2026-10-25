@@ -27,15 +27,19 @@ function formatMetric(name: string, value: unknown): string | number {
   if (typeof value === "string") {
     return value;
   }
+
   if (typeof value !== "number") {
     return JSON.stringify(value) ?? "";
   }
+
   if (name === "rss" || name === "heapUsed") {
     return toHuman(value);
   }
+
   if (name.endsWith("Ms")) {
     return formatDuration(value);
   }
+
   return value;
 }
 
@@ -64,12 +68,15 @@ export function createHelpCommand(list: () => readonly Command[]): Command {
       if (custom.length > 0) {
         blocks.push("自定义命令", ...custom.map(render));
       }
+
       if (builtin.length > 0) {
         if (blocks.length > 0) {
           blocks.push("");
         }
+
         blocks.push("内置命令", ...builtin.map(render));
       }
+
       return { kind: "text", text: blocks.join("\n") };
     },
   };
@@ -135,6 +142,7 @@ function createAuthCommand(): Command {
       if (user === undefined) {
         throw new CommandError("用法: auth <user>，密码会在下一步提示输入");
       }
+
       // 走到这里说明有人绕过 Shell 直接调 /exec（例如 curl）。密码不能拼在
       // 命令行里——那会被历史记录、输出区和访问日志原样留下。
       throw new CommandError("密码不能走命令行：Shell 里输入 `auth <user>` 后会切换成密码输入框");

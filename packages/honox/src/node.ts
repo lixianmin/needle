@@ -27,9 +27,11 @@ function parseYamlFile(path: string): Record<string, unknown> {
     // 空文件是合法的：环境文件只写差异项时可能是空集。
     return {};
   }
+
   if (typeof parsed !== "object" || Array.isArray(parsed)) {
     throw new Error(`${path}: 配置顶层必须是对象`);
   }
+
   return parsed as Record<string, unknown>;
 }
 
@@ -41,6 +43,7 @@ function readCommon(path: string): Record<string, unknown> {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
       return {};
     }
+
     throw error;
   }
 }
@@ -74,6 +77,7 @@ export function loadConfig<C extends Record<string, unknown>>(
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
       throw new Error(`找不到环境配置：${envPath}（ENV=${env}）`);
     }
+
     throw error;
   }
 

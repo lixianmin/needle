@@ -21,6 +21,7 @@ function readVersion(): string {
   if (injected) {
     return injected;
   }
+
   const hint = `镜像构建请传 --build-arg GIT_SHA=$(${GIT_DESCRIBE.join(" ")})`;
   let stdout: string;
   try {
@@ -28,14 +29,17 @@ function readVersion(): string {
     if (result.exitCode !== 0) {
       throw new Error(result.stderr.toString().trim() || `exit ${result.exitCode}`);
     }
+
     stdout = result.stdout.toString();
   } catch (error) {
     throw new Error(`拿不到 git 版本（${GIT_DESCRIBE.join(" ")}）：${String(error)}。${hint}`);
   }
+
   const value = stdout.trim();
   if (value === "") {
     throw new Error(`git describe 返回空字符串。${hint}`);
   }
+
   return value;
 }
 

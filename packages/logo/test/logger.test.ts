@@ -35,6 +35,7 @@ describe("newLogger", () => {
     for (let i = 0; i < 1000; i += 1) {
       logger.info("n", i);
     }
+
     logger.flush();
 
     expect(calls).toHaveLength(1);

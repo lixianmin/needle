@@ -97,6 +97,7 @@ describe("未登录提示", () => {
       expect(status.message).toContain("auth");
       expect(status.message).toContain("help");
     }
+
     unsubscribe();
   });
 });
@@ -108,6 +109,7 @@ function streamOf(chunks: readonly string[]): ReadableStream<Uint8Array> {
       for (const chunk of chunks) {
         controller.enqueue(encoder.encode(chunk));
       }
+
       controller.close();
     },
   });
@@ -202,6 +204,7 @@ describe("fetchFile", () => {
       if (url === "/log/secret") {
         return new Response("no", { status: 401 });
       }
+
       return Response.json({ message: "读不出来" }, { status: 500 });
     });
 
@@ -231,6 +234,7 @@ describe("authenticate", () => {
       if (url === "/shell/auth") {
         return Response.json({ user: "u1", token: "new-token" });
       }
+
       return new Response(streamOf([handshakeFrame()]), { status: 200 });
     });
 

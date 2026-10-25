@@ -21,6 +21,7 @@ export function registerModel(name: string, schema: TSchema): void {
   if (existing !== undefined && existing !== schema) {
     throw new Error(`模型重名：${name} 已经注册过另一个 schema（两个 bean 文件用了同一个类名）`);
   }
+
   registry.set(name, schema);
 }
 
@@ -35,6 +36,7 @@ export function modelSchema(model: ModelClass): TSchema {
       `没有为 ${model.name} 注册 schema：生成的 *.generated.ts 没有被 import（先 import 那个 bean 文件，示例是 app/beans/bots.js）`,
     );
   }
+
   return schema;
 }
 

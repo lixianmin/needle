@@ -18,6 +18,7 @@ describe("table()", () => {
     if (output.kind !== "table") {
       throw new Error("应该是 table");
     }
+
     expect(output.columns).toEqual(["path", "reads", "size", "hitRate"]);
     expect(output.rows).toEqual([["/api/user", 1520, 3_600_000, 0.982]]);
     expect(output.formats).toEqual(["auto", "number", "bytes", "number"]);
@@ -28,6 +29,7 @@ describe("table()", () => {
     if (output.kind !== "table") {
       throw new Error("应该是 table");
     }
+
     expect(output.columns).toEqual(["path", "reads", "size", "hitRate"]);
     expect(output.rows).toEqual([]);
   });
@@ -39,6 +41,7 @@ describe("table()", () => {
     if (output.kind !== "table") {
       throw new Error("应该是 table");
     }
+
     expect(output.rows[0]?.[0]).toEqual(link);
   });
 });

@@ -43,10 +43,12 @@ function passcodeMatches(given: string, expected: string): boolean {
   if (given.length !== expected.length) {
     return false;
   }
+
   let diff = 0;
   for (let index = 0; index < expected.length; index += 1) {
     diff |= given.charCodeAt(index) ^ expected.charCodeAt(index);
   }
+
   return diff === 0;
 }
 

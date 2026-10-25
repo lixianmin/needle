@@ -18,6 +18,7 @@ function ulidTime(id: string): number {
   for (const char of id.slice(0, 10)) {
     value = value * 32 + ULID_ALPHABET.indexOf(char);
   }
+
   return value;
 }
 

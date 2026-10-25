@@ -97,6 +97,7 @@ function buildSidebar(doc: Document): SidebarParts {
     option.textContent = value === "all" ? "全部" : value;
     level.append(option);
   }
+
   const droppedLabel = el(doc, "span", "dropped");
   tools.append(pause, level, clear, droppedLabel);
 

@@ -43,6 +43,7 @@ export function createAuthRoute(options: AuthRouteOptions): (req: Request) => Pr
     if (!result.ok) {
       return ResponseX.badCredentials(result.error);
     }
+
     return Response.json({ user: result.user, token: result.token });
   };
 }

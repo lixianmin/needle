@@ -28,11 +28,13 @@ export async function readTextLimited(req: Request, maxBytes: number): Promise<s
       if (done) {
         break;
       }
+
       bytes += value.byteLength;
       if (bytes > maxBytes) {
         await reader.cancel().catch(() => {});
         return null;
       }
+
       chunks.push(decoder.decode(value, { stream: true }));
     }
   } finally {

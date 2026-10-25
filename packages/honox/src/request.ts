@@ -22,6 +22,7 @@ export class RequestError extends Error {
       // Stryker disable next-line StringLiteral: 同上：number 形态不上传 code 不在声明里
       this.code = code ?? "bad_request";
     }
+
     this.name = "RequestError";
   }
 }

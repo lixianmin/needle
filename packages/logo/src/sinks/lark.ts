@@ -59,9 +59,11 @@ function truncate(text: string): string {
     if (bytes + size > MAX_TEXT_BYTES) {
       break;
     }
+
     bytes += size;
     end += char.length;
   }
+
   return `${text.slice(0, end)}…(截断)`;
 }
 
@@ -71,12 +73,15 @@ function detailOf(record: LogRecord): string {
   if (record.msg !== undefined && record.msg !== "") {
     parts.push(record.msg);
   }
+
   if (typeof record.message === "string" && record.message !== "") {
     parts.push(record.message);
   }
+
   if (typeof record.stack === "string" && record.stack !== "") {
     parts.push(record.stack);
   }
+
   return parts.join("\n");
 }
 
@@ -98,6 +103,7 @@ function highestLevel(levels: readonly Level[]): Level {
       top = level;
     }
   }
+
   return top;
 }
 
@@ -119,6 +125,7 @@ async function sign(secret: string, timestamp: number): Promise<string> {
   for (const byte of new Uint8Array(signature)) {
     binary += String.fromCharCode(byte);
   }
+
   return btoa(binary);
 }
 
@@ -199,6 +206,7 @@ export function createLarkSink(options: LarkSinkOptions): LarkSink {
       clearTimeout(timer);
       timer = undefined;
     }
+
     if (queue.length === 0) {
       return;
     }
@@ -210,6 +218,7 @@ export function createLarkSink(options: LarkSinkOptions): LarkSink {
     if (tokens < 1) {
       return; // 超出配额：这一批直接丢，不排队堆积
     }
+
     tokens -= 1;
 
     try {
@@ -223,10 +232,12 @@ export function createLarkSink(options: LarkSinkOptions): LarkSink {
     if (closed) {
       return;
     }
+
     for (const record of batch) {
       if (LEVELS[record.level] < minLevel) {
         continue;
       }
+
       queue.push({ level: record.level, text: `[${record.level}] ${detailOf(record)}`.trim() });
     }
 
@@ -245,6 +256,7 @@ export function createLarkSink(options: LarkSinkOptions): LarkSink {
     if (tokens < 1) {
       return; // 超出配额：启动通知也不该绕过飞书自己的限流
     }
+
     tokens -= 1;
     try {
       await post(level, 1, text, title);
@@ -257,11 +269,13 @@ export function createLarkSink(options: LarkSinkOptions): LarkSink {
     if (closed) {
       return;
     }
+
     closed = true;
     if (timer !== undefined) {
       clearTimeout(timer);
       timer = undefined;
     }
+
     // best-effort：dispose 是同步的，进程若紧接着 exit，这次发送可能来不及完成。
     void flush();
   };

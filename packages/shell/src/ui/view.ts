@@ -101,6 +101,7 @@ function wireInputArea(ctx: {
   wireKeys(input);
   return wireEnterFocus(doc, ui.input);
 }
+
 /** 切换左右两个 tab：日志 / 主题。 */
 function wireTabs(
   ui:ShellLayout,
@@ -180,6 +181,7 @@ function handleEvent(event:ShellEvent, ctx: EventContext): void {
         ctx.updateDropped();
         break;
       }
+
       const floor = state.minLevel;
       logList.append(
         floor === "all"
@@ -189,6 +191,7 @@ function handleEvent(event:ShellEvent, ctx: EventContext): void {
       ctx.updateDropped();
       break;
     }
+
     case "topic":
       topicList.append([{ name: event.name, data: event.data }]);
       break;
@@ -208,6 +211,7 @@ async function openFile(doc: Document, adapter:ShellAdapter, sink: OutputSink, h
     sink.pushText(`打开文件失败：${String(error)}`, "status");
     return;
   }
+
   if (!result.ok) {
     sink.pushText(result.error, "status");
     return;

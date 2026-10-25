@@ -41,9 +41,11 @@ async function readFor(response: Response, ms: number): Promise<string> {
     if (chunk === null) {
       break; // 超时
     }
+
     if (chunk.done) {
       break;
     }
+
     text += decoder.decode(chunk.value);
   }
 

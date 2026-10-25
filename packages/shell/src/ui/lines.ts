@@ -9,15 +9,19 @@ export function formatMetric(key: string, value: unknown): string {
     if (typeof value === "string") {
       return value;
     }
+
     return JSON.stringify(value) ?? "";
   }
+
   if (key === "rss" || key === "heapUsed") {
     return toHuman(value);
   }
+
   // 约定：以 Ms 结尾的字段是毫秒数（uptimeMs、latencyMs…），按时长渲染。
   if (key.endsWith("Ms")) {
     return formatDuration(value);
   }
+
   return displayNumber(value);
 }
 
@@ -26,6 +30,7 @@ export function estimateLogHeight(record: LogRecord): number {
   if (typeof record.stack !== "string" || record.stack === "") {
     return ROW_HEIGHT;
   }
+
   return ROW_HEIGHT * (1 + record.stack.split("\n").length);
 }
 
@@ -49,6 +54,7 @@ export function renderLogLine(doc: Document, record: LogRecord): HTMLElement {
     stack.textContent = record.stack;
     line.append(stack);
   }
+
   return line;
 }
 
@@ -63,6 +69,7 @@ function formatTopic(name: string, data: unknown): string {
   if (typeof data !== "object" || data === null || Array.isArray(data)) {
     return `[${name}] ${JSON.stringify(data)}`;
   }
+
   const pairs = Object.entries(data as Record<string, unknown>).map(
     ([key, value]) => `${key}=${formatMetric(key, value)}`,
   );

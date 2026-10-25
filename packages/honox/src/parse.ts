@@ -29,6 +29,7 @@ function messageOf(label: string, errors: readonly { path: string; message: stri
     // Stryker disable next-line StringLiteral
     return `${label} 不合法`;
   }
+
   const where = first.path === "" ? "/" : first.path;
   const rest = errors.length - 1;
   return `${label} ${where} ${first.message}${rest > 0 ? `（另有 ${rest} 处）` : ""}`;
@@ -39,6 +40,7 @@ function assert<T extends TSchema>(label: string, schema: T, value: unknown): T[
   if (errors.length > 0) {
     throw new RequestError(400, "bad_request", messageOf(label, errors));
   }
+
   return value as T["static"];
 }
 
@@ -59,13 +61,16 @@ export async function parseBody<T extends TSchema>(ctx: Context<HonoxEnv>, schem
     if (!(error instanceof SyntaxError)) {
       throw error;
     }
+
     throw new RequestError(400, "bad_request", "body 不是合法 JSON");
   }
+
   // Stryker disable next-line ConditionalExpression,LogicalOperator: TypeBox 的 Value.Default 对 null / 标量是 no-op，这层护栏不改变可观测行为
   if (typeof parsed === "object" && parsed !== null) {
     // 就地补默认值：`ctx.req.json()` 出来的对象是本次请求独占的，改它没有副作用。
     Value.Default(schema, parsed as Record<string, unknown>);
   }
+
   return assert("body", schema, parsed);
 }
 
@@ -86,10 +91,12 @@ export function parseQuery<T extends TSchema>(ctx: Context<HonoxEnv>, schema: T)
     if (!declared.has(key)) {
       continue;
     }
+
     const kept = values.filter((value) => value !== "");
     if (kept.length === 0) {
       continue;
     }
+
     raw[key] = arrays.has(key) ? kept : kept[kept.length - 1];
   }
 

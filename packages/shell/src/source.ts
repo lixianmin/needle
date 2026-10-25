@@ -214,6 +214,7 @@ export function createShellSource(options:ShellSourceOptions):ShellSource {
       if (timedOut) {
         return { ok: false, code: "timeout", error: "timeout" };
       }
+
       // 只回 message：堆栈里有文件路径，是给本地排错用的，不该顺 HTTP 跑出去。
       const message = error instanceof CommandError ? error.message : String(error);
       return { ok: false, code: "command_failed", error: message };
@@ -241,6 +242,7 @@ export function createShellSource(options:ShellSourceOptions):ShellSource {
       if (token === null) {
         return { ok: false, error: "用户名或密码错误" };
       }
+
       return { ok: true, user, token };
     },
 
@@ -248,6 +250,7 @@ export function createShellSource(options:ShellSourceOptions):ShellSource {
       if (disposed) {
         return;
       }
+
       disposed = true;
       broadcast.closeAll();
       logger.removeSink(broadcast.sink);

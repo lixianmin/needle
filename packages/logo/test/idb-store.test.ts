@@ -38,6 +38,7 @@ const msgOf = (line: string): string => {
   if (record === null) {
     throw new Error(`不是合法的日志行：${line}`);
   }
+
   return String(record.msg);
 };
 
@@ -275,9 +276,11 @@ async function waitFor<T>(probe: () => Promise<T | null>, timeoutMs = 3000): Pro
     if (value !== null) {
       return value;
     }
+
     if (Date.now() > deadline) {
       throw new Error("等待条件超时");
     }
+
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
 }

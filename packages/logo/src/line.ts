@@ -74,6 +74,7 @@ export function parseLine(line: string): Record<string, unknown> | null {
   if (index < 0) {
     return null;
   }
+
   try {
     const parsed: unknown = JSON.parse(line.slice(index));
     return typeof parsed === "object" && parsed !== null ? (parsed as Record<string, unknown>) : null;

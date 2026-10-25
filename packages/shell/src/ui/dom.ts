@@ -10,6 +10,7 @@ export function el<K extends keyof HTMLElementTagNameMap>(
   if (className !== undefined) {
     node.className = className;
   }
+
   return node;
 }
 
@@ -26,6 +27,7 @@ export function injectStyle(doc: Document): void {
   if (doc.getElementById(STYLE_ID) !== null) {
     return;
   }
+
   const style = doc.createElement("style");
   style.id = STYLE_ID;
   style.textContent = STYLE;

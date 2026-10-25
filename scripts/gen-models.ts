@@ -49,13 +49,16 @@ function classOfField(node: ts.TypeNode, models: Map<string, Model>, where: stri
   if (ts.isArrayTypeNode(node)) {
     return classOfField(node.elementType, models, where);
   }
+
   if (ts.isUnionTypeNode(node)) {
     const rest = node.types.filter((type) => type.kind !== ts.SyntaxKind.UndefinedKeyword);
     if (rest.length !== 1) {
       die(`${where}：不支持的联合类型 ${node.getText()}`);
     }
+
     return classOfField(rest[0] as ts.TypeNode, models, where);
   }
+
   if (ts.isTypeReferenceNode(node)) {
     const name = node.typeName.getText();
     if (name === "Array") {
@@ -63,16 +66,21 @@ function classOfField(node: ts.TypeNode, models: Map<string, Model>, where: stri
       if (arg === undefined) {
         die(`${where}：Array<T> 缺少类型参数`);
       }
+
       return classOfField(arg, models, where);
     }
+
     if (name === "Date") {
       die(`${where}：不支持 Date——JSON 里它是字符串，模型请写 string`);
     }
+
     if (!models.has(name)) {
       die(`${where}：引用了未知类型 ${name}（只认已声明的 model class）`);
     }
+
     return name;
   }
+
   return undefined;
 }
 
@@ -81,16 +89,20 @@ function typeExpr(node: ts.TypeNode, models: Map<string, Model>, where: string):
   if (scalar !== undefined) {
     return scalar;
   }
+
   if (ts.isArrayTypeNode(node)) {
     return `Type.Array(${typeExpr(node.elementType, models, where)})`;
   }
+
   if (ts.isUnionTypeNode(node)) {
     const rest = node.types.filter((type) => type.kind !== ts.SyntaxKind.UndefinedKeyword);
     if (rest.length !== 1) {
       die(`${where}：不支持的联合类型 ${node.getText()}`);
     }
+
     return typeExpr(rest[0] as ts.TypeNode, models, where);
   }
+
   if (ts.isTypeReferenceNode(node)) {
     const name = node.typeName.getText();
     if (name === "Array") {
@@ -98,13 +110,17 @@ function typeExpr(node: ts.TypeNode, models: Map<string, Model>, where: string):
       if (arg === undefined) {
         die(`${where}：Array<T> 缺少类型参数`);
       }
+
       return `Type.Array(${typeExpr(arg, models, where)})`;
     }
+
     if (name === "Date") {
       return die(`${where}：不支持 Date——JSON 里它是字符串，模型请写 string`);
     }
+
     return `${name}Schema`;
   }
+
   return die(`${where}：不支持的类型 ${node.getText()}`);
 }
 
@@ -115,17 +131,20 @@ function collect(files: readonly string[]): Map<string, Model> {
     if (file.endsWith(".generated.ts")) {
       continue;
     }
+
     let text: string;
     try {
       text = readFileSync(file, "utf8");
     } catch (error) {
       die(`读不到 ${file}：${error instanceof Error ? error.message : String(error)}`);
     }
+
     const source = ts.createSourceFile(file, text, ts.ScriptTarget.ES2022, true);
     for (const statement of source.statements) {
       if (!ts.isClassDeclaration(statement) || statement.name === undefined) {
         continue;
       }
+
       const name = statement.name.getText();
       const modifiers = ts.getModifiers(statement) ?? [];
       if (!modifiers.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword)) {
@@ -133,27 +152,35 @@ function collect(files: readonly string[]): Map<string, Model> {
           `${basename(file)}：model class ${name} 必须 export（生成物要按名字 import；不想被生成就挪出 beans 目录）`,
         );
       }
+
       if (statement.typeParameters !== undefined) {
         die(`${basename(file)}：model class ${name} 不支持泛型`);
       }
+
       if (modifiers.some((modifier) => modifier.kind === ts.SyntaxKind.DefaultKeyword)) {
         die(`${basename(file)}：model class ${name} 用 export class，不要 export default（生成物按名字 import）`);
       }
+
       if (RESERVED_NAMES.has(name)) {
         die(`${basename(file)}：model class 不能叫 ${name}（与生成物里的标识符冲突）`);
       }
+
       if (name.endsWith("Schema")) {
         die(`${basename(file)}：model class ${name} 不能以 Schema 结尾（生成物要拼 ${name}Schema，会和别的 model 撞名）`);
       }
+
       if (models.has(name)) {
         die(`模型重名：${name}（${models.get(name)?.file} 与 ${file}）`);
       }
+
       models.set(name, { name, file, source, decl: statement, deps: [] });
     }
   }
+
   if (models.size === 0) {
     die("没有找到任何 model class");
   }
+
   return models;
 }
 
@@ -163,16 +190,19 @@ function validate(models: Map<string, Model>): void {
       if (!ts.isPropertyDeclaration(member)) {
         die(`${model.name}：只支持字段声明，${member.getText()} 不支持`);
       }
+
       if (
         member.name.kind === ts.SyntaxKind.PrivateIdentifier ||
         ts.isComputedPropertyName(member.name)
       ) {
         die(`${model.name}.${member.name.getText()}：不支持 #private / 计算属性名`);
       }
+
       const modifiers = ts.getModifiers(member) ?? [];
       if (modifiers.some((modifier) => modifier.kind === ts.SyntaxKind.StaticKeyword)) {
         die(`${model.name}.${member.name.getText()}：不支持 static 字段`);
       }
+
       if (
         modifiers.some(
           (modifier) =>
@@ -182,17 +212,21 @@ function validate(models: Map<string, Model>): void {
       ) {
         die(`${model.name}.${member.name.getText()}：不支持 private / protected 字段`);
       }
+
       // readonly 会让漂移断言永远为 false（`Static<>` 出来的是可变属性，
       // `Equals` 对修饰符敏感），所以宁可在这里报错，也不生成一个编不过的文件。
       if (modifiers.some((modifier) => modifier.kind === ts.SyntaxKind.ReadonlyKeyword)) {
         die(`${model.name}.${member.name.getText()}：不支持 readonly 字段`);
       }
+
       if (ts.canHaveDecorators(member) && (ts.getDecorators(member) ?? []).length > 0) {
         die(`${model.name}.${member.name.getText()}：不支持装饰器`);
       }
+
       if (member.type === undefined) {
         die(`${model.name}.${member.name.getText()}：字段必须有类型标注（写成 ids = [] 读不到类型）`);
       }
+
       const line = model.source.getLineAndCharacterOfPosition(member.getStart()).line + 1;
       const where = `${basename(model.file)}:${line} ${model.name}.${member.name.getText()}`;
       // `T | undefined` 与 `T?` 在漂移断言里不等价（一个是必填、一个是可选），
@@ -204,6 +238,7 @@ function validate(models: Map<string, Model>): void {
       ) {
         die(`${where}：写 ${member.name.getText()}?: T，不要 T | undefined（两者在漂移断言里不等价）`);
       }
+
       typeExpr(member.type, models, where);
       const dep = classOfField(member.type, models, where);
       if (dep !== undefined) {
@@ -220,12 +255,15 @@ function assertAcyclic(models: Map<string, Model>): void {
     if (stack.includes(name)) {
       die(`循环引用：${[...stack, name].join(" → ")}（递归结构要手写 schema）`);
     }
+
     if (done.has(name)) {
       return;
     }
+
     for (const dep of models.get(name)?.deps ?? []) {
       visit(dep, [...stack, name]);
     }
+
     done.add(name);
   };
   for (const name of models.keys()) {
@@ -241,12 +279,14 @@ function orderedFor(models: readonly Model[], file: string): Model[] {
     if (done.has(model.name)) {
       return;
     }
+
     for (const dep of model.deps) {
       const depModel = models.find((candidate) => candidate.name === dep);
       if (depModel !== undefined && depModel.file === file) {
         emit(depModel);
       }
     }
+
     done.add(model.name);
     ordered.push(model);
   };
@@ -255,6 +295,7 @@ function orderedFor(models: readonly Model[], file: string): Model[] {
       emit(model);
     }
   }
+
   return ordered;
 }
 
@@ -323,6 +364,7 @@ try {
   if (files.length === 0) {
     die("用法：bun scripts/gen-models.ts <model 文件...>");
   }
+
   main(files);
 } catch (error) {
   if (error instanceof GenError) {

@@ -15,6 +15,7 @@ function logNameFromHref(href: string): string | null {
   if (raw === undefined) {
     return null;
   }
+
   try {
     return decodeURIComponent(raw);
   } catch {
@@ -44,6 +45,7 @@ export function createLocalAdapter(source:ShellSource):ShellAdapter {
     if (attached) {
       return;
     }
+
     attached = true;
 
     detach = source.broadcast.attach({
@@ -51,6 +53,7 @@ export function createLocalAdapter(source:ShellSource):ShellAdapter {
         if (event === "log") {
           emit({ type: "logs", records: data as LogRecord[] });
         }
+
         if (event === "topic") {
           const payload = data as { name: string; data: unknown };
           emit({ type: "topic", name: payload.name, data: payload.data });
@@ -69,6 +72,7 @@ export function createLocalAdapter(source:ShellSource):ShellAdapter {
       if (result.ok) {
         return result;
       }
+
       // 适配器不知道 code 的各种取值，只关心"是不是没登录"，这一层转成布尔。
       return {
         ok: false,
@@ -82,14 +86,17 @@ export function createLocalAdapter(source:ShellSource):ShellAdapter {
       if (name === null) {
         return Promise.resolve({ ok: false, error: "浏览器里没有日志文件可读，用 log.list 看不到内容" });
       }
+
       const logFiles = source.logFiles;
       if (logFiles === undefined) {
         return Promise.resolve({ ok: false, error: "未配置日志存储，log.list 不可用" });
       }
+
       return logFiles.read(name).then((text) => {
         if (text === null) {
           return { ok: false as const, error: `日志文件不存在：${name}` };
         }
+
         return { ok: true as const, text };
       });
     },
@@ -103,6 +110,7 @@ export function createLocalAdapter(source:ShellSource):ShellAdapter {
       for (const timer of timers) {
         clearInterval(timer);
       }
+
       timers = [];
       if (spec === "") {
         return;
@@ -157,6 +165,7 @@ export function createLocalAdapter(source:ShellSource):ShellAdapter {
         for (const timer of timers) {
           clearInterval(timer);
         }
+
         timers = [];
         detach?.();
         detach = undefined;

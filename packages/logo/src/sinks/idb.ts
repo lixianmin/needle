@@ -78,6 +78,7 @@ function bucketize(
     if (LEVELS[level] < LEVELS[minLevel]) {
       continue;
     }
+
     const bucket = { lines: [] as string[], modified: 0 };
     for (const record of records) {
       if (LEVELS[record.level] >= LEVELS[level]) {
@@ -86,10 +87,12 @@ function bucketize(
         bucket.modified = Math.max(bucket.modified, record.time);
       }
     }
+
     if (bucket.lines.length > 0) {
       buckets.set(level, bucket);
     }
   }
+
   return buckets;
 }
 
@@ -120,6 +123,7 @@ export function createIndexedDbStore(options: IndexedDbStoreOptions = {}): LogSt
     if (failureReported) {
       return;
     }
+
     failureReported = true;
     console.error("[logo] IndexedDB 日志存储出错（同类错误不再提示）:", error);
   }
@@ -132,6 +136,7 @@ export function createIndexedDbStore(options: IndexedDbStoreOptions = {}): LogSt
       resolve();
       return;
     }
+
     const request = factory.open(name, DB_VERSION);
     request.onupgradeneeded = () => {
       const database = request.result;
@@ -140,6 +145,7 @@ export function createIndexedDbStore(options: IndexedDbStoreOptions = {}): LogSt
       if (database.objectStoreNames.contains(STORE_NAME)) {
         database.deleteObjectStore(STORE_NAME);
       }
+
       // 不传 keyPath：键与记录内容彻底分开，业务字段叫什么都不会撞车。
       const store = database.createObjectStore(STORE_NAME, { autoIncrement: true });
       store.createIndex(TIME_INDEX, "time");
@@ -154,6 +160,7 @@ export function createIndexedDbStore(options: IndexedDbStoreOptions = {}): LogSt
         resolve();
         return;
       }
+
       // blocked 只是「现在升不上去」：对方让路后这次打开会成功，
       // 之前判的 failed 要撤销，否则永远降级、再也写不进日志。
       failed = false;
@@ -193,12 +200,14 @@ export function createIndexedDbStore(options: IndexedDbStoreOptions = {}): LogSt
     if (closed) {
       return;
     }
+
     pending += 1;
     tail = tail
       .then(() => {
         if (failed || db === null) {
           return;
         }
+
         return op(db);
       })
       .catch((error: unknown) => {
@@ -215,6 +224,7 @@ export function createIndexedDbStore(options: IndexedDbStoreOptions = {}): LogSt
         if (closed || failed || db === null) {
           return fallback;
         }
+
         return op(db as IDBDatabase);
       })
       .catch((error: unknown) => {
@@ -246,6 +256,7 @@ export function createIndexedDbStore(options: IndexedDbStoreOptions = {}): LogSt
     if (overflow <= 0) {
       return;
     }
+
     let remaining = overflow;
     // 游标翻页的正解是复用同一个 request：continue() 之后它的 success 会再响一次。
     // 必须挂 onerror：事务中途 abort 时 success 不会再来，promise 永不落地
@@ -267,10 +278,12 @@ export function createIndexedDbStore(options: IndexedDbStoreOptions = {}): LogSt
     if (closed || batch.length === 0) {
       return;
     }
+
     const records = batch.filter((record) => LEVELS[record.level] >= LEVELS[minLevel]);
     if (records.length === 0) {
       return;
     }
+
     enqueue(async (database) => {
       const tx = database.transaction(STORE_NAME, "readwrite");
       // 完成监听要在事务还没提交时就挂上：事务一旦没有待处理请求就会提交，
@@ -289,6 +302,7 @@ export function createIndexedDbStore(options: IndexedDbStoreOptions = {}): LogSt
           reportOnce(error);
         }
       }
+
       await prune(store);
       await done;
     });
@@ -307,6 +321,7 @@ export function createIndexedDbStore(options: IndexedDbStoreOptions = {}): LogSt
           sample: bucket.lines.slice(-SAMPLE_LINES).map(clipLine).join("\n"),
         });
       }
+
       return entries;
     }, []);
 
@@ -316,6 +331,7 @@ export function createIndexedDbStore(options: IndexedDbStoreOptions = {}): LogSt
       if (level === null) {
         return null;
       }
+
       const records = await readAll(database);
       // 名单内的文件没内容 = 文件不存在（list 也不会列它），与 Node 侧口径一致。
       const lines = records
@@ -330,10 +346,12 @@ export function createIndexedDbStore(options: IndexedDbStoreOptions = {}): LogSt
       if (LEVELS[level] < LEVELS[minLevel]) {
         continue;
       }
+
       if (logName === `${level}.log`) {
         return level;
       }
     }
+
     return null;
   }
 
@@ -341,6 +359,7 @@ export function createIndexedDbStore(options: IndexedDbStoreOptions = {}): LogSt
     if (closed) {
       return;
     }
+
     closed = true;
     // 关连接排在队列末尾：已入队的批次先落库。close() 是同步签名，
     // 所以关连接顺着链走，不阻塞调用方。

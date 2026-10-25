@@ -24,6 +24,7 @@ export function defaultComparer<K>(left: K, right: K): number {
   if (leftType === "number") {
     return (left as number) - (right as number);
   }
+
   if (leftType === "string") {
     return left < right ? -1 : left > right ? 1 : 0;
   }
@@ -98,6 +99,7 @@ export class SortedTable<K, V> implements Iterable<[K, V]> {
     if (index < 0) {
       throw new Error(`SortedTable: key 不存在 ${String(key)}`);
     }
+
     return this.values[index] as V;
   }
 
@@ -113,6 +115,7 @@ export class SortedTable<K, V> implements Iterable<[K, V]> {
     if (index >= 0) {
       throw new Error(`SortedTable: key 重复 ${String(key)}`);
     }
+
     this.insertAt(~index, key, value);
   }
 
@@ -123,6 +126,7 @@ export class SortedTable<K, V> implements Iterable<[K, V]> {
       this.values[index] = value;
       return;
     }
+
     this.insertAt(~index, key, value);
   }
 
@@ -131,6 +135,7 @@ export class SortedTable<K, V> implements Iterable<[K, V]> {
     if (index < 0) {
       return false;
     }
+
     this.removeAt(index);
     return true;
   }
@@ -139,6 +144,7 @@ export class SortedTable<K, V> implements Iterable<[K, V]> {
     if (index < 0 || index >= this.keys.length) {
       throw new RangeError("SortedTable: 下标越界");
     }
+
     this.keys.splice(index, 1);
     this.values.splice(index, 1);
   }
@@ -148,6 +154,7 @@ export class SortedTable<K, V> implements Iterable<[K, V]> {
     if (index < 0 || index > this.keys.length) {
       throw new RangeError("SortedTable: 插入位置越界");
     }
+
     this.keys.splice(index, 0, key);
     this.values.splice(index, 0, value);
   }

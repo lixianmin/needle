@@ -15,13 +15,16 @@ export function coerceValue(raw: string): unknown {
   if (raw === "true") {
     return true;
   }
+
   if (raw === "false") {
     return false;
   }
+
   const trimmed = raw.trim();
   if (trimmed !== "" && !Number.isNaN(Number(trimmed))) {
     return Number(trimmed);
   }
+
   return raw;
 }
 
@@ -40,8 +43,10 @@ export function deepMerge(
       result[key] = deepMerge(current, value);
       continue;
     }
+
     result[key] = value;
   }
+
   return result;
 }
 
@@ -53,8 +58,10 @@ function setPath(target: Record<string, unknown>, path: readonly string[], value
     if (!isPlainObject(cursor[key])) {
       cursor[key] = {};
     }
+
     cursor = cursor[key] as Record<string, unknown>;
   }
+
   cursor[path[path.length - 1]!] = value;
 }
 
@@ -72,12 +79,15 @@ export function applyEnv(
     if (raw === undefined || !key.startsWith(prefix)) {
       continue;
     }
+
     const name = key.slice(prefix.length);
     if (name === "") {
       continue;
     }
+
     setPath(result, name.toLowerCase().split("__"), coerceValue(raw));
   }
+
   return result;
 }
 
@@ -89,8 +99,10 @@ export function assertRequired(config: Record<string, unknown>, required: readon
       if (!isPlainObject(value) || !(key in value)) {
         return true;
       }
+
       value = value[key];
     }
+
     return value === undefined || value === null || value === "";
   });
   if (missing.length > 0) {
@@ -110,11 +122,13 @@ export function readPath(data: Record<string, unknown>, path: string): unknown {
     if (typeof cursor !== "object" || cursor === null || Array.isArray(cursor)) {
       return undefined;
     }
+
     cursor = (cursor as Record<string, unknown>)[key];
     if (cursor === undefined) {
       return undefined;
     }
   }
+
   return cursor;
 }
 
@@ -155,12 +169,15 @@ export function createConfig<C extends Record<string, unknown>>(data: C, env: st
       if (fallback !== undefined) {
         return fallback;
       }
+
       throw missing(path);
     }
+
     const converted = convert(raw);
     if (converted === undefined) {
       throw new Error(`配置项 ${path} 类型不对：${JSON.stringify(raw)}`);
     }
+
     return converted;
   }
 
@@ -182,10 +199,12 @@ export function createConfig<C extends Record<string, unknown>>(data: C, env: st
         if (typeof raw === "number") {
           return Number.isFinite(raw) ? Math.trunc(raw) : undefined;
         }
+
         if (typeof raw === "string" && raw.trim() !== "") {
           const parsed = Number(raw);
           return Number.isFinite(parsed) ? Math.trunc(parsed) : undefined;
         }
+
         return undefined;
       }),
     getBool: (path, fallback) =>
@@ -193,12 +212,15 @@ export function createConfig<C extends Record<string, unknown>>(data: C, env: st
         if (typeof raw === "boolean") {
           return raw;
         }
+
         if (raw === "true") {
           return true;
         }
+
         if (raw === "false") {
           return false;
         }
+
         return undefined;
       }),
     getStringMap: (path) => {
@@ -206,13 +228,16 @@ export function createConfig<C extends Record<string, unknown>>(data: C, env: st
       if (raw === undefined) {
         return {};
       }
+
       if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
         throw new Error(`配置项 ${path} 不是 key→value 映射：${JSON.stringify(raw)}`);
       }
+
       const map: Record<string, string> = {};
       for (const [key, entry] of Object.entries(raw)) {
         map[key] = String(entry);
       }
+
       return map;
     },
     raw: () => data,

@@ -34,10 +34,12 @@ function readTotals(): Map<string, Totals> {
     if (file === undefined) {
       continue;
     }
+
     const name = /(?:^|\/)packages\/([^/]+)\/src\//.exec(file)?.[1];
     if (name === undefined) {
       continue;
     }
+
     const count = (key: string): number => {
       const raw = new RegExp(`^${key}:(\\d+)$`, "m").exec(record)?.[1];
       return raw === undefined ? 0 : Number(raw);
@@ -47,6 +49,7 @@ function readTotals(): Map<string, Totals> {
     current.linesHit += count("LH");
     totals.set(name, current);
   }
+
   return totals;
 }
 
@@ -61,6 +64,7 @@ for (const name of packageNames()) {
   if (!ok) {
     failures.push(name);
   }
+
   const mark = ok ? "ok  " : "FAIL";
   console.log(`${mark} packages/${name}  行覆盖 ${(pct * 100).toFixed(2)}%  (${hit}/${found})`);
 }

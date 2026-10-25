@@ -28,6 +28,7 @@ for (const path of targets) {
   if (pkg.version === root.version) {
     continue;
   }
+
   pkg.version = root.version;
   writeFileSync(full, `${JSON.stringify(pkg, null, 2)}\n`);
   console.log(`${path}: ${root.version}`);

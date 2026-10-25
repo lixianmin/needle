@@ -76,6 +76,7 @@ export function createHonox(options: HonoxOptions): HonoxApp {
     // 挂到根路径等于把整站写进白名单——这种配置错误必须在启动时炸，不能默默放行。
     throw new Error("shell.basePath 不能是根路径：请挂到 /shell 这类子路径");
   }
+
   const shell =
     // Stryker disable next-line ConditionalExpression,LogicalOperator: shellBasePath 为 null 与没传 shell 等价，子条件构不成独立分支
     options.shell === undefined || shellBasePath === null
@@ -110,6 +111,7 @@ export function createHonox(options: HonoxOptions): HonoxApp {
     if (isRequestError(error)) {
       return ResponseX.fail(error.status, error.code, error.message);
     }
+
     // Hono 自带的中间件（basic-auth / bearer-auth / zValidator 之类）抛的是
     // HTTPException，它自带状态码。一律当 500 会把 401 变成 500；但也不能直接用
     // `getResponse()`——message-only 的 HTTPException 会吐出 text/plain，破坏
@@ -118,9 +120,11 @@ export function createHonox(options: HonoxOptions): HonoxApp {
       if (error.res !== undefined) {
         return error.res;
       }
+
       const message = error.status >= 500 ? "服务内部错误" : error.message;
       return ResponseX.fail(error.status, codeForStatus(error.status), message);
     }
+
     return ResponseX.internalError("服务内部错误");
   });
 
@@ -133,6 +137,7 @@ export function createHonox(options: HonoxOptions): HonoxApp {
       if (res.status === 404) {
         logger.info({ rid: ctx.get("rid"), path: ctx.req.path, status: 404 });
       }
+
       return res;
     };
     // Stryker disable next-line CallExpression: `/shell/*` 已经匹配 `/shell`（通配吃空段），这行只为了把两条挂载写清楚

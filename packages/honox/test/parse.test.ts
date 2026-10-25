@@ -21,6 +21,7 @@ async function attempt<T>(
     } catch (error) {
       outcome = { error };
     }
+
     return ctx.text("ok");
   });
   await app.request(path, init);
@@ -96,6 +97,7 @@ describe("parseBody", () => {
       } catch (error) {
         caught = error;
       }
+
       return ctx.text("ok");
     });
     await app.request("/x", jsonInit({ ids: [1] }));

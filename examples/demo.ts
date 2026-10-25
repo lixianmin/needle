@@ -29,6 +29,7 @@ function clamp(value: number): number {
   if (!Number.isFinite(value)) {
     return 20;
   }
+
   return Math.min(Math.max(1, Math.trunc(value)), 100_000);
 }
 
@@ -104,6 +105,7 @@ const shell = createServerShell({
             logo.info(line);
           }
         }
+
         return { kind: "text", text: `已写 ${count} 条：${Math.floor(count / 7)} 条 warn、${Math.floor(count / 17)} 条 error` };
       },
     },
@@ -123,6 +125,7 @@ const server = await serve(async (req) => {
   if (pathname === "/" || pathname.startsWith("/shell")) {
     return shell.handler(req);
   }
+
   return new Response("这是你的业务服务。Shell 在 /shell\n");
 }, { port: PORT });
 
@@ -137,6 +140,7 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
     if (closing) {
       return;
     }
+
     closing = true;
     logo.info("收到退出信号，flush 后退出");
     // 顺序很重要：先冲日志，再关连接。

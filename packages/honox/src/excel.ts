@@ -76,6 +76,7 @@ function loadWorkbook(path: string): Promise<Workbook> {
   if (cached !== undefined) {
     return cached;
   }
+
   const pending = readXlsx(readFileSync(path));
   workbooks.set(path, pending);
   pending.catch(() => {
@@ -100,6 +101,7 @@ function toRecords(worksheet: { rows: CellValue[][] }): Record<string, CellValue
       if (key === "") {
         return;
       }
+
       row[key] = cells[index] ?? null;
     });
     return row;
@@ -117,9 +119,11 @@ function classify(sheetName: string): "template" | "config" | null {
   if (sheetName.endsWith(TEMPLATE_SUFFIX)) {
     return "template";
   }
+
   if (sheetName.endsWith(CONFIG_SUFFIX)) {
     return "config";
   }
+
   return null;
 }
 
@@ -132,9 +136,11 @@ function arrayColumnsOf(type: TemplateClass<object>): ReadonlyMap<string, string
     if (!Array.isArray(value)) {
       continue;
     }
+
     const separator = overrides?.[column] ?? overrides?.[column.toLowerCase()] ?? SPLIT_SEPARATOR;
     columns.set(column.trim().toLowerCase(), separator === "" ? SPLIT_SEPARATOR : separator);
   }
+
   return columns;
 }
 
@@ -151,6 +157,7 @@ function applySplit(
     if (!(column in shaped)) {
       continue;
     }
+
     const value = row[column];
     shaped[column] =
       value === null || value === undefined || value === ""
@@ -159,6 +166,7 @@ function applySplit(
             .split(separator)
             .map((part) => part.trim());
   }
+
   return shaped;
 }
 
@@ -170,11 +178,13 @@ function resolveSelector<T extends object>(
   if (typeof selector === "string") {
     return { sheetName: selector, type: undefined };
   }
+
   const sheetName = name ?? selector.name;
   if (sheetName === "") {
     // 压缩后 class.name 会被抹平，那时必须显式补第二个参数。
     throw new Error("模板类没有类名：压缩产物里请显式传 sheet 名，metadata.template(Xxx, \"XxxTemplate\")");
   }
+
   return { sheetName, type: selector };
 }
 
@@ -196,6 +206,7 @@ function toTemplateTable(path: string, sheetName: string, rows: CellValue[][]): 
     if (isEmptyRow(row)) {
       return;
     }
+
     const excelRow = index + 2;
     const id = row.id;
     if (typeof id !== "number" || !Number.isFinite(id)) {
@@ -203,9 +214,11 @@ function toTemplateTable(path: string, sheetName: string, rows: CellValue[][]): 
         `${path}#${sheetName} 第 ${excelRow} 行 id 不是数字：${id === undefined ? "(缺列)" : String(id)}`,
       );
     }
+
     if (byId.has(id)) {
       throw new Error(`${path}#${sheetName} 重复 id：${id}（第 ${excelRow} 行）`);
     }
+
     // 行对象原样保留：多出来的列是配置表常见的备注列，不该被裁掉。
     byId.set(id, row);
     list.push(row);
@@ -220,6 +233,7 @@ function toConfig(path: string, sheetName: string, rows: CellValue[][]): Record<
   if (row === undefined) {
     throw new Error(`${path}#${sheetName} 是 Config，但没有数据行（第 2 行起至少要有 1 行）`);
   }
+
   return row;
 }
 
@@ -246,6 +260,7 @@ export function createMetadata(): Metadata {
         `没有 Template 表：${name}（sheet 名要原样、且以 ${TEMPLATE_SUFFIX} 结尾；已加载：${listOf(state.templates.keys())}）`,
       );
     }
+
     return table;
   }
 
@@ -275,6 +290,7 @@ export function createMetadata(): Metadata {
           skipped.push(`${file}#${sheet.name}`);
           continue;
         }
+
         const seen = source.get(sheet.name);
         if (seen !== undefined) {
           // 同名 sheet 静默覆盖是 rim.proxy 的旧 bug，这里直接报错。
@@ -282,6 +298,7 @@ export function createMetadata(): Metadata {
             `sheet 名重复：${sheet.name}（${seen} 与 ${file}）；第一层索引只能用 sheet 名，必须唯一`,
           );
         }
+
         source.set(sheet.name, file);
         if (kind === "template") {
           templates.set(sheet.name, toTemplateTable(path, sheet.name, sheet.rows));
@@ -323,6 +340,7 @@ export function createMetadata(): Metadata {
       if (cachedVersion === state.version) {
         return { byId, list };
       }
+
       if (columns.size === 0) {
         byId = table.byId as ReadonlyMap<number, T>;
         list = table.list as readonly T[];
@@ -334,6 +352,7 @@ export function createMetadata(): Metadata {
         );
         list = shaped;
       }
+
       cachedVersion = state.version;
       return { byId, list };
     }
@@ -365,10 +384,12 @@ export function createMetadata(): Metadata {
             `没有 Config 表：${sheetName}（sheet 名要原样、且以 ${CONFIG_SUFFIX} 结尾；已加载：${listOf(state.configs.keys())}）`,
           );
         }
+
         if (cachedVersion !== state.version) {
           shaped = (columns.size === 0 ? value : applySplit(value, columns)) as T;
           cachedVersion = state.version;
         }
+
         return shaped as T;
       },
     };

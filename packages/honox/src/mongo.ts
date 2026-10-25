@@ -40,6 +40,7 @@ export function createMongo(options: MongoOptions): Mongo {
       if (closed || !owned) {
         return;
       }
+
       closed = true;
       await client.close();
     },

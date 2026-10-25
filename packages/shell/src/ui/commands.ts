@@ -14,6 +14,7 @@ function handleAuth(args: string[], ctx: LocalCommandContext): boolean {
     ctx.pushText("用法: auth <user>", "status");
     return true;
   }
+
   ctx.enterPasswordMode(target);
   return true;
 }
@@ -24,6 +25,7 @@ function handleSub(args: string[], ctx: LocalCommandContext): boolean {
     ctx.pushText("未登录：先执行 auth <user>", "status");
     return true;
   }
+
   const topic = args[0];
   if (topic === undefined) {
     ctx.pushText(
@@ -32,15 +34,18 @@ function handleSub(args: string[], ctx: LocalCommandContext): boolean {
     );
     return true;
   }
+
   if (ctx.state.topics.length > 0 && !ctx.state.topics.some((item) => item.name === topic)) {
     ctx.pushText(`没有这个主题：${topic}`, "status");
     return true;
   }
+
   const interval = args[1] === undefined ? undefined : Number(args[1]);
   if (interval !== undefined && !Number.isFinite(interval)) {
     ctx.pushText("interval-ms 必须是数字", "status");
     return true;
   }
+
   ctx.state.subscriptions.set(topic, interval);
   ctx.applySubscriptions();
   ctx.pushText(`已订阅 ${topic}`, "status");
@@ -52,6 +57,7 @@ function handleUnsub(args: string[], ctx: LocalCommandContext): boolean {
     ctx.pushText("未登录：先执行 auth <user>", "status");
     return true;
   }
+
   const topic = args[0];
   if (topic === undefined) {
     ctx.state.subscriptions.clear();
@@ -59,10 +65,12 @@ function handleUnsub(args: string[], ctx: LocalCommandContext): boolean {
     ctx.pushText("已取消全部订阅", "status");
     return true;
   }
+
   if (!ctx.state.subscriptions.delete(topic)) {
     ctx.pushText(`没订阅过 ${topic}`, "status");
     return true;
   }
+
   ctx.applySubscriptions();
   ctx.pushText(`已取消订阅 ${topic}`, "status");
   return true;
@@ -90,12 +98,14 @@ export function commonPrefix(values: string[]): string {
   if (values.length === 0) {
     return "";
   }
+
   let prefix = values[0] ?? "";
   for (const value of values) {
     while (!value.startsWith(prefix)) {
       prefix = prefix.slice(0, -1);
     }
   }
+
   return prefix;
 }
 

@@ -30,6 +30,7 @@ function setup() {
     if (command === undefined) {
       throw new Error(`没有命令 ${name}`);
     }
+
     return command.run(context(args));
   };
   return { commands, run };

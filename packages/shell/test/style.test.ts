@@ -8,6 +8,7 @@ function ruleBlock(selector: string): string {
   if (start < 0) {
     throw new Error(`没有这条规则：${selector}`);
   }
+
   const open = STYLE.indexOf("{", start);
   const close = STYLE.indexOf("}", open);
   return STYLE.slice(open + 1, close);

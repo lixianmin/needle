@@ -39,6 +39,7 @@ export function registerApis(app: HonoxApp): void {
     v1.route("/login", createLoginApi());
     v1.route("/bots", createBotsApi());
   }
+
   app.route("/", v1);
 
   // 测试台（`/`）与 mock 登录（`/api/v1/login`）必须匿名可达：页面本身就是拿 token

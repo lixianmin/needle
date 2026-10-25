@@ -27,6 +27,7 @@ async function hit(router: ReturnType<typeof createRouter>, path: string, method
   if (found === null) {
     return null;
   }
+
   const res = await found.handler({ req, url: found.url, params: found.params });
   return { status: res.status, body: await res.text(), params: found.params };
 }

@@ -24,6 +24,7 @@ function host(): Hono<HonoxEnv> {
     if (isRequestError(error)) {
       return ResponseX.fail(error.status, error.code, error.message);
     }
+
     return ctx.text(String(error), 500);
   });
   return app;

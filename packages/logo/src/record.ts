@@ -47,9 +47,11 @@ export function sanitize(
   if (depth >= MAX_DEPTH) {
     return "[Depth]";
   }
+
   if (budget.nodes <= 0) {
     return "[Truncated]";
   }
+
   budget.nodes -= 1;
 
   // 只沿当前路径去环：`{ start: d, end: d }` 是共享引用，不是环。旧实现用
@@ -89,6 +91,7 @@ export function sanitize(
         copy[key] = "[Throws]";
       }
     }
+
     return copy;
   } finally {
     ancestors.delete(value);
@@ -110,6 +113,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   if (typeof value !== "object" || value === null) {
     return false;
   }
+
   const proto = Object.getPrototypeOf(value);
   return proto === Object.prototype || proto === null;
 }
@@ -174,14 +178,17 @@ export function buildRecord(
   if (msg !== "") {
     record.msg = msg;
   }
+
   if (options.name !== undefined) {
     record.name = options.name;
   }
+
   // 调用方显式给的 site / fn 优先：请求日志要把位置标成"哪个 API 文件"
   // （那一刻真实栈上是中间件，自动抓到的永远是中间件那一行）。
   if (options.site !== undefined && record.site === undefined) {
     record.site = options.site;
   }
+
   if (options.fn !== undefined && record.fn === undefined) {
     record.fn = options.fn;
   }

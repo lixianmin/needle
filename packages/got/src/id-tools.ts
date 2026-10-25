@@ -106,6 +106,7 @@ function encode(elapsedMs: number, nodeId: number, sequence: number): string {
     lo = ((lo >>> 5) | ((hi & 31) << 27)) >>> 0;
     hi >>>= 5;
   }
+
   return String.fromCharCode(
     CODE_BUFFER[0]!,
     CODE_BUFFER[1]!,
@@ -128,14 +129,17 @@ function decode(id: string): bigint {
   if (id.length !== 13) {
     throw new Error(`Snowflake id 必须是 13 位：${id}`);
   }
+
   let value = 0n;
   for (const char of id) {
     const digit = ALPHABET.indexOf(char.toLowerCase());
     if (digit < 0) {
       throw new Error(`Snowflake id 含非法字符 ${char}：${id}`);
     }
+
     value = value * 32n + BigInt(digit);
   }
+
   return value;
 }
 
@@ -150,6 +154,7 @@ export function createSnowflake(options: SnowflakeOptions): Snowflake {
   if (!Number.isInteger(options.nodeId) || options.nodeId < 0 || options.nodeId > NODE_MAX) {
     throw new Error(`nodeId 必须是 0..${NODE_MAX} 的整数：${options.nodeId}`);
   }
+
   const epoch = options.epoch;
   const node = options.nodeId;
   const now = options.now ?? Date.now;
@@ -162,6 +167,7 @@ export function createSnowflake(options: SnowflakeOptions): Snowflake {
     while (current <= previous) {
       current = now();
     }
+
     return current;
   }
 
@@ -190,6 +196,7 @@ export function createSnowflake(options: SnowflakeOptions): Snowflake {
       if (elapsed < 0) {
         throw new Error(`当前时间早于 epoch（${epoch}）：检查系统时钟或 epoch 配置`);
       }
+
       if (elapsed > TIME_MAX) {
         throw new Error(`epoch 太早：41 位毫秒只够 ${Math.floor(TIME_MAX / 31_536_000_000)} 年`);
       }
@@ -213,6 +220,7 @@ function generatorFor(epoch: number, nodeId: number): Snowflake {
     generator = createSnowflake({ epoch, nodeId });
     GENERATORS.set(key, generator);
   }
+
   return generator;
 }
 
@@ -288,6 +296,7 @@ function encodeUlid(ms: number, random: Uint8Array): string {
     ULID_CODE_BUFFER[index] = ULID_ALPHABET.charCodeAt(rest % 32);
     rest = Math.floor(rest / 32);
   }
+
   for (let half = 0; half < 2; half += 1) {
     let value = read40(random, half * 5);
     for (let index = 7; index >= 0; index -= 1) {
@@ -295,6 +304,7 @@ function encodeUlid(ms: number, random: Uint8Array): string {
       value = Math.floor(value / 32);
     }
   }
+
   // 每请求一次，不是百万次/秒的热路径，展开成 26 个参数不如直接 spread 好读。
   return String.fromCharCode(...ULID_CODE_BUFFER);
 }
@@ -308,6 +318,7 @@ export function nextUlid(now: number = Date.now()): string {
   if (!Number.isInteger(now) || now < 0 || now > ULID_TIME_MAX) {
     throw new Error(`nextUlid 的时间必须是 0..${ULID_TIME_MAX} 的整数毫秒：${now}`);
   }
+
   globalThis.crypto.getRandomValues(ULID_RANDOM);
   return encodeUlid(now, ULID_RANDOM);
 }

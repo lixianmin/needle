@@ -33,6 +33,7 @@ function reference(elapsed: number, node: number, sequence: number): string {
     out = ALPHABET[Number(value % 32n)]! + out;
     value /= 32n;
   }
+
   return out;
 }
 
@@ -42,6 +43,7 @@ function decodeUlid(id: string): bigint {
   for (const char of id) {
     value = value * 32n + BigInt(ULID_ALPHABET.indexOf(char));
   }
+
   return value;
 }
 
@@ -62,6 +64,7 @@ describe("createSnowflake", () => {
     for (let i = 0; i < 4096; i += 1) {
       last = ids.next();
     }
+
     expect(last).toBe(reference(elapsed, 7, 4095));
   });
 
@@ -131,6 +134,7 @@ describe("createSnowflake", () => {
     for (let i = 0; i < 4097; i += 1) {
       generated.push(ids.next());
     }
+
     expect(parseSnowflake(generated[4095]!)).toEqual({ elapsedMs: 0, nodeId: 1, sequence: 4095 });
     expect(parseSnowflake(generated[4096]!)).toEqual({ elapsedMs: 1, nodeId: 1, sequence: 0 });
     for (let i = 1; i < generated.length; i += 1) {

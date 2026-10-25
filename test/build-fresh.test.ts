@@ -14,11 +14,14 @@ function newestMtime(dir: string, skip?: (name: string) => boolean): number {
       newest = Math.max(newest, newestMtime(full, skip));
       continue;
     }
+
     if (skip?.(entry.name) === true) {
       continue;
     }
+
     newest = Math.max(newest, statSync(full).mtimeMs);
   }
+
   return newest;
 }
 

@@ -44,6 +44,7 @@ export function displayNumber(value: number): string {
   if (!Number.isInteger(value) || Math.abs(value) < 1024) {
     return String(value);
   }
+
   return toHuman(value);
 }
 
@@ -68,6 +69,7 @@ export function formatDuration(ms: number): string {
   if (value < 1000) {
     return `${sign}${Math.round(value)}ms`;
   }
+
   if (value < 60_000) {
     return `${sign}${(value / 1000).toFixed(1)}s`;
   }
@@ -81,8 +83,10 @@ export function formatDuration(ms: number): string {
   if (days > 0) {
     return `${sign}${days}d ${hours}h`;
   }
+
   if (hours > 0) {
     return `${sign}${hours}h ${String(minutes).padStart(2, "0")}m`;
   }
+
   return `${sign}${minutes}m ${String(seconds).padStart(2, "0")}s`;
 }

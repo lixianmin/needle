@@ -93,6 +93,7 @@ export function createBroadcast(): Broadcast {
       for (const connection of connections) {
         connection.close();
       }
+
       connections.clear();
     },
   };
@@ -119,6 +120,7 @@ export function parseTopicSpecs(spec: string | null, topics: readonly Topic[]): 
     if (specs.length >= MAX_TOPIC_SPECS) {
       break;
     }
+
     const [name, rawInterval] = part.split(":");
     const trimmed = name?.trim() ?? "";
     const topic = topics.find((candidate) => candidate.name === trimmed);
@@ -126,6 +128,7 @@ export function parseTopicSpecs(spec: string | null, topics: readonly Topic[]): 
     if (topic === undefined || seen.has(topic.name)) {
       continue;
     }
+
     seen.add(topic.name);
 
     const requested = rawInterval === undefined ? topic.intervalMs : Number(rawInterval);
@@ -135,6 +138,7 @@ export function parseTopicSpecs(spec: string | null, topics: readonly Topic[]): 
 
     specs.push({ topic, intervalMs });
   }
+
   return specs;
 }
 
@@ -170,6 +174,7 @@ export function createSseResponse(init: SseInit): Response {
     for (const timer of timers) {
       clearInterval(timer);
     }
+
     timers.length = 0;
   }
 
@@ -179,6 +184,7 @@ export function createSseResponse(init: SseInit): Response {
         if (closed) {
           return;
         }
+
         try {
           controller.enqueue(encoder.encode(chunk));
         } catch {
@@ -200,6 +206,7 @@ export function createSseResponse(init: SseInit): Response {
           if (closed) {
             return;
           }
+
           teardown();
           try {
             controller.close();
@@ -234,11 +241,13 @@ export function createSseResponse(init: SseInit): Response {
             if (closed) {
               return;
             }
+
             // 慢主题不叠加：上一轮没读完就跳过这一轮，否则连接会被越堆越多的
             // 读取任务拖死。
             if (busy) {
               return;
             }
+
             busy = true;
             Promise.resolve()
               .then(() => topic.read())
@@ -262,6 +271,7 @@ export function createSseResponse(init: SseInit): Response {
           if (closed) {
             return;
           }
+
           write(": ping\n\n");
         }, heartbeatMs),
       );

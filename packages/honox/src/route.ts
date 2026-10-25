@@ -37,6 +37,7 @@ function isModelClass(value: unknown): value is ModelClass<unknown> {
   if (typeof value !== "function") {
     return false;
   }
+
   return Object.getOwnPropertyDescriptor(value, "prototype")?.writable === false;
 }
 
@@ -114,6 +115,7 @@ export function createApi(module: string): ApiGroup {
           if (typeof path !== "string") {
             throw new Error(`createApi 的路由必须带路径：${prop}("/path", handler)`);
           }
+
           // 第 0 帧是这个箭头函数（route.ts），不再抓注册行：打包后栈里只剩
           // bundle 坐标，定位靠 `module`（日志前缀）。
           const withModelForm =
@@ -123,11 +125,13 @@ export function createApi(module: string): ApiGroup {
               `all ${path}：all 会按 body 解析参数，GET 之类没有 body 的请求必然 400；请分开写具体方法`,
             );
           }
+
           if (!withModelForm && args.some(isModelClass)) {
             throw new Error(
               `${prop} ${path}：带模型的写法只支持 (path, Model, handler)，模型不能出现在 handler 位置`,
             );
           }
+
           const handlers: Handler<HonoxEnv>[] = withModelForm
             ? [withModel(module, prop, args[0] as ModelClass<unknown>, args[1] as ParsedHandler<unknown>)]
             : args
@@ -141,10 +145,12 @@ export function createApi(module: string): ApiGroup {
           return receiver;
         };
       }
+
       const value = Reflect.get(target, prop, receiver);
       if (typeof value !== "function") {
         return value;
       }
+
       // 这几个方法 `return this`（= target）。链式 `api.use(...).get(...)` 的那次
       // .get 如果拿到裸 target，就不会包 handler，日志里连 module 都没有。
       if (CHAINING_METHODS.has(prop)) {
@@ -153,6 +159,7 @@ export function createApi(module: string): ApiGroup {
           return result === target ? receiver : result;
         };
       }
+
       // 只绑原型方法。实例自有字段（errorHandler / notFoundHandler）bind 出来是另一个
       // 函数：父 app 的 route() 会据此误判「子 app 自带错误处理」，把 handler 包进子 app
       // 的**默认** errorHandler——父层 onError 就再也收不到这个组的异常。

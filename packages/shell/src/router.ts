@@ -36,6 +36,7 @@ export function normalizeBasePath(value: string): string {
   if (value === "" || value === "/") {
     return "";
   }
+
   const trimmed = value.replace(/\/+$/, "");
   return trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
 }
@@ -61,12 +62,15 @@ function matchPattern(pattern: string[], path: string[]): Record<string, string>
         // 畸形百分号编码（如 %E0%A4%A）不该冒成 500，按"这条路由不匹配"处理。
         return null;
       }
+
       continue;
     }
+
     if (part !== value) {
       return null;
     }
   }
+
   return params;
 }
 
@@ -83,12 +87,15 @@ export function createRouter(options: { basePath?: string; routes: Route[] }): R
     if (basePath === "") {
       return pathname;
     }
+
     if (pathname === basePath) {
       return "/";
     }
+
     if (!pathname.startsWith(`${basePath}/`)) {
       return null;
     }
+
     return pathname.slice(basePath.length);
   }
 
@@ -99,6 +106,7 @@ export function createRouter(options: { basePath?: string; routes: Route[] }): R
       if (path === null) {
         return null;
       }
+
       // 尾随斜杠不算命中（`/health/` 仍 404），与改动前一致；`strip` 把 basePath
       // 自身归一成 `/`，所以挂载点带不带尾斜杠都进根路由。
       if (path.length > 1 && path.endsWith("/")) {
@@ -109,11 +117,13 @@ export function createRouter(options: { basePath?: string; routes: Route[] }): R
         if (route.method !== req.method) {
           continue;
         }
+
         const params = matchPattern(route.segments, segments(path));
         if (params !== null) {
           return { url, params, handler: route.handler };
         }
       }
+
       return null;
     },
   };

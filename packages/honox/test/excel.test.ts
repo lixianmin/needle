@@ -34,6 +34,7 @@ async function metadataDir(files: FakeFile[]): Promise<string> {
     mkdirSync(dirname(target), { recursive: true });
     writeFileSync(target, output);
   }
+
   return dir;
 }
 

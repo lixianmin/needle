@@ -18,6 +18,7 @@ function configDir(files: Record<string, string>): string {
   for (const [name, content] of Object.entries(files)) {
     writeFileSync(join(dir, name), content);
   }
+
   return dir;
 }
 

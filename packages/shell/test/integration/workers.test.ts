@@ -19,6 +19,7 @@ beforeAll(async () => {
   if (output === undefined) {
     throw new Error("没有构建产物");
   }
+
   bundle = await output.text();
 
   mf = new Miniflare({

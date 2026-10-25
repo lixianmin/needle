@@ -29,6 +29,7 @@ async function errorMessage(response: Response): Promise<string> {
   } catch {
     // 网关/代理插进来的非 JSON 错误页，不猜内容
   }
+
   return `请求失败（HTTP ${response.status}）`;
 }
 
@@ -63,6 +64,7 @@ function createFrameParser(onFrame: (event: string, data: string) => void) {
           data.push(line.slice(5).trim());
         }
       }
+
       if (data.length > 0) {
         onFrame(event, data.join("\n"));
       }
@@ -100,6 +102,7 @@ export function createFetchAdapter(options: FetchAdapterOptions):ShellAdapter {
     if (disposed) {
       return;
     }
+
     controller?.abort();
     // 每轮持有自己的 Controller：旧轮次被 abort 时，catch 里不能去读那个
     // 已经被换成新轮次的 controller，否则守卫失效、旧轮次会把新连接再 abort 一遍。
@@ -129,6 +132,7 @@ export function createFetchAdapter(options: FetchAdapterOptions):ShellAdapter {
         status("未登录：执行 auth <user> 登录；help 查看命令", "warn");
         return;
       }
+
       if (response.body === null) {
         // 没有正文也可能是网关的异常返回：交给下面的 catch 统一报错并退避重连。
         throw new Error(`empty event stream (HTTP ${response.status})`);
@@ -158,6 +162,7 @@ export function createFetchAdapter(options: FetchAdapterOptions):ShellAdapter {
         if (chunk.done) {
           break;
         }
+
         parse(decoder.decode(chunk.value, { stream: true }));
       }
 
@@ -168,6 +173,7 @@ export function createFetchAdapter(options: FetchAdapterOptions):ShellAdapter {
       if (disposed || local.signal.aborted) {
         return;
       }
+
       status(`连接失败：${String(error)}`, "error");
     }
 
@@ -175,6 +181,7 @@ export function createFetchAdapter(options: FetchAdapterOptions):ShellAdapter {
     if (disposed || controller !== local) {
       return;
     }
+
     // 指数退避，封顶 10 秒：服务重启期间不要把浏览器打死。
     retry += 1;
     setTimeout(() => void connect(), Math.min(10_000, 500 * 2 ** retry));
@@ -221,9 +228,11 @@ export function createFetchAdapter(options: FetchAdapterOptions):ShellAdapter {
         if (response.status === 401) {
           return { ok: false, error: "未登录：先执行 auth <user>" };
         }
+
         if (!response.ok) {
           return { ok: false, error: await errorMessage(response) };
         }
+
         return { ok: true, text: await response.text() };
       } catch (error) {
         return { ok: false, error: String(error) };
@@ -265,6 +274,7 @@ export function createFetchAdapter(options: FetchAdapterOptions):ShellAdapter {
       if (listeners.size === 1) {
         void connect();
       }
+
       return () => {
         listeners.delete(listener);
         if (listeners.size === 0) {

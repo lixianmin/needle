@@ -21,6 +21,7 @@ function parseFrame(line: string): Frame | undefined {
   if (file === undefined || file === "") {
     return undefined;
   }
+
   return { file };
 }
 
@@ -37,11 +38,13 @@ function externalFrames(): string[] {
   if (origin === undefined) {
     return frames;
   }
+
   const file = origin.file;
   const dir = file.slice(0, Math.max(file.lastIndexOf("/"), file.lastIndexOf("\\")));
   if (dir === "") {
     return frames;
   }
+
   // Windows 的栈里是反斜杠，两种分隔符都试。
   return frames.filter((line) => !line.includes(`${dir}/`) && !line.includes(`${dir}\\`));
 }
@@ -152,6 +155,7 @@ function buildLogger(options: LoggerOptions, state: LoggerState): Logger {
     if (sinkReported) {
       return;
     }
+
     sinkReported = true;
     console.error("[logo] sink 抛错，后续错误不再提示:", error);
   }
@@ -160,6 +164,7 @@ function buildLogger(options: LoggerOptions, state: LoggerState): Logger {
     if (timer === undefined) {
       return;
     }
+
     clearTimeout(timer);
     timer = undefined;
   }
@@ -203,6 +208,7 @@ function buildLogger(options: LoggerOptions, state: LoggerState): Logger {
     if (state.disposed) {
       return;
     }
+
     if (LEVELS[recordLevel] < LEVELS[level]) {
       return;
     }
@@ -294,6 +300,7 @@ function buildLogger(options: LoggerOptions, state: LoggerState): Logger {
         if (typeof close !== "function") {
           continue;
         }
+
         try {
           close.call(sink);
         } catch (error) {

@@ -13,6 +13,7 @@ function bearerToken(header: string | null): string | null {
   if (header === null) {
     return null;
   }
+
   const match = /^bearer\s+(.+)$/i.exec(header.trim());
   return match?.[1] ?? null;
 }
@@ -44,6 +45,7 @@ export function createExecHandler(options: ExecHttpOptions): (req: Request) => P
     if (typeof line !== "string") {
       return ResponseX.badRequest("line 必须是字符串");
     }
+
     // 空命令是畸形请求，不是业务结果，走 400。
     if (line.trim() === "") {
       return ResponseX.badRequest("空命令");

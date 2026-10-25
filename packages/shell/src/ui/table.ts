@@ -13,21 +13,27 @@ function renderValue(format: ColumnFormat, value: Cell): string {
   if (value === null) {
     return "";
   }
+
   if (isLink(value)) {
     return value.text;
   }
+
   if (typeof value !== "number") {
     return String(value);
   }
+
   if (format === "duration") {
     return formatDuration(value);
   }
+
   if (format === "bytes") {
     return toHuman(value);
   }
+
   if (format === "number") {
     return String(value);
   }
+
   return displayNumber(value);
 }
 
@@ -38,17 +44,21 @@ function compare(left: Cell | undefined, right: Cell | undefined): number {
   if (a === null && b === null) {
     return 0;
   }
+
   if (a === null) {
     return 1;
   }
+
   if (b === null) {
     return -1;
   }
+
   const av = typeof a === "object" ? a.text : a;
   const bv = typeof b === "object" ? b.text : b;
   if (typeof av === "number" && typeof bv === "number") {
     return av - bv;
   }
+
   return String(av).localeCompare(String(bv));
 }
 
@@ -85,6 +95,7 @@ function tableCell(
   } else {
     cell.textContent = renderValue(formats[index] ?? "auto", value);
   }
+
   return cell;
 }
 
@@ -113,6 +124,7 @@ function sortRows(rows: Cell[][], index: number, direction: number): Cell[][] {
     if (a === null || b === null) {
       return a === null ? (b === null ? 0 : 1) : -1;
     }
+
     return compare(a, b) * direction;
   });
 }
@@ -123,6 +135,7 @@ function updateSortMarks(headers: HTMLTableCellElement[], sortIndex: number, dir
     if (mark === null) {
       return;
     }
+
     mark.textContent = i === sortIndex ? (direction === 1 ? "▲" : "▼") : "⇅";
     mark.classList.toggle("active", i === sortIndex);
   });
@@ -165,6 +178,7 @@ export function createTableRenderer(doc: Document, openFile: (href: string) => v
         sortIndex = index;
         direction = 1;
       }
+
       renderTableBody(doc, body, sortRows(rows, index, direction), formats, openFile);
       updateSortMarks(headers, sortIndex, direction);
     }

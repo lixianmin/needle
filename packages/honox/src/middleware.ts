@@ -27,6 +27,7 @@ function resolveRid(header: (name: string) => string | undefined): string {
       return value;
     }
   }
+
   // 自己生成时是 26 位 ULID：时间在前、80 位随机在后。
   // 不用 Snowflake：rid 不需要机器号，多实例也不必互相协调位宽。
   return nextUlid();
@@ -86,6 +87,7 @@ function createFallbackLog(logger: Logger, slowMs: number): MiddlewareHandler<Ho
       if (isRequestError(ctx.error) && ctx.error.status < 500) {
         return;
       }
+
       // HTTPException 这类自带 4xx 的错误同样不是服务端故障，记 warn 就够。
       const line = { ...base(), status, durationMs, uid };
       if (status >= 500) {
@@ -93,6 +95,7 @@ function createFallbackLog(logger: Logger, slowMs: number): MiddlewareHandler<Ho
       } else {
         logger.warn(line, ctx.error);
       }
+
       return;
     }
 

@@ -83,11 +83,13 @@ export function createLogList<T>(
     if (!dirty) {
       return;
     }
+
     offsets = new Array<number>(rows.length + 1);
     offsets[0] = 0;
     for (let index = 0; index < rows.length; index += 1) {
       offsets[index + 1] = (offsets[index] as number) + (heights[index] as number);
     }
+
     dirty = false;
   }
 
@@ -105,6 +107,7 @@ export function createLogList<T>(
         high = mid - 1;
       }
     }
+
     return found;
   }
 
@@ -119,6 +122,7 @@ export function createLogList<T>(
     while (last < rows.length && (offsets[last] as number) < limit) {
       last += 1;
     }
+
     last = Math.min(rows.length, last + OVERSCAN);
 
     for (const [index, node] of live) {
@@ -144,6 +148,7 @@ export function createLogList<T>(
             remeasured = true;
           }
         }
+
         continue;
       }
 
@@ -156,6 +161,7 @@ export function createLogList<T>(
         unmeasured.add(index);
         continue;
       }
+
       const height = measure(node);
       if (height !== heights[index]) {
         heights[index] = height;
@@ -170,6 +176,7 @@ export function createLogList<T>(
       for (const [index, node] of live) {
         node.style.top = `${offsets[index]}px`;
       }
+
       spacer.style.height = `${offsets[rows.length]}px`;
       // 高度一变，总高跟着变；贴着底看的时候要重新钉住，否则会往上飘一截。
       if (following) {
@@ -182,6 +189,7 @@ export function createLogList<T>(
     if (frame !== 0) {
       return;
     }
+
     frame = raf(paint);
   }
 
@@ -189,6 +197,7 @@ export function createLogList<T>(
     for (const node of live.values()) {
       node.remove();
     }
+
     live.clear();
     unmeasured.clear();
   }
@@ -205,13 +214,16 @@ export function createLogList<T>(
     if (next === width) {
       return;
     }
+
     width = next;
     if (rows.length === 0) {
       return;
     }
+
     for (let index = 0; index < rows.length; index += 1) {
       heights[index] = estimates[index] as number;
     }
+
     dirty = true;
     rebuild();
     schedule();
@@ -228,6 +240,7 @@ export function createLogList<T>(
     if (next.length === 0) {
       return;
     }
+
     for (const row of next) {
       const height = estimate(row);
       rows.push(row);
@@ -254,6 +267,7 @@ export function createLogList<T>(
       spacer.style.height = `${offsets[rows.length]}px`;
       el.scrollTop = offsets[rows.length] as number;
     }
+
     schedule();
   }
 
@@ -285,17 +299,20 @@ export function createLogList<T>(
         cancel(frame);
         frame = 0;
       }
+
       paint();
     },
     dispose() {
       if (frame !== 0) {
         cancel(frame);
       }
+
       if (resizeObserver === undefined) {
         view?.removeEventListener("resize", onResize);
       } else {
         resizeObserver.disconnect();
       }
+
       el.removeEventListener("scroll", onScroll);
       el.remove();
     },

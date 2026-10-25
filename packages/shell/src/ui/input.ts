@@ -61,6 +61,7 @@ function submitCommand(ctx: InputContext): void {
   if (line === "") {
     return;
   }
+
   ctx.input.value = "";
 
   const [name, ...args] = line.split(/\s+/);
@@ -82,6 +83,7 @@ function submitCommand(ctx: InputContext): void {
   if (handled) {
     return;
   }
+
   void ctx.adapter.exec(line).then(
     (result) => {
       renderOutput(result, ctx.sink, ctx.table);
@@ -104,6 +106,7 @@ export function wireForm(ctx: InputContext): void {
       submitPassword(ctx);
       return;
     }
+
     submitCommand(ctx);
   });
 }
@@ -117,6 +120,7 @@ export function wireKeys(ctx: InputContext): void {
       ctx.sink.pushText("已取消", "status");
       return;
     }
+
     // Tab 补全：永远 preventDefault，否则焦点会跳到别的控件上。
     if (event.key === "Tab") {
       event.preventDefault();
@@ -127,16 +131,19 @@ export function wireKeys(ctx: InputContext): void {
           pushText: ctx.sink.pushText,
         });
       }
+
       return;
     }
 
     if (event.key !== "ArrowUp" && event.key !== "ArrowDown") {
       return;
     }
+
     // 密码框里翻历史会把上一条命令当密码提交，用户还看不出发生了什么。
     if (ctx.state.pendingUser !== null) {
       return;
     }
+
     if (ctx.state.history.length === 0) {
       return;
     }
@@ -162,10 +169,12 @@ export function wireEnterFocus(doc: Document, input: HTMLInputElement): () => vo
     if (node === null) {
       return false;
     }
+
     const tag = node.tagName.toLowerCase();
     if (tag === "input" || tag === "textarea" || tag === "select") {
       return true;
     }
+
     return (node as HTMLElement).isContentEditable === true;
   }
 
@@ -173,13 +182,16 @@ export function wireEnterFocus(doc: Document, input: HTMLInputElement): () => vo
     if (event.key !== "Enter") {
       return;
     }
+
     if (isEditable(doc.activeElement)) {
       return;
     }
+
     // Enter 是按钮/链接的默认激活方式，抢走它键盘就没法操作 Shell 自己的控件。
     if (doc.activeElement?.closest?.("button, a, [role='button']") != null) {
       return;
     }
+
     event.preventDefault();
     input.focus();
   };

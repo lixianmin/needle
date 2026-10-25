@@ -30,11 +30,13 @@ function matchesPattern(pattern: string, path: string): boolean {
   if (patternSegments.length !== pathSegments.length) {
     return false;
   }
+
   return patternSegments.every((segment, index) => {
     const actual = pathSegments[index] ?? "";
     if (segment.startsWith(":")) {
       return actual !== "";
     }
+
     return segment === actual;
   });
 }
@@ -51,6 +53,7 @@ export function matchesPublic(
     if (typeof entry === "string") {
       return matchesPattern(entry, cleanPath);
     }
+
     return entry.method.toUpperCase() === upperMethod && matchesPattern(entry.path, cleanPath);
   });
 }
@@ -59,6 +62,7 @@ function bearerOf(raw: string | undefined): string | null {
   if (raw === undefined) {
     return null;
   }
+
   return /^bearer\s+(.+)$/i.exec(raw.trim())?.[1] ?? null;
 }
 
@@ -140,6 +144,7 @@ export function createAuthGuard(
       });
       return ResponseX.unauthorized(messageFor(authError));
     }
+
     await next();
   };
 }

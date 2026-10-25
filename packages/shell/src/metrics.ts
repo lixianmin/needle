@@ -77,6 +77,7 @@ export function createMetrics(options: MetricsOptions = {}): Metrics {
         cached = Promise.resolve(detect());
         cachedAt = at;
       }
+
       return cached;
     },
   };

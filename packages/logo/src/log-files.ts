@@ -52,14 +52,17 @@ async function readTailSample(path: string, size: number): Promise<string> {
       if (start > 0) {
         lines = lines.slice(1);
       }
+
       if (lines[lines.length - 1] === "") {
         lines.pop();
       }
+
       lines = lines.filter((line) => line !== "");
 
       if (lines.length >= SAMPLE_LINES || start === 0 || windowBytes >= TAIL_WINDOW_MAX_BYTES) {
         return lines.slice(-SAMPLE_LINES).map(clipSampleLine).join("\n");
       }
+
       windowBytes *= 2;
     }
   } catch {
@@ -100,10 +103,12 @@ export function createLogFiles(options: LogFilesOptions): LogFiles {
         if (!isLogFile(name)) {
           continue;
         }
+
         const info = await lstat(join(dir, name)).catch(() => null);
         if (info === null || !info.isFile()) {
           continue; // 符号链接 isFile() 为 false
         }
+
         entries.push({
           name,
           size: info.size,
@@ -135,6 +140,7 @@ export function createLogFiles(options: LogFilesOptions): LogFiles {
         if (!info.isFile() || info.size > maxFileBytes) {
           return null;
         }
+
         return await handle.readFile("utf8");
       } catch {
         return null;

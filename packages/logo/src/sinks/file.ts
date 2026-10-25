@@ -68,6 +68,7 @@ export function createFileSink(options: FileSinkOptions): FileSink {
       if (!name.endsWith(".log") || !name.includes("-")) {
         continue;
       }
+
       const path = join(options.dir, name);
       try {
         if (statSync(path).mtimeMs < cutoff) {
@@ -84,6 +85,7 @@ export function createFileSink(options: FileSinkOptions): FileSink {
     if (bytes.has(level)) {
       return;
     }
+
     try {
       bytes.set(level, statSync(file).size);
     } catch {
@@ -97,6 +99,7 @@ export function createFileSink(options: FileSinkOptions): FileSink {
     for (let index = 1; existsSync(target); index += 1) {
       target = join(options.dir, `${level}-${stamp}-${index}.log`);
     }
+
     return target;
   }
 
@@ -105,6 +108,7 @@ export function createFileSink(options: FileSinkOptions): FileSink {
       bytes.set(level, 0);
       return;
     }
+
     const stamp = new Date(now()).toISOString().replace(/[:.]/g, "-");
     renameSync(file, archivePath(level, stamp));
     bytes.set(level, 0);
@@ -149,6 +153,7 @@ export function createFileSink(options: FileSinkOptions): FileSink {
         if (LEVELS[record.level] < LEVELS[target]) {
           continue;
         }
+
         const lines = buckets.get(target) ?? [];
         lines.push(formatLine(record));
         buckets.set(target, lines);

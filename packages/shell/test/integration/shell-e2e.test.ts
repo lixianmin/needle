@@ -51,6 +51,7 @@ describe("Shell 端到端", () => {
         if (chunk?.done === true) {
           break;
         }
+
         text += decoder.decode(chunk?.value);
       }
 
