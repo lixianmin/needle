@@ -37,8 +37,10 @@ export function normalizeBasePath(value: string): string {
     return "";
   }
 
-  const trimmed = value.replace(/\/+$/, "");
-  return trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
+  // 首尾斜杠都要收：`//shell//` 只去尾部会得到 `//shell`，拼进 href 就是协议相对
+  // URL（浏览器当主机名解析），与路由那边的段匹配语义也对不上。
+  const trimmed = value.replace(/^\/+/, "").replace(/\/+$/, "");
+  return trimmed === "" ? "" : `/${trimmed}`;
 }
 
 /** 按 `/` 切段并丢掉空段：`"/"` → `[]`，`"/log/"` → `["log"]`。 */

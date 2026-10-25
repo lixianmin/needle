@@ -4,6 +4,7 @@ import { createBuiltinCommands, createHelpCommand } from "./builtins.js";
 import { CommandError, findCommand, splitArgs } from "./commands.js";
 import { createMetrics } from "./metrics.js";
 import { createBroadcast } from "./sse.js";
+import { normalizeBasePath } from "./router.js";
 const DEFAULT_TIMEOUT_MS = 10_000;
 /**
  * 未登录时只允许这两条：登录本身，和看用法。
@@ -44,7 +45,9 @@ export function createShellSource(options) {
     // 日志推给页面的日志栏；查历史仍然走 log.list。
     const logger = options.logger ?? logo;
     logger.addSink(broadcast.sink);
-    const basePath = options.basePath ?? "";
+    // 在这里归一化：log.list 的 href 直接用这个值拼，调用方传 "shell" 或 "/shell/"
+    // 会拼出相对链接或双斜杠。路由那边也会归一，但两边各自负责自己的出口更稳。
+    const basePath = normalizeBasePath(options.basePath ?? "");
     const builtins = createBuiltinCommands({
         metrics,
         auth,

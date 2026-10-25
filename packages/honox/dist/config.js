@@ -34,6 +34,18 @@ export function deepMerge(base, override) {
     }
     return result;
 }
+/** 深拷贝配置树：只认对象与数组，其余（字符串、数字、函数）按值复制。 */
+function deepClone(value) {
+    const copy = {};
+    for (const [key, item] of Object.entries(value)) {
+        if (Array.isArray(item)) {
+            copy[key] = item.map((entry) => (isPlainObject(entry) ? deepClone(entry) : entry));
+            continue;
+        }
+        copy[key] = isPlainObject(item) ? deepClone(item) : item;
+    }
+    return copy;
+}
 /** 按点分路径写值，中间层不存在就建对象。 */
 function setPath(target, path, value) {
     let cursor = target;
@@ -51,7 +63,9 @@ function setPath(target, path, value) {
  * 用双下划线分隔路径，因为单个下划线在变量名里太常见。
  */
 export function applyEnv(base, env, prefix) {
-    const result = deepMerge(base, {});
+    // 深拷贝：setPath 会往嵌套对象里写，浅拷贝会让 base.auth.secret 这类路径直接改到
+    // 调用方传进来的对象上（deepMerge 的注释承诺「不改入参」，浅拷贝做不到）。
+    const result = deepClone(base);
     for (const [key, raw] of Object.entries(env)) {
         if (raw === undefined || !key.startsWith(prefix)) {
             continue;

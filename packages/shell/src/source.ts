@@ -4,6 +4,7 @@ import { createBuiltinCommands, createHelpCommand } from "./builtins.js";
 import { CommandError, findCommand, splitArgs } from "./commands.js";
 import { createMetrics } from "./metrics.js";
 import { createBroadcast, type Broadcast } from "./sse.js";
+import { normalizeBasePath } from "./router.js";
 import type { LogFiles } from "@needle/logo";
 import type { AuthOptions, Command, CommandOutput, Topic } from "./types.js";
 
@@ -122,7 +123,9 @@ export function createShellSource(options:ShellSourceOptions):ShellSource {
   const logger = options.logger ?? logo;
   logger.addSink(broadcast.sink);
 
-  const basePath = options.basePath ?? "";
+  // 在这里归一化：log.list 的 href 直接用这个值拼，调用方传 "shell" 或 "/shell/"
+  // 会拼出相对链接或双斜杠。路由那边也会归一，但两边各自负责自己的出口更稳。
+  const basePath = normalizeBasePath(options.basePath ?? "");
   const builtins = createBuiltinCommands({
     metrics,
     auth,

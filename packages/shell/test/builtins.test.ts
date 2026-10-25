@@ -7,11 +7,11 @@ import { newLogger } from "@needle/logo";
 
 const metrics = { read: async () => ({ runtime: "node", uptimeMs: 1234 }) };
 
-function setup() {
+function setup(basePath = "/shell") {
   const commands = createBuiltinCommands({
     metrics,
     auth: { login: async () => null, verify: async () => null },
-    basePath: "/shell",
+    basePath,
     logFiles: {
       list: async () => [
         { name: "info.log", size: 2048, modified: 1_700_000_000_000, sample: "第一行\n第二行" },

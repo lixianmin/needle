@@ -186,6 +186,17 @@ describe("配置工具函数（被 loadConfig 间接用到，也单独钉住）"
     expect(applied).not.toHaveProperty("other");
   });
 
+  // setPath 会往嵌套对象里写。浅拷贝时 `base.auth.secret` 会被就地改掉，
+  // 而 deepMerge 的注释承诺「不改入参」。
+  test("applyEnv：不修改传入的 base（深拷贝）", () => {
+    const base = { auth: { secret: "a" }, list: [{ x: 1 }] };
+    const applied = applyEnv(base, { APP_AUTH__SECRET: "b" }, "APP_");
+
+    expect(applied).toEqual({ auth: { secret: "b" }, list: [{ x: 1 }] });
+    expect(base).toEqual({ auth: { secret: "a" }, list: [{ x: 1 }] });
+    expect(applied.auth).not.toBe(base.auth);
+  });
+
   test("readPath：深路径、缺失、穿过数组/非对象", () => {
     const data = { a: { b: { ctx: 1 } }, list: [1, 2] };
     expect(readPath(data, "a.b.ctx")).toBe(1);

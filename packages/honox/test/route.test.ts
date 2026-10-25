@@ -54,6 +54,23 @@ describe("createApi", () => {
     expect(await ok.json()).toEqual({ got: [1, 2] });
   });
 
+  // HTTP 的 QUERY 方法就是「把查询条件放 body 的 safe 方法」；算成 query 会让 body 被静默丢弃。
+  test("QUERY + 模型：读 body 而不是 query 串", async () => {
+    const app = host();
+    const api = createApi("search.ts");
+    api.query("/search", BotsBody, (ctx, body) => ctx.json({ got: body.ids }));
+    app.route("/", api);
+
+    const res = await app.request("/search", {
+      method: "QUERY",
+      body: JSON.stringify({ ids: [3] }),
+      headers: { "content-type": "application/json" },
+    });
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ got: [3] });
+  });
+
   test("POST + 模型：body 不合法 → 400", async () => {
     const app = host();
     const api = createApi("bots.ts");

@@ -7,7 +7,15 @@ import type { Command, Topic } from "../src/types.js";
 
 const auth = { users: { admin: "secret" }, secret: "unit-test-secret" };
 
-function setup(extra: { commands?: Command[]; topics?: Topic[]; timeoutMs?: number } = {}) {
+function setup(
+  extra: {
+    commands?: Command[];
+    topics?: Topic[];
+    timeoutMs?: number;
+    basePath?: string;
+    logFiles?: { list: () => Promise<Array<{ name: string; size: number; modified: number }>>; read: () => Promise<string> };
+  } = {},
+) {
   const logger = newLogger({ flushIntervalMs: 0, batch: false });
   const source = createShellSource({
     logger,
@@ -174,5 +182,27 @@ describe("未登录", () => {
 
     expect(await source.exec("room", null)).toEqual({ ok: false, code: "unauthorized", error: "unauthorized" });
     expect(await source.exec("top", null)).toEqual({ ok: false, code: "unauthorized", error: "unauthorized" });
+  });
+});
+
+describe("basePath 归一化", () => {
+  // log.list 的 href 直接用 source 里这个值拼。传 "shell" 会拼出相对链接，
+  // 传 "/shell/" 会拼出 `/shell//log/x.log`；两者都该归一成 "/shell"。
+  test.each(["shell", "/shell/", "//shell//", "/shell"])("%s → /shell/log/*", async (raw) => {
+    const { source } = setup({
+      basePath: raw,
+      logFiles: {
+        list: async () => [{ name: "info.log", size: 1, modified: 1 }],
+        read: async () => "",
+      },
+    });
+    const token = await source.auth.login("admin", "secret");
+    const result = await source.exec("log.list", token);
+
+    expect(result.ok).toBe(true);
+    const output = (result as { ok: true; output: { kind: string; rows: unknown[][] } }).output;
+    expect(output.kind).toBe("table");
+    const first = output.rows[0]?.[0] as { href: string };
+    expect(first.href.startsWith("/shell/log/")).toBe(true);
   });
 });

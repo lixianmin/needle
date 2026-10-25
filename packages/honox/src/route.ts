@@ -19,8 +19,15 @@ const ROUTE_METHOD_SET = new Set<string>(ROUTE_METHODS);
 /** 返回 `this` 的链式方法：要把 `this` 换回代理，否则后续登记绕过包装。 */
 const CHAINING_METHODS = new Set<string | symbol>(["use", "on", "route", "mount"]);
 
-/** 这些方法读 query，其余读 body。约定：一个路由只校验一侧参数。 */
-const QUERY_METHODS = new Set(["get", "delete", "options", "query"]);
+/**
+ * 这些方法从 URL 的 query 串取参数，其余从 body 取。约定：一个路由只校验一侧。
+ *
+ * 按 HTTP 语义分：GET / DELETE / OPTIONS 的参数在 URL 里；POST / PUT / PATCH 在 body 里。
+ * QUERY 方法（RFC 9110 之后带 body 的 safe 方法）**不在**这张表里：它的用途正是把
+ * 查询条件放进请求体，算成 query 会让 body 被静默丢弃（必填字段一律 400，
+ * 全可选的模型则收到空对象）。
+ */
+const QUERY_METHODS = new Set(["get", "delete", "options"]);
 
 /**
  * 模型类（class）与普通 handler 在运行时只差一个特征：class 的 `prototype` 是
