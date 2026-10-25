@@ -41,8 +41,13 @@ export interface Trace {
 /**
  * 把当前请求的上下文绑成一个 trace 对象。
  *
- * 在生成的那一刻把 `ctx` 里的东西取干净：之后打日志不再碰 `ctx`（`json` /
- * `notFound` 要返回响应，仍要用它）。取一次放变量里复用，别每个出口都现取。
+ * 三级来源：调用方显式传的 > 本次请求装配的 logger（`installMiddleware` 从
+ * `createHonox({ logger })` 拿到的那个，写进 context）> 全局 logo。
+ *
+ * 中间那一级是「配置不进 request context」的唯一例外。少了它，业务侧
+ * `traceOf(ctx)` 就只会落回全局 logo——`createHonox({ logger })` 配的实例被
+ * 悄悄绕过，日志跑到另一个 sink，症状只在「配了 logger 却看不见业务日志」时
+ * 才暴露，而那时候错过的日志已经没了。
  *
  * 为什么不挂在 `Context` 上：`ctx.error` 已经是 Hono 的公开字段（compose 每次
  * Error 抛出都会写它），挂同名方法会在类型层冲突、运行期被覆盖。

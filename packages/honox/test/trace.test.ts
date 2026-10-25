@@ -84,6 +84,33 @@ describe("traceOf", () => {
     expect(records.map((r) => r.step)).toEqual([1, 2]);
   });
 
+  test("debug / error 同样绑字段落盘，且返回 trace 自己", async () => {
+    const { records, logger } = setup();
+    // 默认阈值是 info，debug 会被 logger 丢掉——这条要证的恰恰是「真调到了 logger」，
+    // 所以先把阈值打开，否则断言只能看到一条空记录（假绿）。
+    logger.setLevel("debug");
+    const app = new Hono<HonoxEnv>();
+    app.use("*", async (ctx, next) => {
+      ctx.set("rid", "r1");
+      ctx.set("uid", "u1");
+      await next();
+    });
+    let chained = false;
+    app.get("/x", (ctx) => {
+      const trace = traceOf(ctx, logger);
+      chained = trace.debug({ step: "d" }).error({ step: "e" }) === trace;
+      return ctx.json({ ok: true });
+    });
+
+    await app.request("/x");
+
+    expect(records.map((r) => [r.level, r.step, r.rid])).toEqual([
+      ["debug", "d", "r1"],
+      ["error", "e", "r1"],
+    ]);
+    expect(chained).toBe(true);
+  });
+
   test("json：记一条 info（status + result），返回 JSON 响应", async () => {
     const { records, logger } = setup();
     const app = new Hono<HonoxEnv>();
@@ -228,13 +255,14 @@ describe("traceOf", () => {
       await next();
     });
     app.get("/x", (ctx) => {
-      traceOf(ctx, logger).debug({ a: 1 });
+      traceOf(ctx, logger).info({ a: 1 });
       return ctx.json({ ok: true });
     });
 
     await app.request("/x");
 
     const record = records[0];
+    expect(record?.path).toBe("/x");
     expect(record?.module).toBeUndefined();
     expect(record?.site).toBeUndefined();
   });

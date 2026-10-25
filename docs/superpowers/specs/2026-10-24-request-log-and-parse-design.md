@@ -83,16 +83,21 @@ export interface Trace {
   warn(...args: unknown[]): Trace;
   error(...args: unknown[]): Trace;
   json(body: unknown, status?: ContentfulStatusCode): Response;
+  badRequest(message?: string): Response;
   notFound(message?: string): Response;
+  internalError(message?: string): Response;
+  unavailable(message?: string): Response;
 }
 ```
 
 - 四个级别方法**返回 trace 自己**，所以「建 trace + 打第一条日志」一行写完：`const trace = traceOf(ctx).info(request)`。
-- `json` / `notFound` 是响应出口，规则只有一条：**记的那一行就是它返回的响应**。
-  `json` 记 `{status, result: body}`，`notFound` 记 `{status: 404, result: {code, message}}`。
-  所以两个方法都只有一个参数，不存在「第一个参数是日志负载、第二个是响应」那种读不出意图的形状。
+- 五个响应出口（`json` / `badRequest` / `notFound` / `internalError` / `unavailable`）规则只有一条：**记的那一行就是它返回的响应**。
+  `json` 记 `{status, result: body}`，其余四个记 `{status: 4xx|5xx, result: {code, message}}`，状态码与 `code` 与 `ResponseX` 同一套契约、由出口锁死。
+  所以五个方法都只有一个参数，不存在「第一个参数是日志负载、第二个是响应」那种读不出意图的形状。
   业务想额外记字段就显式链一个 `.info({...})`（它返回 trace 自己），不想要就 `trace.notFound("…")` 一行。
   不想记这条响应日志就直接用 `ctx.json`。
+- 实现用一个类的原型方法，不是每次现挂九个闭包：每个请求只分配一个实例，九个方法挂在原型上共享（2026-10-25 实测创建 + 一条 info 65ns → 24ns、680B → 88B / trace）。
+  因此**方法依赖 `this`**：`trace.info()` / `trace["json"]()` / `trace.info().json()` 都正常，但把方法摘下来单独调用（`const { json } = trace; json(...)`）会抛 TypeError——要传给别处就传 trace 本身。
 - 生成时把 `rid` / `uid` / `path` / `module` 从 `ctx` 取干净，之后打日志不再碰 `ctx`（`json` / `notFound` 要造响应，仍要用它）。`module` 只进行前缀，不重复写进 JSON。
 - 每次调用等价于 `log[level](base, ...args)`：**绑定字段在前、业务参数在后**，同名时业务覆盖（与 logo「后写的赢」一致）。
 - 不往 `Context` 上挂任何东西（`c.error` 已被 Hono 占用；挂 `c.log` 又要声明合并污染所有 `Context`）。

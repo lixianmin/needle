@@ -1,6 +1,6 @@
 {
   "name": "@needle/honox",
-  "version": "0.3.87",
+  "version": "0.3.88",
   "description": "业务无关的 Hono 底座：配置 / JWT 鉴权 / 请求日志 / Mongo / Excel / Shell",
   "type": "module",
   "sideEffects": false,
