@@ -50,7 +50,7 @@ export const viper = loadConfig({ dir: "res/config", required: ["auth.secret", "
 配置是进程级单例，不进 request context——少一份可变的副本，也少一层「配置从哪来」的追问。`app/viper.ts` 只 `declare module "hono"` 补了 `uid` 一个键，那是请求级的东西。
 
 ```ts
-viper.getInt("server.web_port")           // 8001
+viper.getInt("server.web_port")           // 5001
 viper.getString("server.host", "0.0.0.0") // 缺省值给了就不抛
 viper.getStringMap("server.shell_users")  // { xmli: "123456" }（YAML 数字转字符串）
 viper.getBool("feature.on")
@@ -75,7 +75,7 @@ viper.env / viper.isDev() / viper.isFat() / viper.isPro()
 
 ## 首页测试台
 
-`bun run dev` 之后打开 <http://localhost:8001/>，根目录是一张测试页（`res/web/home.html`，单文件、零依赖、零构建）。它解决的是「接口都在 JWT 后面，没有 token 就只能看到 401」这件事：
+`bun run dev` 之后打开 <http://localhost:5001/>，根目录是一张测试页（`res/web/home.html`，单文件、零依赖、零构建）。它解决的是「接口都在 JWT 后面，没有 token 就只能看到 401」这件事：
 
 1. 在右上角输用户名 + 密码（默认 `alice` / `alice123`），点**登录**：页面算 `sha256(盐+密码)` 当 passcode，`POST /login` 换回一枚真 token（HS256、uid 在 `sub`、1 小时过期），存进 localStorage；
 2. 点左边的按钮打 `/bots/*` 的各个分支——200 / 400（`{"id":"abc"}` 与空 body）/ 404（`{"id":999}`）/ 401（故意不带 token 的对照组）；业务接口全是 POST，页面没有方法选择，只有健康检查固定 GET；
@@ -92,7 +92,7 @@ viper.env / viper.isDev() / viper.isFat() / viper.isPro()
 ```bash
 # passcode = sha256hex("needle-demo-salt" + 密码)，与页面算的是同一个值
 PASSCODE=$(bun -e 'const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode("needle-demo-saltalice123")); console.log([...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, "0")).join(""))')
-curl -s -X POST "http://127.0.0.1:8001/login" \
+curl -s -X POST "http://127.0.0.1:5001/login" \
   -H 'content-type: application/json' -d "{\"user\":\"alice\",\"passcode\":\"$PASSCODE\"}" \
   | bun -e 'const j = await Bun.stdin.json(); console.log(j.token)'
 ```
@@ -225,7 +225,7 @@ export class BotTemplate {
 
 ```bash
 docker build -f examples/honox-app/Dockerfile -t honox-app .
-docker run --rm -p 8001:8001 \
+docker run --rm -p 5001:5001 \
   -e APP_AUTH__SECRET="换成你自己的随机串" \
   honox-app
 ```

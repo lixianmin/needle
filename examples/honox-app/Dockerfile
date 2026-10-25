@@ -22,6 +22,6 @@ COPY --from=builder /src/examples/honox-app/dist ./dist
 COPY --from=builder /src/examples/honox-app/res ./res
 
 ENV ENV=pro
-EXPOSE 8001
+EXPOSE 5001
 USER bun
 CMD ["bun", "dist/index.js"]

@@ -12,7 +12,7 @@ metadata:
   base_url: res/metadata
 
 server:
-  web_port: 8001
+  web_port: 5001
   shell_users:
     xmli: 123456
 

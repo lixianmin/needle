@@ -4,7 +4,7 @@ metadata:
   base_url: res/metadata
 
 server:
-  web_port: 8001
+  web_port: 5001
 
 redis:
   data_source: 127.0.0.1:6379
