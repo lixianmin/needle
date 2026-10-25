@@ -1,0 +1,423 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>honox-app 测试台</title>
+    <style>
+      :root {
+        --bg: #0f1115;
+        --panel: #171a21;
+        --line: #262b36;
+        --text: #d7dbe3;
+        --dim: #8b94a6;
+        --ok: #3fb950;
+        --warn: #d29922;
+        --err: #f85149;
+        --accent: #4c8dff;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font: 14px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      }
+      header {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        align-items: center;
+        padding: 12px 16px;
+        border-bottom: 1px solid var(--line);
+        background: var(--panel);
+      }
+      h1 {
+        margin: 0;
+        font-size: 15px;
+        font-weight: 600;
+      }
+      h2 {
+        margin: 16px 0 8px;
+        font-size: 12px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--dim);
+      }
+      main {
+        display: grid;
+        grid-template-columns: minmax(360px, 1fr) minmax(360px, 1fr);
+        gap: 16px;
+        padding: 16px;
+        align-items: start;
+      }
+      @media (max-width: 860px) {
+        main {
+          grid-template-columns: 1fr;
+        }
+      }
+      section {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 12px;
+      }
+      button {
+        font: inherit;
+        color: var(--text);
+        background: #1f242e;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 6px 10px;
+        cursor: pointer;
+        text-align: left;
+      }
+      button:hover {
+        border-color: var(--accent);
+      }
+      button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      button.primary {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #fff;
+      }
+      input,
+      select,
+      textarea {
+        font: inherit;
+        color: var(--text);
+        background: #12151b;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 6px 8px;
+      }
+      input:focus,
+      textarea:focus,
+      select:focus {
+        outline: 1px solid var(--accent);
+      }
+      .auth {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+        margin-left: auto;
+      }
+      #who {
+        color: var(--dim);
+      }
+      #who.on {
+        color: var(--ok);
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+        gap: 8px;
+      }
+      .grid button {
+        display: flex;
+        gap: 8px;
+        align-items: baseline;
+      }
+      .verb {
+        color: var(--dim);
+        font-size: 11px;
+      }
+      .verb.get {
+        color: var(--ok);
+      }
+      .verb.post {
+        color: var(--accent);
+      }
+      a.link {
+        font: inherit;
+        color: var(--text);
+        text-decoration: none;
+        background: #1f242e;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 6px 10px;
+      }
+      a.link:hover {
+        border-color: var(--accent);
+      }
+      .free {
+        display: grid;
+        grid-template-columns: 90px 1fr;
+        gap: 8px;
+      }
+      .free textarea {
+        grid-column: 1 / -1;
+        min-height: 64px;
+        resize: vertical;
+      }
+      .free button {
+        grid-column: 1 / -1;
+        justify-self: start;
+      }
+      #meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        min-height: 22px;
+        color: var(--dim);
+      }
+      #status {
+        font-weight: 700;
+      }
+      #status.ok {
+        color: var(--ok);
+      }
+      #status.warn {
+        color: var(--warn);
+      }
+      #status.err {
+        color: var(--err);
+      }
+      pre {
+        margin: 8px 0 0;
+        padding: 10px;
+        min-height: 180px;
+        max-height: 46vh;
+        overflow: auto;
+        background: #12151b;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+      #log {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        max-height: 24vh;
+        overflow: auto;
+      }
+      #log li {
+        padding: 3px 0;
+        border-bottom: 1px dashed var(--line);
+        color: var(--dim);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .hint {
+        margin: 8px 0 0;
+        color: var(--dim);
+        font-size: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>honox-app 测试台</h1>
+      <div class="auth">
+        <span id="who">未登录</span>
+        <input id="uid" value="tester" placeholder="uid" size="10" />
+        <button id="login" class="primary">登录</button>
+        <button id="logout">退出</button>
+        <a class="link" href="/shell" target="_blank" rel="noreferrer">Shell 面板 ↗</a>
+      </div>
+    </header>
+
+    <main>
+      <section>
+        <h2>接口</h2>
+        <div class="grid" id="buttons">
+          <button data-method="GET" data-path="/health">健康检查</button>
+          <button data-method="GET" data-path="/bots">全部 bot</button>
+          <button data-method="GET" data-path="/bots?id=1">单条 bot</button>
+          <button data-method="GET" data-path="/bots?id=999">不存在的 bot（404）</button>
+          <button data-method="GET" data-path="/bots?id=abc">id 非数字（400）</button>
+          <button data-method="POST" data-path="/bots" data-body='{"ids":[1,99]}'>
+            批量查询
+          </button>
+          <button data-method="POST" data-path="/bots" data-body="{}">空 body（400）</button>
+          <button data-method="GET" data-path="/bots" data-auth="0">不带 token（401）</button>
+        </div>
+        <p class="hint">
+          先点「登录」拿 token 再点这些按钮；最后一个是故意不带 token 的对照组。
+        </p>
+        <p class="hint">
+          「Shell 面板 ↗」是另一个入口：它用 <code>server.shell_users</code> 里的账号密码登录，
+          和这里的 JWT 是两套凭据，互不通用。
+        </p>
+
+        <h2>自由请求</h2>
+        <div class="free">
+          <select id="method">
+            <option>GET</option>
+            <option>POST</option>
+            <option>PUT</option>
+            <option>DELETE</option>
+          </select>
+          <input id="path" value="/bots" />
+          <textarea id="body" placeholder='body（JSON，可空）：{"ids":[1,99]}'></textarea>
+          <button id="send" class="primary">发送</button>
+        </div>
+      </section>
+
+      <section>
+        <h2>响应</h2>
+        <div id="meta">
+          <span id="status">—</span>
+          <span id="rid"></span>
+          <span id="took"></span>
+        </div>
+        <pre id="out">点左边的按钮发一个请求。</pre>
+        <h2>历史</h2>
+        <ul id="log"></ul>
+      </section>
+    </main>
+
+    <script>
+      // token 与 uid 存 localStorage：刷新页面不用重新登录。这是示例，不处理多标签页同步。
+      const TOKEN_KEY = "honox.home.token";
+      const UID_KEY = "honox.home.uid";
+      const EXP_KEY = "honox.home.exp";
+
+      const el = (id) => document.getElementById(id);
+      const state = {
+        token: localStorage.getItem(TOKEN_KEY),
+        uid: localStorage.getItem(UID_KEY),
+        exp: Number(localStorage.getItem(EXP_KEY) ?? 0),
+      };
+
+      function renderAuth() {
+        const who = el("who");
+        if (state.token === null) {
+          who.textContent = "未登录";
+          who.className = "";
+          el("logout").disabled = true;
+          return;
+        }
+        const left = Math.max(0, state.exp - Date.now());
+        const minutes = Math.round(left / 60000);
+        who.textContent = `uid=${state.uid} · token ${state.token.slice(0, 12)}… · ${minutes} 分钟后过期`;
+        who.className = "on";
+        el("logout").disabled = false;
+      }
+
+      function setStatus(status) {
+        const node = el("status");
+        node.textContent = status === 0 ? "网络错误" : String(status);
+        node.className = status === 0 ? "err" : status < 300 ? "ok" : status < 500 ? "warn" : "err";
+      }
+
+      function pushLog(line) {
+        const item = document.createElement("li");
+        item.textContent = line;
+        const log = el("log");
+        log.prepend(item);
+        while (log.childElementCount > 40) {
+          log.lastElementChild.remove();
+        }
+      }
+
+      /**
+       * 发一次请求并把结果画到右侧。
+       * `auth: false` 时即使已登录也不带 Authorization——用来演示 401。
+       */
+      async function call({ method, path, body, auth = true }) {
+        const headers = {};
+        if (auth && state.token !== null) {
+          headers.Authorization = `Bearer ${state.token}`;
+        }
+        if (typeof body === "string" && body.trim() !== "") {
+          headers["Content-Type"] = "application/json";
+        }
+
+        const started = performance.now();
+        let response;
+        let text = "";
+        try {
+          response = await fetch(path, {
+            method,
+            headers,
+            body: typeof body === "string" && body.trim() !== "" ? body : undefined,
+          });
+          text = await response.text();
+        } catch (error) {
+          setStatus(0);
+          el("rid").textContent = "";
+          el("took").textContent = "";
+          el("out").textContent = String(error);
+          pushLog(`ERR ${method} ${path} · ${String(error)}`);
+          return;
+        }
+
+        const took = Math.round(performance.now() - started);
+        setStatus(response.status);
+        el("rid").textContent = `rid ${response.headers.get("x-rid") ?? "-"}`;
+        el("took").textContent = `${took}ms`;
+
+        let shown = text;
+        try {
+          shown = JSON.stringify(JSON.parse(text), null, 2);
+        } catch {
+          // 非 JSON（HTML 错误页之类）就原样展示
+        }
+        el("out").textContent = shown === "" ? "(空响应体)" : shown;
+        pushLog(`${response.status} ${method} ${path} · ${took}ms · rid ${response.headers.get("x-rid") ?? "-"}`);
+      }
+
+      async function login() {
+        // mock 登录：uid 由页面给，密码不校验（见 spec §3）。生产替换这个接口即可。
+        const uid = el("uid").value.trim() === "" ? "mock-user" : el("uid").value.trim();
+        const response = await fetch(`/login?uid=${encodeURIComponent(uid)}`, { method: "POST" });
+        const text = await response.text();
+        if (!response.ok) {
+          setStatus(response.status);
+          el("out").textContent = text;
+          return;
+        }
+        const payload = JSON.parse(text);
+        state.token = payload.token;
+        state.uid = payload.uid;
+        state.exp = payload.expiresAt;
+        localStorage.setItem(TOKEN_KEY, state.token);
+        localStorage.setItem(UID_KEY, state.uid);
+        localStorage.setItem(EXP_KEY, String(state.exp));
+        renderAuth();
+        await call({ method: "GET", path: "/health" });
+      }
+
+      function logout() {
+        state.token = null;
+        state.uid = null;
+        state.exp = 0;
+        localStorage.removeItem(TOKEN_KEY);
+        localStorage.removeItem(UID_KEY);
+        localStorage.removeItem(EXP_KEY);
+        renderAuth();
+      }
+
+      // 按钮的请求形状全写在 data-* 上：加一个用例就是加一行 <button>，不用改 JS。
+      el("buttons").addEventListener("click", (event) => {
+        const button = event.target.closest("button[data-path]");
+        if (button === null) {
+          return;
+        }
+        call({
+          method: button.dataset.method,
+          path: button.dataset.path,
+          body: button.dataset.body,
+          auth: button.dataset.auth !== "0",
+        });
+      });
+
+      el("login").addEventListener("click", login);
+      el("logout").addEventListener("click", logout);
+      el("send").addEventListener("click", () =>
+        call({ method: el("method").value, path: el("path").value, body: el("body").value }),
+      );
+
+      renderAuth();
+    </script>
+  </body>
+</html>

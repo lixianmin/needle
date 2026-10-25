@@ -66,15 +66,29 @@ viper.env / viper.isDev() / viper.isFat() / viper.isPro()
 
 | 路径 | 鉴权 | 说明 |
 |---|---|---|
+| `GET /` | 公开 | 测试台页面（见下节） |
+| `POST /login?uid=alice` | 公开 | mock 登录，返回 `{uid, token, expiresAt}`；token 是 `auth.secret` 签的真 JWT |
 | `GET /health` | 公开 | `{"ok":true}` |
 | `GET /bots?id=1` | 需要 JWT | 命中返回 `{ baseUrl, bot }`；不带 `id` 返回 `{ baseUrl, bots }`（全表）；`id` 非数字 → 400，查不到 → 404 |
 | `POST /bots` | 需要 JWT | body `{"ids":[1,99]}`，命中放 `bots`、找不到放 `missing`（批量里部分不存在不算失败）；body 不合规 → 400 |
 | `GET /shell` | 公开（面板自己用 `server.shell_users` 里的账号登录） | 调试面板 |
 
-生成一个测试 token：
+## 首页测试台
+
+`bun run dev` 之后打开 <http://localhost:8001/>，根目录是一张测试页（`res/web/home.html`，单文件、零依赖、零构建）。它解决的是「接口都在 JWT 后面，没有 token 就只能看到 401」这件事：
+
+1. 点右上角**登录**，`POST /login?uid=<输入框里的 uid>` 发一枚真 token（HS256、uid 在 `sub`、1 小时过期），存进 localStorage；
+2. 点左边的按钮打 `/bots` 的各个分支——200 / 400（`?id=abc` 与空 body）/ 404（`?id=999`）/ 401（故意不带 token 的对照组）；
+3. 右侧显示状态码、`x-rid`、耗时和格式化后的 JSON，底部是本次会话的历史。
+
+登录是 **mock**：只把 uid 签进 token，不校验密码，也不是安全边界；接真登录时替换 `app/api/login.ts` 即可，路由形状不用改。它只记 `{uid}` 不记 token——`trace.json()` 会把响应体原样落盘，凭据不能这么走。
+
+右上角**Shell 面板 ↗** 是另一个入口，用 `server.shell_users` 的账号密码登录，和这枚 JWT 是两套凭据。
+
+不想开浏览器时，命令行同样一条命令拿 token：
 
 ```bash
-bun -e 'import { sign } from "hono/jwt"; console.log(await sign({ sub: "u1", exp: Math.floor(Date.now()/1000)+3600 }, "dev-secret-change-me", "HS256"))'
+curl -s -X POST "http://127.0.0.1:8001/login?uid=u1" | bun -e 'const j = await Bun.stdin.json(); console.log(j.token)'
 ```
 
 ## 接口目录
@@ -84,9 +98,12 @@ bun -e 'import { sign } from "hono/jwt"; console.log(await sign({ sub: "u1", exp
 ```
 app/api/
   index.ts       # registerApis(app)：逐个 app.route("/", xxx)
+  home.ts        # GET /（测试台页面，JWT 白名单）
+  login.ts       # POST /login（mock 登录，JWT 白名单）
   health.ts      # GET /health（JWT 白名单，匿名可访问）
   bots.ts        # 一个路由组：GET /bots?id= + POST /bots
 app/viper.ts     # 配置实例（viper 风格取值器）+ c.get 的键声明
+res/web/home.html # 测试台页面本体（随 res/ 进镜像，启动时读一次）
 ```
 
 文件数量不是目的：一个领域一个文件就够了，同文件里挂多条路由（`botsApi.get` / `.post`）。要覆盖更多情况就加路由，不要一个新接口开一个新文件。
