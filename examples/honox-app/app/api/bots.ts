@@ -27,6 +27,7 @@ export function createBotsApi() {
       // 404 那行只记响应体；request.id 已经在上一条日志里了，不重复带。
       return trace.notFound("bot 不存在");
     }
+
     return trace.json({ baseUrl, bot });
   });
 
@@ -43,6 +44,7 @@ export function createBotsApi() {
     if (bot === undefined) {
       return trace.notFound("bot 不存在");
     }
+    
     return trace.json({ name: bot.name });
   });
 
