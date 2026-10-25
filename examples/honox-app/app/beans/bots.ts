@@ -8,7 +8,7 @@ import "./bots.generated.js";
  *
  * 字段必须有类型标注；class 里不要写方法（它不是 DTO 的实例，只是模型形状）。
  */
-export class BotsQuery {
+export class BotsBody {
   id?: number;
 }
 

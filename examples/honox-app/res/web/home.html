@@ -231,10 +231,14 @@
         <h2>接口</h2>
         <div class="grid" id="buttons">
           <button data-method="GET" data-path="/health">健康检查</button>
-          <button data-method="GET" data-path="/bots/get_bots">全部 bot</button>
-          <button data-method="GET" data-path="/bots/get_bots?id=1">单条 bot</button>
-          <button data-method="GET" data-path="/bots/get_bots?id=999">不存在的 bot（404）</button>
-          <button data-method="GET" data-path="/bots/get_bots?id=abc">id 非数字（400）</button>
+          <button data-method="POST" data-path="/bots/get_bots" data-body="{}">全部 bot</button>
+          <button data-method="POST" data-path="/bots/get_bots" data-body='{"id":1}'>单条 bot</button>
+          <button data-method="POST" data-path="/bots/get_bots" data-body='{"id":999}'>
+            不存在的 bot（404）
+          </button>
+          <button data-method="POST" data-path="/bots/get_bots" data-body='{"id":"abc"}'>
+            id 不是数字（400）
+          </button>
           <button data-method="POST" data-path="/bots/get_bot_name" data-body='{"id":1}'>
             按 id 取名字
           </button>
@@ -242,7 +246,9 @@
             不存在的 bot 取名字（404）
           </button>
           <button data-method="POST" data-path="/bots/get_bot_name" data-body="{}">空 body（400）</button>
-          <button data-method="GET" data-path="/bots/get_bots" data-auth="0">不带 token（401）</button>
+          <button data-method="POST" data-path="/bots/get_bots" data-body="{}" data-auth="0">
+            不带 token（401）
+          </button>
         </div>
         <p class="hint">
           先点「登录」拿 token 再点这些按钮；最后一个是故意不带 token 的对照组。
@@ -254,12 +260,6 @@
 
         <h2>自由请求</h2>
         <div class="free">
-          <select id="method">
-            <option>GET</option>
-            <option>POST</option>
-            <option>PUT</option>
-            <option>DELETE</option>
-          </select>
           <input id="path" value="/bots/get_bots" />
           <textarea id="body" placeholder='body（JSON，可空）：{"id":1}'></textarea>
           <button id="send" class="primary">发送</button>
@@ -514,7 +514,7 @@
       el("login").addEventListener("click", login);
       el("logout").addEventListener("click", logout);
       el("send").addEventListener("click", () =>
-        call({ method: el("method").value, path: el("path").value, body: el("body").value }),
+        call({ method: "POST", path: el("path").value, body: el("body").value }),
       );
 
       renderAuth();

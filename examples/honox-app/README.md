@@ -69,7 +69,7 @@ viper.env / viper.isDev() / viper.isFat() / viper.isPro()
 | `GET /` | 公开 | 测试台页面（见下节） |
 | `POST /login` | 公开 | body `{"user":"alice","passcode":"<sha256hex(盐+密码)>"}`，返回 `{uid, token, expiresAt}`；token 是 `auth.secret` 签的真 JWT，口令不对 → 401 |
 | `GET /health` | 公开 | `{"ok":true}` |
-| `GET /bots/get_bots?id=1` | 需要 JWT | 命中返回 `{ baseUrl, bot }`；不带 `id` 返回 `{ baseUrl, bots }`（全表）；`id` 非数字 → 400，查不到 → 404 |
+| `POST /bots/get_bots` | 需要 JWT | body `{"id":1}` 命中返回 `{ baseUrl, bot }`；空 body `{}` 返回 `{ baseUrl, bots }`（全表）；`id` 非数字 → 400，查不到 → 404 |
 | `POST /bots/get_bot_name` | 需要 JWT | body `{"id":1}`，返回 `{ name }`；body 不合规 → 400，查不到 → 404 |
 | `GET /shell` | 公开（面板自己用 `server.shell_users` 里的账号登录） | 调试面板 |
 
@@ -78,7 +78,7 @@ viper.env / viper.isDev() / viper.isFat() / viper.isPro()
 `bun run dev` 之后打开 <http://localhost:8001/>，根目录是一张测试页（`res/web/home.html`，单文件、零依赖、零构建）。它解决的是「接口都在 JWT 后面，没有 token 就只能看到 401」这件事：
 
 1. 在右上角输用户名 + 密码（默认 `alice` / `alice123`），点**登录**：页面算 `sha256(盐+密码)` 当 passcode，`POST /login` 换回一枚真 token（HS256、uid 在 `sub`、1 小时过期），存进 localStorage；
-2. 点左边的按钮打 `/bots/*` 的各个分支——200 / 400（`?id=abc` 与空 body）/ 404（`?id=999`）/ 401（故意不带 token 的对照组）；
+2. 点左边的按钮打 `/bots/*` 的各个分支——200 / 400（`{"id":"abc"}` 与空 body）/ 404（`{"id":999}`）/ 401（故意不带 token 的对照组）；业务接口全是 POST，页面没有方法选择，只有健康检查固定 GET；
 3. 右侧显示状态码、`x-rid`、耗时和格式化后的 JSON，底部是本次会话的历史。
 
 登录会**真校验**：服务端按用户名查记录，用同一份盐比对 passcode。测试用户硬编码在 `app/api/login.ts`（`alice`/`alice123`、`bob`/`bob123`），用户名不存在与口令不对回同一个 401（否则就是个用户名枚举接口）。
@@ -107,23 +107,23 @@ app/api/
   home.ts        # GET /（测试台页面，JWT 白名单）
   login.ts       # POST /login（用户名 + passcode 换 JWT，白名单）
   health.ts      # GET /health（JWT 白名单，匿名可访问）
-  bots.ts        # 一个路由组：GET /bots/get_bots + POST /bots/get_bot_name
+  bots.ts        # 一个路由组：POST /bots/get_bots + POST /bots/get_bot_name
 app/viper.ts     # 配置实例（viper 风格取值器）+ c.get 的键声明
 res/web/home.html # 测试台页面本体（随 res/ 进镜像，启动时读一次）
 ```
 
-文件数量不是目的：一个领域一个文件就够了，同文件里挂多条路由（`botsApi.get` / `.post`）。要覆盖更多情况就加路由，不要一个新接口开一个新文件。
+文件数量不是目的：一个领域一个文件就够了，同文件里挂多条路由（`botsApi.post`）。要覆盖更多情况就加路由，不要一个新接口开一个新文件。
 
 新增接口：在 `app/api/` 加一个文件，建一个组，把该领域的所有路由挂上去，再到 `index.ts` 里 `app.route("/", xxxApi)`。`app/main.ts` 不用动。
 
 ```ts
 // app/api/bots.ts —— 一个文件一个组，可以挂多条路由
 import { createApi } from "@needle/honox";
-import { BotNameBody, BotsQuery } from "../beans/bots.js";
+import { BotNameBody, BotsBody } from "../beans/bots.js";
 
 export const botsApi = createApi("api/bots");   // 参数是日志里的模块名，必填
 
-botsApi.get("/bots/get_bots", BotsQuery, (ctx, request) => { ... });          // GET/DELETE：解析 query
+botsApi.post("/bots/get_bots", BotsBody, (ctx, request) => { ... });          // POST/PUT/PATCH：解析 body
 botsApi.post("/bots/get_bot_name", BotNameBody, (ctx, request) => { ... });  // POST/PUT/PATCH：解析 body
 botsApi.get("/health", (ctx) => ctx.json({ ok: true }));       // 不校验参数
 ```
