@@ -63,7 +63,7 @@ function passcodeMatches(given: string, expected: string): boolean {
 
 export function createLoginApi() {
   // 本组挂在 `/api/v1/login` 下：登录只有一个资源，组内路径就是 `/`
-  const api = createApi("api/login");
+  const api = createApi("login.ts");
 
   api.post("/", LoginBody, (ctx, request) => {
     const record = USERS.get(request.user);

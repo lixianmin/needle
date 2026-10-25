@@ -17,21 +17,24 @@ type RouteMethod = {
  */
 export type ApiGroup = Hono<HonoxEnv> & Record<(typeof ROUTE_METHODS)[number], RouteMethod>;
 /**
- * 建一个 API 组：一个文件一个实例，`module` 是这个文件在生产日志里的身份
- * （打包、压缩后唯一还活着的定位信息，所以必须手写一次；日志行里它当前缀，不进 JSON）。
+ * 建一个 API 组：一个文件一个实例。`logModule` 是**源文件名**（带扩展名，如 `bots.ts`），
+ * 写进日志前缀，回答「这条日志是哪个文件打的」。它和路由路径没有任何关系——挂载点由
+ * 调用方的 `.route()` / `.basePath()` 决定，两者不同步也不该同步。
+ *
+ * 为什么是手写字符串：打包压缩后栈里只剩 bundle 坐标，文件名是唯一还活着的定位信息。
  *
  * ```ts
- * export const botsApi = createApi("api/bots");
+ * export const botsApi = createApi("bots.ts");
  * botsApi.get("/bots", BotsQuery, (ctx, query) => …);   // GET：解析 query
  * botsApi.post("/bots", BotsBody, (ctx, body) => …);    // POST：解析 body
  * botsApi.get("/health", (ctx) => ctx.json({ ok: true })); // 不校验参数
  * ```
  *
- * 与直接用 `new Hono()` 的区别：登记路由时把 `module` 写进 context，
- * `traceOf(ctx)` 据此给每条日志加模块前缀。
+ * 与直接用 `new Hono()` 的区别：登记路由时把文件名写进 context，
+ * `traceOf(ctx)` 据此给每条日志加前缀。
  */
-export declare function createApi(module: string): ApiGroup;
+export declare function createApi(logModule: string): ApiGroup;
 /** 只包 handler（不动路由表）：已有 `new Hono()` 实例、或一条路径挂多个方法时用它。 */
-export declare function apiRoute(module: string, handler: Handler<HonoxEnv>): Handler<HonoxEnv>;
+export declare function apiRoute(logModule: string, handler: Handler<HonoxEnv>): Handler<HonoxEnv>;
 export {};
 //# sourceMappingURL=route.d.ts.map

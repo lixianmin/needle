@@ -129,7 +129,7 @@ botsApi.get("/health", (ctx) => ctx.json({ ok: true }));  // 不校验参数
 
 第二个参数统一叫 `request`：GET 时是 query 参数、其余是 body，业务只关心「这次请求的参数」。
 
-- `module` 必填（`"api/bots"` 形态）：`traceOf(ctx)` 的 `module` 只能从注册处来。
+- `logModule` 必填（`"bots.ts"` 形态：源文件名带扩展名，不是路由路径）：`traceOf(ctx)` 的 `module` 只能从注册处来。
 - 注册时只把 `module` 写进 context（`c.set("api", { module })`）：不再抓注册位置。
 - 模型按方法决定解析哪一侧：GET/DELETE → query，POST/PUT/PATCH → body。代价：一个路由不能同时校验 query 与 body（当前没有这种接口；真出现时再加）。
 - **`createApi()` 的 Proxy 必须只绑原型方法**，实例自有字段（`errorHandler` / `routes`）原样返回——否则父 `onError` 收不到该组路由的异常（§3 实测）。
@@ -206,9 +206,9 @@ type _BotsBodyInSync = Assert<Equals<Static<typeof BotsBodySchema>, BotsBody>>;
 ## 6 示例改动
 
 - `app/beans/bots.ts`（手写 class，顶部 `import "./bots.generated.js"` 完成 schema 注册）+ `app/beans/bots.generated.ts`（生成物）。业务只 import `../beans/bots.js`——一个 bean 一对文件，没有 barrel：多一个 `index.js` 只是把 `bots.js` 换成 `index.js`，路径长度没变，却多一处要维护的汇总。
-- `app/api/bots.ts`：`createApi("api/bots")` + `(ctx, request)`；`const trace = traceOf(ctx).info(request)` 一行建 trace 并落第一条日志，之后每个出口 `trace.json` / `trace.notFound`。两条路由都是 POST：`POST /bots/get_bots`（body `{id?}`：带 id 取单条、空 body 取全表）、`POST /bots/get_bot_name`（body `{id}`，只回 `{name}`，查不到 404）。**参数放 body，不放路径段也不走 query**：路径里放 id 会让不存在的 id 也命中路由；query 入口只留给协议要求的 GET（页面、`/health`）。
+- `app/api/bots.ts`：`createApi("bots.ts")` + `(ctx, request)`；`const trace = traceOf(ctx).info(request)` 一行建 trace 并落第一条日志，之后每个出口 `trace.json` / `trace.notFound`。两条路由都是 POST：`POST /bots/get_bots`（body `{id?}`：带 id 取单条、空 body 取全表）、`POST /bots/get_bot_name`（body `{id}`，只回 `{name}`，查不到 404）。**参数放 body，不放路径段也不走 query**：路径里放 id 会让不存在的 id 也命中路由；query 入口只留给协议要求的 GET（页面、`/health`）。
 - **handler 参数不写类型注解**：模型参数 + 推断已经给全了 `ctx: Context<HonoxEnv>` 与 `request: BotNameBody`；再写一遍既是同一信息出现两次，也会在模型改名时留下第二处要改的地方。
-- `app/api/health.ts`：`createApi("api/health")`，handler 不写日志——零日志正是要的效果。
+- `app/api/health.ts`：`createApi("health.ts")`，handler 不写日志——零日志正是要的效果。
 - `app/main.ts` 不需要 import beans：注册随 bean 文件本身传播。
 
 ## 7 测试
@@ -218,7 +218,7 @@ type _BotsBodyInSync = Assert<Equals<Static<typeof BotsBodySchema>, BotsBody>>;
 - honox 日志：401 / 404 / 500 / 慢请求各一条且字段正确；业务自装 `onError` 时 500 仍有日志；`throw "字符串"` 有日志且响应 500；`RequestError` 不记 error；health 零日志。
 - 代理：`createApi()` 挂到父 app 后，组内路由抛错仍走父 `onError`（钉住 §3 那个 bug）。
 - 生成器：嵌套/跨文件/数组/可选/漂移检查（双向）/循环引用报错/重名报错/方法声明报错。
-- 示例：`example:typecheck` + `bun run example` 后 `/health` 无日志、`/bots/get_bots` 的日志前缀是 `api/bots`。
+- 示例：`example:typecheck` + `bun run example` 后 `/health` 无日志、`/bots/get_bots` 的日志前缀是 `bots.ts`。
 
 ## 8 已知限制
 

@@ -17,7 +17,7 @@ describe("traceOf", () => {
     app.use("*", async (ctx, next) => {
       ctx.set("rid", "r1");
       ctx.set("uid", "u1");
-      ctx.set("api", { module: "api/bots" });
+      ctx.set("api", { module: "bots.ts" });
       await next();
     });
     app.post("/bots", (ctx) => {
@@ -32,7 +32,7 @@ describe("traceOf", () => {
       rid: "r1",
       uid: "u1",
       path: "/bots",
-      module: "api/bots",
+      module: "bots.ts",
       ids: [1],
       level: "info",
     });
@@ -41,7 +41,7 @@ describe("traceOf", () => {
     expect(records[0]).not.toHaveProperty("fn");
     // module 只出现在前缀：JSON 载荷里只有业务字段与 path
     expect(formatLine(records[0]!)).toMatch(
-      /\[I\] api\/bots \{"rid":"r1","uid":"u1","path":"\/bots","ids":\[1\]\}$/,
+      /\[I\] bots\.ts \{"rid":"r1","uid":"u1","path":"\/bots","ids":\[1\]\}$/,
     );
   });
 

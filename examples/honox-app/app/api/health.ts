@@ -8,7 +8,7 @@ import { createApi } from "@needle/honox";
  */
 
 export function createHealthApi() {
-  const api = createApi("api/health");
+  const api = createApi("health.ts");
 
   api.get("/health", ctx => ctx.json({ ok: true }));
   return api;

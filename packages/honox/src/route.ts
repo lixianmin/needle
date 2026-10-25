@@ -59,9 +59,9 @@ type RouteMethod = {
 export type ApiGroup = Hono<HonoxEnv> &
   Record<(typeof ROUTE_METHODS)[number], RouteMethod>;
 
-function withOrigin(handler: Handler<HonoxEnv>, module: string): Handler<HonoxEnv> {
+function withOrigin(handler: Handler<HonoxEnv>, logModule: string): Handler<HonoxEnv> {
   return (ctx, next) => {
-    ctx.set("api", { module });
+    ctx.set("api", { module: logModule });
     return handler(ctx, next);
   };
 }
@@ -73,14 +73,14 @@ function withOrigin(handler: Handler<HonoxEnv>, module: string): Handler<HonoxEn
  * 构造响应，错误出口只有一个。
  */
 function withModel<T>(
-  module: string,
+  logModule: string,
   method: string,
   model: ModelClass<T>,
   handler: ParsedHandler<T>,
 ): Handler<HonoxEnv> {
   const readsQuery = QUERY_METHODS.has(method);
   return async (ctx) => {
-    ctx.set("api", { module });
+    ctx.set("api", { module: logModule });
     const schema = modelSchema(model);
     const request = readsQuery ? parseQuery(ctx, schema) : await parseBody(ctx, schema);
     return handler(ctx, request as T);
@@ -88,20 +88,23 @@ function withModel<T>(
 }
 
 /**
- * 建一个 API 组：一个文件一个实例，`module` 是这个文件在生产日志里的身份
- * （打包、压缩后唯一还活着的定位信息，所以必须手写一次；日志行里它当前缀，不进 JSON）。
+ * 建一个 API 组：一个文件一个实例。`logModule` 是**源文件名**（带扩展名，如 `bots.ts`），
+ * 写进日志前缀，回答「这条日志是哪个文件打的」。它和路由路径没有任何关系——挂载点由
+ * 调用方的 `.route()` / `.basePath()` 决定，两者不同步也不该同步。
+ *
+ * 为什么是手写字符串：打包压缩后栈里只剩 bundle 坐标，文件名是唯一还活着的定位信息。
  *
  * ```ts
- * export const botsApi = createApi("api/bots");
+ * export const botsApi = createApi("bots.ts");
  * botsApi.get("/bots", BotsQuery, (ctx, query) => …);   // GET：解析 query
  * botsApi.post("/bots", BotsBody, (ctx, body) => …);    // POST：解析 body
  * botsApi.get("/health", (ctx) => ctx.json({ ok: true })); // 不校验参数
  * ```
  *
- * 与直接用 `new Hono()` 的区别：登记路由时把 `module` 写进 context，
- * `traceOf(ctx)` 据此给每条日志加模块前缀。
+ * 与直接用 `new Hono()` 的区别：登记路由时把文件名写进 context，
+ * `traceOf(ctx)` 据此给每条日志加前缀。
  */
-export function createApi(module: string): ApiGroup {
+export function createApi(logModule: string): ApiGroup {
   const app = new Hono<HonoxEnv>();
 
   return new Proxy(app, {
@@ -133,10 +136,10 @@ export function createApi(module: string): ApiGroup {
           }
 
           const handlers: Handler<HonoxEnv>[] = withModelForm
-            ? [withModel(module, prop, args[0] as ModelClass<unknown>, args[1] as ParsedHandler<unknown>)]
+            ? [withModel(logModule, prop, args[0] as ModelClass<unknown>, args[1] as ParsedHandler<unknown>)]
             : args
                 .filter((entry): entry is Handler<HonoxEnv> => typeof entry === "function")
-                .map((entry) => withOrigin(entry, module));
+                .map((entry) => withOrigin(entry, logModule));
           const register = (
             target as unknown as Record<string, (p: string, ...h: Handler<HonoxEnv>[]) => void>
           )[prop];
@@ -169,6 +172,6 @@ export function createApi(module: string): ApiGroup {
 }
 
 /** 只包 handler（不动路由表）：已有 `new Hono()` 实例、或一条路径挂多个方法时用它。 */
-export function apiRoute(module: string, handler: Handler<HonoxEnv>): Handler<HonoxEnv> {
-  return withOrigin(handler, module);
+export function apiRoute(logModule: string, handler: Handler<HonoxEnv>): Handler<HonoxEnv> {
+  return withOrigin(handler, logModule);
 }

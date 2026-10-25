@@ -43,10 +43,10 @@ describe("formatLine", () => {
   });
 
   test("module 进前缀、不进 JSON；与 site 同义时 site 优先", () => {
-    expect(formatLine({ ...base, module: "api/bots", path: "/bots" })).toBe(
-      '2026-10-22T08:00:00 [I] api/bots {"path":"/bots"}',
+    expect(formatLine({ ...base, module: "bots.ts", path: "/bots" })).toBe(
+      '2026-10-22T08:00:00 [I] bots.ts {"path":"/bots"}',
     );
-    expect(formatLine({ ...base, site: "bots.ts:15", module: "api/bots" })).toContain(
+    expect(formatLine({ ...base, site: "bots.ts:15", module: "bots.ts" })).toContain(
       "[I] bots.ts:15 {",
     );
   });

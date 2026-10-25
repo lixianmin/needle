@@ -29,7 +29,8 @@ export interface HonoxEnv {
     /**
      * 由 `createApi()` / `apiRoute()` 写入：这个请求属于哪个模块。
      *
-     * `module` 是手写的一次性身份（打包、压缩后唯一还活着的定位信息），
+     * `module` 是手写的**源文件名**（带扩展名，如 `login.ts`），与路由路径无关。
+     * 打包压缩后栈里只剩 bundle 坐标，文件名是唯一还活着的定位信息；
      * `traceOf(ctx)` 把它放进日志前缀，不重复写进 JSON。
      */
     api?: { module: string };

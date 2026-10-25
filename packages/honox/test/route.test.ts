@@ -45,7 +45,7 @@ describe("createApi", () => {
 
   test("POST + 模型：body 解析后作为第二个参数", async () => {
     const app = host();
-    const api = createApi("api/bots");
+    const api = createApi("bots.ts");
     api.post("/bots", BotsBody, (ctx, body) => ctx.json({ got: body.ids }));
     app.route("/", api);
 
@@ -56,7 +56,7 @@ describe("createApi", () => {
 
   test("POST + 模型：body 不合法 → 400", async () => {
     const app = host();
-    const api = createApi("api/bots");
+    const api = createApi("bots.ts");
     api.post("/bots", BotsBody, (ctx, body) => ctx.json({ got: body.ids }));
     app.route("/", api);
 
@@ -67,7 +67,7 @@ describe("createApi", () => {
 
   test("GET + 模型：解析的是 query", async () => {
     const app = host();
-    const api = createApi("api/bots");
+    const api = createApi("bots.ts");
     api.get("/bots", BotsQuery, (ctx, query) => ctx.json({ id: query.id ?? null }));
     app.route("/", api);
 
@@ -78,19 +78,19 @@ describe("createApi", () => {
     const records: LogRecord[] = [];
     const logger = newLogger({ sinks: [(batch) => records.push(...batch)], batch: false });
     const app = host();
-    const api = createApi("api/bots");
+    const api = createApi("bots.ts");
     api.post("/bots", BotsBody, (ctx, body) => traceOf(ctx, logger).json({ got: body.ids }));
     app.route("/", api);
 
     await app.request("/bots", json({ ids: [1] }));
 
     expect(records).toHaveLength(1);
-    expect(records[0]?.module).toBe("api/bots");
+    expect(records[0]?.module).toBe("bots.ts");
   });
 
   test("不传模型的老写法照旧", async () => {
     const app = host();
-    const api = createApi("api/health");
+    const api = createApi("health.ts");
     api.get("/health", (ctx) => ctx.json({ ok: true }));
     app.route("/", api);
 
@@ -102,7 +102,7 @@ describe("createApi", () => {
       a: number = 0;
     }
     const app = host();
-    const api = createApi("api/x");
+    const api = createApi("x.ts");
     api.post("/orphan", Orphan, (ctx) => ctx.json({ ok: true }));
     app.route("/", api);
 
@@ -118,7 +118,7 @@ describe("createApi", () => {
       seen = String(error);
       return ctx.text("caught", 500);
     });
-    const api = createApi("api/x");
+    const api = createApi("x.ts");
     api.get("/boom", () => {
       throw new Error("boom");
     });
@@ -131,7 +131,7 @@ describe("createApi", () => {
 
   test("一条路径挂多个 handler：全部都登记（不能悄悄丢第三个）", async () => {
     const app = host();
-    const api = createApi("api/chain");
+    const api = createApi("chain.ts");
     const trace: string[] = [];
     const mw: Handler<HonoxEnv> = async (_ctx, next) => {
       trace.push("mw");
@@ -148,7 +148,7 @@ describe("createApi", () => {
 
   test("function 声明当第二个参数时不会被当成模型", async () => {
     const app = host();
-    const api = createApi("api/fn");
+    const api = createApi("fn.ts");
     const middleware: Handler<HonoxEnv> = (_ctx, next) => next();
     api.get("/fn", middleware, (ctx) => ctx.json({ ok: true }));
     app.route("/", api);
@@ -159,7 +159,7 @@ describe("createApi", () => {
   });
 
   test("模型出现在 handler 位置：注册时就报错，而不是运行期 500", () => {
-    const api = createApi("api/bad");
+    const api = createApi("bad.ts");
     expect(() => {
       (api.get as unknown as (path: string, ...rest: unknown[]) => void)("/bad", BotsQuery, () => new Response(null), () => new Response(null));
     }).toThrow(/只支持 \(path, Model, handler\)/);
@@ -175,7 +175,7 @@ describe("createApi", () => {
       ctx.set("logger", logger);
       await next();
     });
-    const api = createApi("api/u");
+    const api = createApi("u.ts");
     const mw: Handler<HonoxEnv> = async (_ctx, next) => {
       await next();
     };
@@ -187,11 +187,11 @@ describe("createApi", () => {
 
     await app.request("/u");
 
-    expect(records[0]?.module).toBe("api/u");
+    expect(records[0]?.module).toBe("u.ts");
   });
 
   test("all 不支持带模型的写法：注册时就报错", () => {
-    const api = createApi("api/all");
+    const api = createApi("all.ts");
     expect(() => {
       (api.all as unknown as (p: string, m: unknown, h: unknown) => void)("/x", BotsBody, () =>
         new Response(null),
@@ -201,7 +201,7 @@ describe("createApi", () => {
 
   test("options / query 也走同一套包装（Hono 的 METHODS 里都有）", async () => {
     const app = host();
-    const api = createApi("api/probe");
+    const api = createApi("probe.ts");
     api.options("/probe", (ctx) => ctx.text("ok"));
     app.route("/", api);
 
@@ -211,7 +211,7 @@ describe("createApi", () => {
   test("链式登记：返回的是代理，后续调用照样带上 module", async () => {
     const app = host();
     const seen: Array<string | undefined> = [];
-    const api = createApi("api/chain")
+    const api = createApi("chain.ts")
       .get("/a", (ctx) => {
         seen.push(ctx.get("api")?.module);
         return ctx.json({ a: 1 });
@@ -224,6 +224,6 @@ describe("createApi", () => {
 
     expect(await (await app.request("/a")).json()).toEqual({ a: 1 });
     expect(await (await app.request("/b")).json()).toEqual({ b: 2 });
-    expect(seen).toEqual(["api/chain", "api/chain"]);
+    expect(seen).toEqual(["chain.ts", "chain.ts"]);
   });
 });

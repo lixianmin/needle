@@ -120,7 +120,7 @@ describe("createHonox", () => {
     app.allowAnonymous(["/where"]);
     app.get(
       "/where",
-      apiRoute("api/where", (ctx) => {
+      apiRoute("where.ts", (ctx) => {
         traceOf(ctx, logger).info({ note: "where" });
         return ctx.json({ ok: true });
       }),
@@ -129,9 +129,9 @@ describe("createHonox", () => {
     await app.request("/where");
 
     expect(records).toHaveLength(1);
-    expect(records[0]?.module).toBe("api/where");
+    expect(records[0]?.module).toBe("where.ts");
     expect(records[0]?.site).toBeUndefined();
-    expect(formatLine(records[0]!)).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2} \[I\] api\/where \{/);
+    expect(formatLine(records[0]!)).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2} \[I\] where\.ts \{/);
     expect(formatLine(records[0]!)).not.toContain('"module"');
   });
 
@@ -141,7 +141,7 @@ describe("createHonox", () => {
     const app = createHonox({ logger, auth: { secret: SECRET } });
     app.allowAnonymous(["/one", "/two"]);
 
-    const group = createApi("api/group");
+    const group = createApi("group.ts");
     group.get("/one", (ctx) => {
       traceOf(ctx, logger).info({ note: "one" });
       return ctx.json({ ok: 1 });
@@ -157,8 +157,8 @@ describe("createHonox", () => {
     await app.request("/two", { method: "POST" });
     const second = records.at(-1);
 
-    expect(first?.module).toBe("api/group");
-    expect(second?.module).toBe("api/group");
+    expect(first?.module).toBe("group.ts");
+    expect(second?.module).toBe("group.ts");
     // 注册位置不再进日志：同一个模块的多条路由共用一个 module 前缀
     expect(first?.site).toBeUndefined();
     expect(second?.site).toBeUndefined();

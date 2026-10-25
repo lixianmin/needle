@@ -239,17 +239,17 @@ botsApi.post("/bots", BotsBody, (ctx, body) => {
 
 ```ts
 // app/api/bots.ts
-export const botsApi = createApi("api/bots");
+export const botsApi = createApi("bots.ts");
 
 botsApi.get("/bots", BotsQuery, (ctx, query) => …);     // GET/DELETE → 解析 query
 botsApi.post("/bots", BotsBody, (ctx, body) => …);      // POST/PUT/PATCH → 解析 body
 botsApi.get("/health", (ctx) => ctx.json({ ok: true })); // 不校验参数
 
 // 已经有 new Hono() 实例时，单独包 handler
-app.get("/apc", apiRoute("api/apc", (c) => …));
+app.get("/apc", apiRoute("apc.ts", (c) => …));
 ```
 
-- **`module` 必填**：它是生产环境唯一的定位信息来源（§8.4.3），可选就等于允许一批没有身份的日志。
+- **`logModule` 必填**：值是源文件名（`bots.ts`，带扩展名），生产环境唯一的定位信息来源（§8.4.3）；可选就等于允许一批没有身份的日志。
 - 带模型的写法：注册时只把 `module` 写进 `c.set("api", …)`（不再抓注册位置）；
   请求到达时按方法决定解析哪一侧（GET/DELETE 读 query，其余读 body），把校验后的对象作为
   handler 的第二个参数。失败抛 `RequestError`，由 `onError` 映射成 4xx。
@@ -270,7 +270,7 @@ app.get("/apc", apiRoute("api/apc", (c) => …));
 `Error` 付了代价却拿不到可用的位置。现在只有 `error` 级构造一次 `Error` 取完整栈，
 `info` / `warn` / `debug` 零构造。
 
-生产环境的定位靠**手写一次的 `module`**：`createApi("api/bots")` / `apiRoute("api/bots", h)`
+生产环境的定位靠**手写一次的源文件名**：`createApi("bots.ts")` / `apiRoute("bots.ts", h)`
 里的那个字符串，等于 C++ 里 `LOG_INFO` 宏带的 `__FILE__`。它经 `c.set("api", { module })` 进 context，
 由 `traceOf(ctx)` 写进每条业务日志的**行前缀**（JSON 载荷里不再重复；`logo.child({ module })` 是同一件事，给非请求场景用）。
 

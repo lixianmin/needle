@@ -16,7 +16,7 @@ const HOME_HTML = readFileSync("res/web/home.html", "utf8");
  */
 
 export function createHomeApi() {
-  const api = createApi("api/home");
+  const api = createApi("home.ts");
 
   api.get("/", ctx => ctx.html(HOME_HTML));
   return api;

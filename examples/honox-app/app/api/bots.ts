@@ -5,7 +5,7 @@ import { viper } from "../viper.js";
 
 export function createBotsApi() {
   // 本组挂在 `/api/v1/bots` 下，组内只写资源名——版本号与领域前缀都在 index.ts
-  const api = createApi("api/bots");
+  const api = createApi("bots.ts");
 
   /**
    * `POST /bots/get_bots`，body 形如 `{"id":1}`：带 id 取单条，空 body 取全表。
