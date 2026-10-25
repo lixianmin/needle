@@ -65,7 +65,7 @@
 - 包内目录去掉重复层级：`packages/logo/src/*.ts`（不再有 `src/logo/`），`packages/shell/src/*.ts`（不再有 `src/shell/`）。
 - `@needle/core` 只导出 `SortedTable`、`Comparer`、`defaultComparer`，只有 `.` 一个入口。
 - `web/body.ts`、`web/responsex.ts` 搬进 `packages/shell/src/web/`，不对外导出（外部拿不到，也不需要）。
-- 生产依赖只有一条：`packages/shell/package.json` 里 `"@needle/logo": "workspace:*"`。根 `package.json` 额外把三个包声明为 `devDependencies`（同样 `workspace:*`），只为了让根目录的 `examples/demo.ts` 与根级测试能按包名解析；这是开发期链接，不是发布依赖，也不改变「无伞包」。其余（`@types/bun`、`happy-dom`、`fake-indexeddb`、`miniflare`）是开发依赖，留在根 `package.json`。
+- 生产依赖只有一条：`packages/shell/package.json` 里 `"@needle/logo": "workspace:*"`。根 `package.json` 额外把三个包声明为 `devDependencies`（同样 `workspace:*`），只为了让根目录的 `examples/shell-demo.ts` 与根级测试能按包名解析；这是开发期链接，不是发布依赖，也不改变「无伞包」。其余（`@types/bun`、`happy-dom`、`fake-indexeddb`、`miniflare`）是开发依赖，留在根 `package.json`。
 
 ## 6. 目标仓库结构
 
@@ -77,7 +77,7 @@ bun.lock
 scripts/
   build-ui.mjs               # 产物写到 packages/shell/src/ui/script.generated.ts
   size-log-only.ts           # 改为从 packages/logo/src/index.ts 取 logo
-examples/demo.ts             # 日志侧走包名（dist），Shell 侧引 packages/shell/src
+examples/shell-demo.ts             # 日志侧走包名（dist），Shell 侧引 packages/shell/src
 test/
   smoke/node.mjs             # 唯一留在根目录的测试：对三份 dist 产物做冒烟
 packages/
@@ -148,17 +148,17 @@ packages/
 - 验收命令（写入 `docs/01.memory.md`，替换旧值）：
   `bun install && bun run build && bunx tsc --noEmit && bun test && node test/smoke/node.mjs`
 - `test/smoke/node.mjs` 改读三份 dist：`packages/logo/dist/index.js`、`packages/shell/dist/index.js`、`packages/shell/dist/node.js`；版本号读根 `package.json`。
-- `examples/demo.ts`：`logo` / `createFileSink` / `createLogFiles` 用包名（`@needle/logo`、`@needle/logo/node`，解析到 dist），Shell 侧引 `../packages/shell/src/*` 源码。理由是**单例**：shell 源码内部 import `@needle/logo`，demo 必须拿同一个 dist 实例，否则 sink 加在另一个 logger 上、页面看不到日志。版本号读根 `package.json`。根脚本 `demo` = `bun run build:logo && bun examples/demo.ts`：改 logo 后要重建，改 shell/UI 不必。
+- `examples/shell-demo.ts`：`logo` / `createFileSink` / `createLogFiles` 用包名（`@needle/logo`、`@needle/logo/node`，解析到 dist），Shell 侧引 `../packages/shell/src/*` 源码。理由是**单例**：shell 源码内部 import `@needle/logo`，demo 必须拿同一个 dist 实例，否则 sink 加在另一个 logger 上、页面看不到日志。版本号读根 `package.json`。根脚本 `demo` = `bun run build:logo && bun examples/shell-demo.ts`：改 logo 后要重建，改 shell/UI 不必。
 - `.githooks/pre-commit`：先 `bun run version:sync`（把根版本写进三个包），再 `bun run build`，最后 `git add packages/*/package.json packages/*/dist packages/shell/src/ui/script.generated.ts`。
 
 ## 10. 跨包与 dist 的代价（必须写进文档，不准藏）
 
 拆法 A 的必然结果：shell 的源码与测试在运行时都通过包名解析到 **logo 的 dist**。因此：
 
-- 改了 `packages/logo/src` 之后，必须 `bun run build:logo` 才能让 shell 的测试与 `examples/demo.ts` 看到新代码；否则测试跑的是旧产物，可能静默通过。
+- 改了 `packages/logo/src` 之后，必须 `bun run build:logo` 才能让 shell 的测试与 `examples/shell-demo.ts` 看到新代码；否则测试跑的是旧产物，可能静默通过。
 - 同一份 logo 在 shell 测试里只出现一次（都来自 dist），不会出现两个单例——这正是禁止测试跨包相对引用源码的原因。
 - 兜底：根目录加一条 `test/build-fresh.test.ts`，覆盖三处：`packages/{core,logo,shell}/src` 最新 mtime 对比各自 `dist/index.js`，以及 `packages/shell/src/ui/*.ts` 对比 `script.generated.ts`（比对时排除 `script.generated.ts` 自身）。过期则失败并提示对应的 `build:*` 命令。给 2 秒容差：刚 clone / checkout 时 mtime 同批写入，不误报。
-- `examples/demo.ts` 因此把日志侧写成包名（解析到 dist）、Shell 侧引源码：这样 logger 单例只有一份，改 UI 不必重建。根脚本 `demo` = `bun run build:logo && bun examples/demo.ts`。
+- `examples/shell-demo.ts` 因此把日志侧写成包名（解析到 dist）、Shell 侧引源码：这样 logger 单例只有一份，改 UI 不必重建。根脚本 `demo` = `bun run build:logo && bun examples/shell-demo.ts`。
 
 ## 11. 版本号与提交规则
 
@@ -167,7 +167,7 @@ packages/
 - 同步挂在 `.githooks/pre-commit` 里、构建之前；产物与三个 `package.json` 一起进同一个 commit。
 - 兜底测试 `test/version-lock.test.ts`：根必须有 `version`，且三包版本与根逐字相等。忘了跑同步，测试直接红。
 - 改版本只改根一处，按 §14「每次合并进 main 把 patch +1」执行（`0.3.7` → `0.3.8` 是本次修订的 bump）。
-- `examples/demo.ts` 与 `test/smoke/node.mjs` 都读根 `package.json`。
+- `examples/shell-demo.ts` 与 `test/smoke/node.mjs` 都读根 `package.json`。
 - `AGENTS.md` §14 与 §13.3 `VERIFY` 的措辞仍需人类改（agent 不自行改 AGENTS.md）：§14 明确「根 `package.json` 是唯一来源，三包由 `bun run version:sync` 同步」；`VERIFY` 取值按第 9 节。
 
 ## 12. 迁移映射

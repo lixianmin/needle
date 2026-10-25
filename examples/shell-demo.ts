@@ -1,5 +1,5 @@
 /**
- * 本地演示：`bun examples/demo.ts`
+ * 本地演示：`bun examples/shell-demo.ts`
  *
  * 打开 http://127.0.0.1:1234/shell
  * 登录：xmli / 123456

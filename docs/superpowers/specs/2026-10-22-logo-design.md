@@ -574,7 +574,7 @@ src/
 dist/                   # 提交进仓库
 test/
   unit/  integration/  smoke/  workers/
-examples/demo.ts
+examples/shell-demo.ts
 docs/best-practices/  # node-server.md（Node / Workers）、chrome-extension.md、browser-client.md
 ```
 
