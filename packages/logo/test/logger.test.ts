@@ -260,6 +260,34 @@ describe("batch:false", () => {
 });
 
 describe("dispose 与 child", () => {
+  // 计划里 child 的定义是「共享父的 buffer 与 sinks 快照」，实现曾经只共享 disposed，
+  // 于是子缓冲既不会被父 flush 带走，子定时器也不会被父 dispose 清掉。
+  test("父 dispose 冲掉子 logger 已缓冲的记录", () => {
+    const { calls, sink } = collector();
+    const parent = newLogger({ ...base, sinks: [sink] });
+    const child = parent.child({ name: "db" });
+
+    child.info("buffered-in-child");
+    parent.dispose();
+
+    expect(calls.flat().map((record) => record.msg)).toEqual(["buffered-in-child"]);
+  });
+
+  test("父 dispose 之后，子 logger 排定的定时器不再产生新的写出", async () => {
+    const { calls, sink } = collector();
+    const parent = newLogger({ batch: true, flushIntervalMs: 20, sinks: [sink] });
+    const child = parent.child({ name: "db" });
+
+    child.info("x");
+    parent.dispose();
+    // dispose 本身会把积压冲出去（一次，正常）；记下这次之后的调用数。
+    const afterDispose = calls.length;
+    await new Promise((resolve) => setTimeout(resolve, 60));
+
+    // 定时器若没被 dispose 清掉，会在 20ms 后把子缓冲再写一遍。
+    expect(calls.length).toBe(afterDispose);
+  });
+
   test("父 logger dispose 后，子 logger 也停止写入", () => {
     const { calls, sink } = collector();
     const parent = newLogger({ ...base, sinks: [sink] });

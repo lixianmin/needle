@@ -127,12 +127,22 @@ export interface Logger {
 }
 
 /** 父子 logger 共用同一个状态：父级 dispose 之后，子级也必须停。 */
+/**
+ * 一个 logger 家族共享的状态：`disposed`、缓冲、定时器。
+ *
+ * `child()` 返回的是新实例（各自的 level / fields / sink 快照），但它们必须共用
+ * 同一份 buffer 和同一个 timer，否则父 `flush()` / `dispose()` 带不走子缓冲：
+ * 退出前调一次 `dispose()` 会让子 logger 缓冲里最后一批记录永久丢失，
+ * 而子的定时器在 dispose 之后还会照常把记录写出去。
+ */
 interface LoggerState {
   disposed: boolean;
+  buffer: LogRecord[];
+  timer: ReturnType<typeof setTimeout> | undefined;
 }
 
 export function newLogger(options: LoggerOptions = {}): Logger {
-  return buildLogger(options, { disposed: false });
+  return buildLogger(options, { disposed: false, buffer: [], timer: undefined });
 }
 
 function buildLogger(options: LoggerOptions, state: LoggerState): Logger {
@@ -143,8 +153,6 @@ function buildLogger(options: LoggerOptions, state: LoggerState): Logger {
   const batch = options.batch ?? hasStdout();
 
   let level: Level = options.level ?? "info";
-  let buffer: LogRecord[] = [];
-  let timer: ReturnType<typeof setTimeout> | undefined;
   let sinkReported = false;
 
   const sinks: Sink[] = [...(options.sinks ?? [])];
@@ -161,23 +169,23 @@ function buildLogger(options: LoggerOptions, state: LoggerState): Logger {
   }
 
   function clearTimer(): void {
-    if (timer === undefined) {
+    if (state.timer === undefined) {
       return;
     }
 
-    clearTimeout(timer);
-    timer = undefined;
+    clearTimeout(state.timer);
+    state.timer = undefined;
   }
 
   function flush(): void {
     clearTimer();
-    if (buffer.length === 0) {
+    if (state.buffer.length === 0) {
       return;
     }
 
     // 整体换出：sink 里如果再写日志，不会掉进这次正在处理的批次里造成死循环。
-    const outgoing = buffer;
-    buffer = [];
+    const outgoing = state.buffer;
+    state.buffer = [];
 
     for (const sink of sinks) {
       try {
@@ -189,17 +197,17 @@ function buildLogger(options: LoggerOptions, state: LoggerState): Logger {
   }
 
   function schedule(): void {
-    if (!batch || flushIntervalMs <= 0 || timer !== undefined) {
+    if (!batch || flushIntervalMs <= 0 || state.timer !== undefined) {
       return;
     }
 
-    timer = setTimeout(() => {
-      timer = undefined;
+    state.timer = setTimeout(() => {
+      state.timer = undefined;
       flush();
     }, flushIntervalMs);
 
     // 不阻止进程退出：一批还没到期的日志不值得让服务挂着不关。
-    const handle = timer as unknown as { unref?: () => void };
+    const handle = state.timer as unknown as { unref?: () => void };
     handle.unref?.();
   }
 
@@ -226,7 +234,7 @@ function buildLogger(options: LoggerOptions, state: LoggerState): Logger {
     const record =
       Object.keys(fixedFields).length > 0 ? { ...fixedFields, ...built } : built;
 
-    buffer.push(record);
+    state.buffer.push(record);
 
     // warn/error：先把积压的全部写出去，再写这一条。error 之后进程可能就没了，
     // 不能让之前的 info 卡在缓冲里。
@@ -236,7 +244,7 @@ function buildLogger(options: LoggerOptions, state: LoggerState): Logger {
     }
 
     // 上限是内存保护，不是丢弃策略：写不下了就先冲一次。
-    if (buffer.length >= maxBuffer) {
+    if (state.buffer.length >= maxBuffer) {
       flush();
       return;
     }

@@ -41,7 +41,7 @@ function stackOf(frames) {
     return ["Error", ...frames].join("\n");
 }
 export function newLogger(options = {}) {
-    return buildLogger(options, { disposed: false });
+    return buildLogger(options, { disposed: false, buffer: [], timer: undefined });
 }
 function buildLogger(options, state) {
     const now = options.now ?? Date.now;
@@ -50,8 +50,6 @@ function buildLogger(options, state) {
     const stackLevel = options.stackLevel ?? "error";
     const batch = options.batch ?? hasStdout();
     let level = options.level ?? "info";
-    let buffer = [];
-    let timer;
     let sinkReported = false;
     const sinks = [...(options.sinks ?? [])];
     const fixedFields = { ...options.fields };
@@ -64,20 +62,20 @@ function buildLogger(options, state) {
         console.error("[logo] sink 抛错，后续错误不再提示:", error);
     }
     function clearTimer() {
-        if (timer === undefined) {
+        if (state.timer === undefined) {
             return;
         }
-        clearTimeout(timer);
-        timer = undefined;
+        clearTimeout(state.timer);
+        state.timer = undefined;
     }
     function flush() {
         clearTimer();
-        if (buffer.length === 0) {
+        if (state.buffer.length === 0) {
             return;
         }
         // 整体换出：sink 里如果再写日志，不会掉进这次正在处理的批次里造成死循环。
-        const outgoing = buffer;
-        buffer = [];
+        const outgoing = state.buffer;
+        state.buffer = [];
         for (const sink of sinks) {
             try {
                 sink(outgoing);
@@ -88,15 +86,15 @@ function buildLogger(options, state) {
         }
     }
     function schedule() {
-        if (!batch || flushIntervalMs <= 0 || timer !== undefined) {
+        if (!batch || flushIntervalMs <= 0 || state.timer !== undefined) {
             return;
         }
-        timer = setTimeout(() => {
-            timer = undefined;
+        state.timer = setTimeout(() => {
+            state.timer = undefined;
             flush();
         }, flushIntervalMs);
         // 不阻止进程退出：一批还没到期的日志不值得让服务挂着不关。
-        const handle = timer;
+        const handle = state.timer;
         handle.unref?.();
     }
     function emit(recordLevel, args) {
@@ -117,7 +115,7 @@ function buildLogger(options, state) {
         });
         // child 的固定字段在前、本次调用的字段在后：更具体的赢。
         const record = Object.keys(fixedFields).length > 0 ? { ...fixedFields, ...built } : built;
-        buffer.push(record);
+        state.buffer.push(record);
         // warn/error：先把积压的全部写出去，再写这一条。error 之后进程可能就没了，
         // 不能让之前的 info 卡在缓冲里。
         if (LEVELS[recordLevel] >= LEVELS.warn) {
@@ -125,7 +123,7 @@ function buildLogger(options, state) {
             return;
         }
         // 上限是内存保护，不是丢弃策略：写不下了就先冲一次。
-        if (buffer.length >= maxBuffer) {
+        if (state.buffer.length >= maxBuffer) {
             flush();
             return;
         }
