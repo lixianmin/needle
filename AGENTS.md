@@ -156,7 +156,7 @@
 
 1. 单元测试：核心包覆盖率 ≥ 90%（按**每个包**的 `src` 行覆盖算，`bun run coverage` 校验；分母不算 `dist`/`test`/生成物）。
 2. 集成测试：覆盖典型 Use Case 的完整流程（命令行/API），替代人工端到端验证。UI 视觉验收仍按 §5 做截图对比。
-3. 每一个 bug 都先整理成失败测试用例，然后通过跑通测试证明修复成功，也就是 Failure To Failure 测试。
+3. 每一个 bug 都先整理成失败测试用例（Failure To Failure），然后通过跑通测试证明修复成功（Failure To Pass）。
 4. bugfix 修改的代码加注释，解释修正了什么问题、为什么这么改。
 
 ### 变异测试（Stryker）
