@@ -393,3 +393,96 @@ describe("句柄", () => {
     expect(() => bots.get(1)).toThrow(/没有 Template 表：BotTemplate/);
   });
 });
+
+describe("表头与行归一（变异测试压出来的）", () => {
+  test("表头会 trim + 小写，数字表头转字符串，空表头列整列丢掉", async () => {
+    const dir = await oneFile("BotTemplate", [
+      [" ID ", "Name", "", 42],
+      [1, "苏苏", "被丢掉", "x"],
+    ]);
+    const metadata = createMetadata();
+    await metadata.load(dir);
+
+    expect(metadata.template("BotTemplate").get(1)).toEqual({ id: 1, name: "苏苏", "42": "x" });
+  });
+
+  test("缺列与短行的单元格补 null，不会变成 undefined", async () => {
+    const dir = await oneFile("BotTemplate", [
+      ["id", "a", "b"],
+      [1, "x"],
+    ]);
+    const metadata = createMetadata();
+    await metadata.load(dir);
+
+    const row = metadata.template<{ id: number; a: string; b: unknown }>("BotTemplate").get(1);
+    expect(row).toStrictEqual({ id: 1, a: "x", b: null });
+    expect("b" in (row as object)).toBe(true);
+  });
+
+  test("整行为空跳过；0 与 false 不算空", async () => {
+    const dir = await oneFile("BotTemplate", [
+      ["id", "flag", "note"],
+      [null, null, null],
+      [1, 0, ""],
+    ]);
+    const metadata = createMetadata();
+    await metadata.load(dir);
+
+    const table = metadata.template<{ id: number; flag: number; note: string }>("BotTemplate");
+    expect(table.all()).toHaveLength(1);
+    expect(table.get(1)).toStrictEqual({ id: 1, flag: 0, note: "" });
+  });
+
+  test("完全没有数据行的表：不报错，取不到东西", async () => {
+    const dir = await oneFile("BotTemplate", [["id", "name"]]);
+    const metadata = createMetadata();
+    await metadata.load(dir);
+
+    expect(metadata.template("BotTemplate").all()).toEqual([]);
+    expect(metadata.template("BotTemplate").get(1)).toBeUndefined();
+  });
+});
+
+describe("id 校验与报错文案", () => {
+  test("id 缺列 / 非数字 / 重复，各给一条指得出来的错", async () => {
+    const noColumn = await oneFile("BotTemplate", [["name"], ["x"]]);
+    await expect(createMetadata().load(noColumn)).rejects.toThrow(
+      /第 2 行 id 不是数字：.*缺列.*/,
+    );
+
+    const notNumber = await oneFile("BotTemplate", [["id"], ["abc"]]);
+    await expect(createMetadata().load(notNumber)).rejects.toThrow(/id 不是数字：abc/);
+
+    const duplicated = await oneFile("BotTemplate", [["id"], [1], [1]]);
+    await expect(createMetadata().load(duplicated)).rejects.toThrow(/重复 id：1（第 3 行）/);
+  });
+});
+
+describe("selector 与文案", () => {
+  test("类名取不到时要显式传 sheet 名，否则报错指路", async () => {
+    const anonymized = class {
+      id = 0;
+    };
+    Object.defineProperty(anonymized, "name", { value: "" });
+
+    const dir = await oneFile("BotTemplate", [["id"], [1]]);
+    const metadata = createMetadata();
+    await metadata.load(dir);
+
+    expect(() => metadata.template(anonymized)).toThrow(/没有类名/);
+    expect(metadata.template(anonymized, "BotTemplate").get(1)).toStrictEqual({ id: 1 });
+  });
+
+  test("找不到表时列出已加载的名字；一个都没有时写 (无)", async () => {
+    const dir = await oneFile("BotTemplate", [["id"], [1]]);
+    const metadata = createMetadata();
+    await metadata.load(dir);
+
+    expect(() => metadata.template("OtherTemplate").get(1)).toThrow(/已加载：BotTemplate/);
+
+    const empty = await oneFile("OnlyTemplate", [["id"], [1]]);
+    const other = createMetadata();
+    await other.load(empty);
+    expect(() => other.config("MissingConfig").get()).toThrow(/已加载：\(无\)/);
+  });
+});

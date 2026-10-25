@@ -12,9 +12,9 @@
   "concurrency": 4,
   "timeoutMS": 30000,
   "thresholds": {
-    "high": 90,
-    "low": 89.7,
-    "break": 89.7
+    "high": 95,
+    "low": 93.7,
+    "break": 93.7
   },
   "reporters": [
     "clear-text",

@@ -256,3 +256,90 @@ describe("配置工具函数（被 loadConfig 间接用到，也单独钉住）"
     expect(loadConfig({ dir }).getInt("a")).toBe(1);
   });
 });
+
+describe("取值与合并的边界", () => {
+  test("isPlainObject：数组与 null 都不算对象", () => {
+    expect(deepMerge({ a: [1] }, { a: [2] })).toEqual({ a: [2] });
+    expect(deepMerge({ a: { x: 1 } }, { a: 2 })).toEqual({ a: 2 });
+    expect(deepMerge({ a: 2 }, { a: { x: 1 } })).toEqual({ a: { x: 1 } });
+  });
+
+  test("coerceValue：纯空白原样返回，数字带空白仍能转", () => {
+    expect(coerceValue("   ")).toBe("   ");
+    expect(coerceValue(" 42 ")).toBe(42);
+    expect(coerceValue("true")).toBe(true);
+    expect(coerceValue("false")).toBe(false);
+    expect(coerceValue("abc")).toBe("abc");
+    expect(coerceValue("")).toBe("");
+  });
+
+  test("assertRequired：中间层是数组 / null / 非对象都算缺失", () => {
+    expect(() => assertRequired({ a: [1] }, ["a.b"])).toThrow(/a\.b/);
+    expect(() => assertRequired({ a: null }, ["a.b"])).toThrow(/a\.b/);
+    expect(() => assertRequired({ a: 1 }, ["a.b"])).toThrow(/a\.b/);
+  });
+
+  test("assertRequired：只有 undefined / null / 空串算缺失，0 与 false 是有效值", () => {
+    expect(() => assertRequired({ a: 0, b: false }, ["a", "b"])).not.toThrow();
+    expect(() => assertRequired({ a: "" }, ["a"])).toThrow(/a/);
+    expect(() => assertRequired({ a: null }, ["a"])).toThrow(/a/);
+  });
+
+  test("readPath：穿过数组 / null / 标量一律 undefined", () => {
+    expect(readPath({ a: [1, 2] }, "a.0")).toBeUndefined();
+    expect(readPath({ a: null }, "a.b")).toBeUndefined();
+    expect(readPath({ a: 1 }, "a.b")).toBeUndefined();
+    expect(readPath({ a: { b: 0 } }, "a.b")).toBe(0);
+  });
+
+  test("isDev / isFat / isPro 只在对应环境为真", () => {
+    const dev = createConfig({}, "dev");
+    const fat = createConfig({}, "fat");
+    const pro = createConfig({}, "pro");
+    expect([dev.isDev(), fat.isFat(), pro.isPro()]).toEqual([true, true, true]);
+    expect([dev.isFat(), dev.isPro(), fat.isDev(), pro.isDev()]).toEqual([false, false, false, false]);
+  });
+
+  test("getString：数字与布尔转字符串，对象给兜底", () => {
+    const config = createConfig({ n: 42, b: true, o: { x: 1 } }, "dev");
+    expect(config.getString("n")).toBe("42");
+    expect(config.getString("b")).toBe("true");
+    // 类型不对是配置错误，不静默兜底（兜底只用于「没配」）。
+    expect(() => config.getString("o")).toThrow(/类型不对/);
+  });
+
+  test("getInt：截断小数、字符串数字、空白与非数字给兜底", () => {
+    const config = createConfig({ a: 3.9, b: "42", c: "   ", d: "abc", e: [1] }, "dev");
+    expect(config.getInt("a")).toBe(3);
+    expect(config.getInt("b")).toBe(42);
+    expect(() => config.getInt("c")).toThrow(/类型不对/);
+    expect(() => config.getInt("d")).toThrow(/类型不对/);
+    expect(() => config.getInt("e")).toThrow(/类型不对/);
+    // 没配才走兜底。
+    expect(config.getInt("missing", 7)).toBe(7);
+  });
+
+  test("getBool：布尔原样，只认字符串 true / false", () => {
+    const config = createConfig({ a: true, b: "true", c: "false", d: 1, e: "0", f: false }, "dev");
+    expect(config.getBool("a")).toBe(true);
+    expect(config.getBool("b")).toBe(true);
+    expect(config.getBool("c")).toBe(false);
+    expect(config.getBool("f")).toBe(false);
+    expect(() => config.getBool("d")).toThrow(/类型不对/);
+    expect(() => config.getBool("e")).toThrow(/类型不对/);
+    expect(config.getBool("missing", true)).toBe(true);
+  });
+
+  test("getStringMap：非映射报错，缺失给空对象", () => {
+    const config = createConfig({ ok: { a: "1" }, bad: [1], nul: null }, "dev");
+    expect(config.getStringMap("ok")).toEqual({ a: "1" });
+    expect(config.getStringMap("missing")).toEqual({});
+    expect(() => config.getStringMap("bad")).toThrow(/不是 key→value 映射/);
+    expect(() => config.getStringMap("nul")).toThrow(/不是 key→value 映射/);
+  });
+
+  test("取值不存在时抛 path 明确的错误", () => {
+    const config = createConfig({ a: {} }, "dev");
+    expect(() => config.getInt("a.missing")).toThrow(/配置项不存在：a\.missing/);
+  });
+});
