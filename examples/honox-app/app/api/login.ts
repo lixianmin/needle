@@ -8,18 +8,12 @@ import { viper } from "../viper.js";
 const TOKEN_TTL_SECONDS = 60 * 60;
 
 /**
- * 演示用的固定盐。**它不是完整的安全方案**：固定盐不防重放（截获到 passcode
- * 就能再登录一次），也不防离线爆破。真实项目要每用户独立盐 + 一次性挑战
- * （nonce 或短信验证码）：客户端拿挑战 → 算 `hash(盐 + 挑战 + 密码)` → 服务端
- * 用同一份盐和那次挑战重算，并当场把挑战作废。
- *
- * 这里只兑现两件事：明文密码不出浏览器、服务端不存明文密码。
- */
-const DEMO_SALT = "needle-demo-salt";
-
-/**
- * 两个测试用户。`passcode = sha256hex(DEMO_SALT + 明文密码)`，离线算好写死。
+ * 两个测试用户。`passcode = sha256hex("needle-demo-salt" + 明文密码)`，离线算好写死；
+ * 盐只在客户端 `res/web/home.html` 里参与计算，服务端不存它、也没有代码用到它。
  * 改密码要同步改 `res/web/home.html` 里输入框的默认值。
+ *
+ * 固定盐**不是完整的安全方案**：固定盐不防重放（截获到 passcode 就能再登录一次），
+ * 也不防离线爆破。真实项目要每用户独立盐 + 一次性挑战（nonce 或短信验证码）。
  *
  * - `alice` / `alice123` → uid `u-alice`
  * - `bob` / `bob123` → uid `u-bob`

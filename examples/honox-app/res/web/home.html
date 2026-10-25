@@ -286,7 +286,7 @@
       const UID_KEY = "honox.home.uid";
       const EXP_KEY = "honox.home.exp";
 
-      // 与服务端 `app/api/login.ts` 的 DEMO_SALT 必须一致：两边各自算同一个哈希。
+      // 服务端 `app/api/login.ts` 只存离线算好的 passcode：改盐或改密码要两边一起重算。
       // 固定盐只演示「明文密码不出浏览器」，不防重放（见 spec §3）。
       const DEMO_SALT = "needle-demo-salt";
 
