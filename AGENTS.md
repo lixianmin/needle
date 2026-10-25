@@ -172,7 +172,7 @@
 7. **`mutate` 用 glob，不用文件清单**：新增源文件必须默认进入范围，要排除就用 `!` 模式显式排除。清单会烂——有文件改名之后一直留在清单里，Stryker 静默跳过，分数还是「正常」的。
 8. **被变异的文件必须有直接打到源码的测试**：测试 import `../src/*`，不能走包名（包名测的是 `dist`，变异源码打不到测试）。新增文件进 `mutate` 前先确认这条。
 9. **`--inPlace` 直接改工作树文件**：只在干净工作树里跑，中断后先 `git status` 确认没有残留的变异源码。
-10. **合入前跑全量，日常迭代跑增量。** `bun run mutate` 默认读 `.stryker/incremental.json`（源码或测试改过的突变体重跑）；要重建基线、或断言改动语义可疑时用 `bun run mutate:full`（`--force`）。存活明细在 `reports/mutation/mutation.html`（已 gitignore）。
+10. **`bun run mutate` 已含在 §13 的验收命令里**（合并门禁必跑）。它默认读 `.stryker/incremental.json`：源码或测试改过的突变体会重跑，新建 worktree 没有基线就是全量；要重建基线、或断言改动语义可疑时用 `bun run mutate:full`（`--force`）。日常迭代不必专门跑，改完代码直接走门禁即可；存活明细在 `reports/mutation/mutation.html`（已 gitignore）。
 
 ---
 
