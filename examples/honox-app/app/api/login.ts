@@ -4,8 +4,6 @@ import { sign } from "hono/jwt";
 import { LoginBody } from "../beans/login.js";
 import { viper } from "../viper.js";
 
-export const loginApi = createApi("api/login");
-
 /** token 有效期 1 小时：够点完一轮按钮，又不至于在浏览器里留一个不过期的凭据。 */
 const TOKEN_TTL_SECONDS = 60 * 60;
 
@@ -66,21 +64,28 @@ function passcodeMatches(given: string, expected: string): boolean {
  * token 是凭据，两者都不能落进日志文件。为此这里用 `trace.info()` 加原生
  * `ctx.json()`，而不是 `trace.json()`——后者会把响应体原样打出来。
  */
-loginApi.post("/login", LoginBody, (ctx, request) => {
-  const record = USERS.get(request.user);
-  if (record === undefined || !passcodeMatches(request.passcode, record.passcode)) {
-    // 用户名不存在与口令不对回同一个响应：能区分两者，就等于送了一个用户名枚举接口。
-    traceOf(ctx).info({ step: "login-failed", user: request.user });
-    return ResponseX.unauthorized("用户名或密码错误");
-  }
 
-  const now = Math.floor(Date.now() / 1000);
-  const expiresAt = (now + TOKEN_TTL_SECONDS) * 1000;
-  traceOf(ctx).info({ step: "login", user: request.user, uid: record.uid });
+export function createLoginApi() {
+  const api = createApi("api/login");
 
-  return sign(
-    { sub: record.uid, iat: now, exp: now + TOKEN_TTL_SECONDS },
-    viper.getString("auth.secret"),
-    "HS256",
-  ).then((token) => ctx.json({ uid: record.uid, token, expiresAt }));
-});
+  api.post("/login", LoginBody, (ctx, request) => {
+    const record = USERS.get(request.user);
+    if (record === undefined || !passcodeMatches(request.passcode, record.passcode)) {
+      // 用户名不存在与口令不对回同一个响应：能区分两者，就等于送了一个用户名枚举接口。
+      traceOf(ctx).info({ step: "login-failed", user: request.user });
+      return ResponseX.unauthorized("用户名或密码错误");
+    }
+
+    const now = Math.floor(Date.now() / 1000);
+    const expiresAt = (now + TOKEN_TTL_SECONDS) * 1000;
+    traceOf(ctx).info({ step: "login", user: request.user, uid: record.uid });
+
+    return sign(
+      { sub: record.uid, iat: now, exp: now + TOKEN_TTL_SECONDS },
+      viper.getString("auth.secret"),
+      "HS256",
+    ).then((token) => ctx.json({ uid: record.uid, token, expiresAt }));
+  });
+
+  return api;
+}

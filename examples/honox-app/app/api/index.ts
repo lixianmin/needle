@@ -1,8 +1,8 @@
 import type { HonoxApp } from "@needle/honox";
 import { createBotsApi } from "./bots.js";
 import { createHealthApi } from "./health.js";
-import { homeApi } from "./home.js";
-import { loginApi } from "./login.js";
+import { createHomeApi } from "./home.js";
+import { createLoginApi } from "./login.js";
 
 /**
  * 挂载所有 HTTP 接口：一个领域一个文件，这里只做登记。
@@ -15,9 +15,9 @@ import { loginApi } from "./login.js";
  * 不用回头改 main.ts。没声明的路径一律要登录。
  */
 export function registerApis(app: HonoxApp): void {
-  app.route("/", homeApi);
+  app.route("/", createHomeApi());
   app.route("/", createHealthApi());
-  app.route("/", loginApi);
+  app.route("/", createLoginApi());
   app.route("/", createBotsApi());
 
   // 测试台（`/`）与 mock 登录（`/login`）必须匿名可达：页面本身就是拿 token 的入口，

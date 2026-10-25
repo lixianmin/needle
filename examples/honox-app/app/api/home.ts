@@ -1,8 +1,6 @@
 import { readFileSync } from "node:fs";
 import { createApi } from "@needle/honox";
 
-export const homeApi = createApi("api/home");
-
 /**
  * 测试台页面。启动时读一次、之后常驻内存，请求路径零 IO。
  *
@@ -16,4 +14,10 @@ const HOME_HTML = readFileSync("res/web/home.html", "utf8");
  *
  * 一行日志都不写：静态页/探活这类高频请求正是「请求日志交给业务决定」要消掉的那类噪音。
  */
-homeApi.get("/", (ctx) => ctx.html(HOME_HTML));
+
+export function createHomeApi() {
+  const api = createApi("api/home");
+
+  api.get("/", ctx => ctx.html(HOME_HTML));
+  return api;
+}
