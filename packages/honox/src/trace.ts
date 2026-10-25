@@ -13,8 +13,12 @@ import type { HonoxEnv } from "./types.js";
  * const trace = traceOf(ctx).info(request);
  * ```
  *
- * `json` / `notFound` 是响应出口：记的那一行就是它返回的响应（`{status, result}`），
+ * `json` 与四个失败出口（`badRequest` / `notFound` / `internalError` /
+ * `unavailable`）是响应出口：记的那一行就是它返回的响应（`{status, result}`），
  * 只有一个参数。业务想额外记什么，用 `.info(...)` 显式加——链式天然支持。
+ *
+ * 失败出口把状态码、code 一起锁死（与 `ResponseX` 同一套契约），业务只给
+ * message：不用每个 handler 都自己拼 `{code, message}` 再手写状态码。
  */
 export interface Trace {
   debug(...args: unknown[]): Trace;
@@ -27,13 +31,22 @@ export interface Trace {
    * "每个出口都留一行"成为默认动作，而不是要剥夺选择。
    */
   json(body: unknown, status?: ContentfulStatusCode): Response;
+  /** 记一条 info（`{status: 400, result: {code, message}}`）并返回 400。 */
+  badRequest(message?: string): Response;
   /** 记一条 info（`{status: 404, result: {code, message}}`）并返回 404。 */
   notFound(message?: string): Response;
+  /** 记一条 info（`{status: 500, result: {code, message}}`）并返回 500。 */
+  internalError(message?: string): Response;
+  /** 记一条 info（`{status: 503, result: {code, message}}`）并返回 503。 */
+  unavailable(message?: string): Response;
 }
 
 const LEVELS = ["debug", "info", "warn", "error"] as const;
 
+const DEFAULT_BAD_REQUEST = "请求不合法";
 const DEFAULT_NOT_FOUND = "接口不存在";
+const DEFAULT_INTERNAL_ERROR = "服务内部错误";
+const DEFAULT_UNAVAILABLE = "服务暂不可用";
 
 /**
  * 把当前请求的上下文绑成一个 trace 对象。
@@ -79,10 +92,26 @@ export function traceOf(ctx: Context<HonoxEnv>, logger?: Logger): Trace {
     return ctx.json(body as never, status);
   };
 
+  trace.badRequest = (message = DEFAULT_BAD_REQUEST) => {
+    // 与 json 同一条规则：记的就是返回的响应体。
+    trace.info({ status: 400, result: { code: "bad_request", message } });
+    return ResponseX.badRequest(message);
+  };
+
   trace.notFound = (message = DEFAULT_NOT_FOUND) => {
     // 与 json 同一条规则：记的就是返回的响应体。
     trace.info({ status: 404, result: { code: "not_found", message } });
     return ResponseX.notFound(message);
+  };
+
+  trace.internalError = (message = DEFAULT_INTERNAL_ERROR) => {
+    trace.info({ status: 500, result: { code: "internal_error", message } });
+    return ResponseX.internalError(message);
+  };
+
+  trace.unavailable = (message = DEFAULT_UNAVAILABLE) => {
+    trace.info({ status: 503, result: { code: "service_unavailable", message } });
+    return ResponseX.unavailable(message);
   };
 
   return trace;

@@ -162,6 +162,63 @@ describe("traceOf", () => {
     expect(await res.json()).toEqual({ code: "not_found", message: "接口不存在" });
   });
 
+  test("失败出口：状态码、code、响应体与日志一一对应", async () => {
+    const outlets = [
+      { name: "badRequest", status: 400, code: "bad_request" },
+      { name: "notFound", status: 404, code: "not_found" },
+      { name: "internalError", status: 500, code: "internal_error" },
+      { name: "unavailable", status: 503, code: "service_unavailable" },
+    ] as const;
+
+    for (const outlet of outlets) {
+      const { records, logger } = setup();
+      const app = new Hono<HonoxEnv>();
+      app.use("*", async (ctx, next) => {
+        ctx.set("rid", "r1");
+        ctx.set("uid", null);
+        await next();
+      });
+      app.get("/x", (ctx) => traceOf(ctx, logger)[outlet.name]("出事了"));
+
+      const res = await app.request("/x");
+
+      expect(res.status).toBe(outlet.status);
+      expect(await res.json()).toEqual({ code: outlet.code, message: "出事了" });
+      expect(records).toHaveLength(1);
+      expect(records[0]).toMatchObject({
+        status: outlet.status,
+        result: { code: outlet.code, message: "出事了" },
+        level: "info",
+      });
+    }
+  });
+
+  test("失败出口不传 message 时的默认文案也是对外的", async () => {
+    const defaults = [
+      { name: "badRequest", status: 400, code: "bad_request", message: "请求不合法" },
+      { name: "notFound", status: 404, code: "not_found", message: "接口不存在" },
+      { name: "internalError", status: 500, code: "internal_error", message: "服务内部错误" },
+      { name: "unavailable", status: 503, code: "service_unavailable", message: "服务暂不可用" },
+    ] as const;
+
+    for (const outlet of defaults) {
+      const { records, logger } = setup();
+      const app = new Hono<HonoxEnv>();
+      app.use("*", async (ctx, next) => {
+        ctx.set("rid", "r1");
+        ctx.set("uid", null);
+        await next();
+      });
+      app.get("/x", (ctx) => traceOf(ctx, logger)[outlet.name]());
+
+      const res = await app.request("/x");
+
+      expect(res.status).toBe(outlet.status);
+      expect(await res.json()).toEqual({ code: outlet.code, message: outlet.message });
+      expect(records[0]).toMatchObject({ status: outlet.status });
+    }
+  });
+
   test("没有 api 上下文时不出 module", async () => {
     const { records, logger } = setup();
     const app = new Hono<HonoxEnv>();

@@ -1,7 +1,10 @@
 import { logo } from "@needle/logo";
 import { ResponseX } from "@needle/shell";
 const LEVELS = ["debug", "info", "warn", "error"];
+const DEFAULT_BAD_REQUEST = "请求不合法";
 const DEFAULT_NOT_FOUND = "接口不存在";
+const DEFAULT_INTERNAL_ERROR = "服务内部错误";
+const DEFAULT_UNAVAILABLE = "服务暂不可用";
 /**
  * 把当前请求的上下文绑成一个 trace 对象。
  *
@@ -43,10 +46,23 @@ export function traceOf(ctx, logger) {
         trace.info({ status: status ?? 200, result: body });
         return ctx.json(body, status);
     };
+    trace.badRequest = (message = DEFAULT_BAD_REQUEST) => {
+        // 与 json 同一条规则：记的就是返回的响应体。
+        trace.info({ status: 400, result: { code: "bad_request", message } });
+        return ResponseX.badRequest(message);
+    };
     trace.notFound = (message = DEFAULT_NOT_FOUND) => {
         // 与 json 同一条规则：记的就是返回的响应体。
         trace.info({ status: 404, result: { code: "not_found", message } });
         return ResponseX.notFound(message);
+    };
+    trace.internalError = (message = DEFAULT_INTERNAL_ERROR) => {
+        trace.info({ status: 500, result: { code: "internal_error", message } });
+        return ResponseX.internalError(message);
+    };
+    trace.unavailable = (message = DEFAULT_UNAVAILABLE) => {
+        trace.info({ status: 503, result: { code: "service_unavailable", message } });
+        return ResponseX.unavailable(message);
     };
     return trace;
 }
