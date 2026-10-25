@@ -67,7 +67,7 @@ viper.env / viper.isDev() / viper.isFat() / viper.isPro()
 | 路径 | 鉴权 | 说明 |
 |---|---|---|
 | `GET /` | 公开 | 测试台页面（见下节） |
-| `POST /login?uid=alice` | 公开 | mock 登录，返回 `{uid, token, expiresAt}`；token 是 `auth.secret` 签的真 JWT |
+| `POST /login` | 公开 | mock 登录，body `{"uid":"alice"}`（可省），返回 `{uid, token, expiresAt}`；token 是 `auth.secret` 签的真 JWT |
 | `GET /health` | 公开 | `{"ok":true}` |
 | `GET /bots?id=1` | 需要 JWT | 命中返回 `{ baseUrl, bot }`；不带 `id` 返回 `{ baseUrl, bots }`（全表）；`id` 非数字 → 400，查不到 → 404 |
 | `POST /bots` | 需要 JWT | body `{"ids":[1,99]}`，命中放 `bots`、找不到放 `missing`（批量里部分不存在不算失败）；body 不合规 → 400 |
@@ -77,7 +77,7 @@ viper.env / viper.isDev() / viper.isFat() / viper.isPro()
 
 `bun run dev` 之后打开 <http://localhost:8001/>，根目录是一张测试页（`res/web/home.html`，单文件、零依赖、零构建）。它解决的是「接口都在 JWT 后面，没有 token 就只能看到 401」这件事：
 
-1. 点右上角**登录**，`POST /login?uid=<输入框里的 uid>` 发一枚真 token（HS256、uid 在 `sub`、1 小时过期），存进 localStorage；
+1. 点右上角**登录**，`POST /login`（body `{"uid":<输入框里的 uid>}`）发一枚真 token（HS256、uid 在 `sub`、1 小时过期），存进 localStorage；
 2. 点左边的按钮打 `/bots` 的各个分支——200 / 400（`?id=abc` 与空 body）/ 404（`?id=999`）/ 401（故意不带 token 的对照组）；
 3. 右侧显示状态码、`x-rid`、耗时和格式化后的 JSON，底部是本次会话的历史。
 
@@ -88,7 +88,9 @@ viper.env / viper.isDev() / viper.isFat() / viper.isPro()
 不想开浏览器时，命令行同样一条命令拿 token：
 
 ```bash
-curl -s -X POST "http://127.0.0.1:8001/login?uid=u1" | bun -e 'const j = await Bun.stdin.json(); console.log(j.token)'
+curl -s -X POST "http://127.0.0.1:8001/login" \
+  -H 'content-type: application/json' -d '{"uid":"u1"}' \
+  | bun -e 'const j = await Bun.stdin.json(); console.log(j.token)'
 ```
 
 ## 接口目录
@@ -124,7 +126,7 @@ botsApi.get("/health", (ctx) => ctx.json({ ok: true }));       // 不校验参�
 
 `createApi(module)` 返回的是真正的 `Hono`，所以 `app.route("/", botsApi)` 照常挂。`module` 会写进 context，业务日志里因此带 `"module":"api/bots"`——打包、压缩后 `文件:行` 会变成 bundle 坐标，这个字符串才是生产环境唯一还活着的定位信息。
 
-参数模型见 `app/beans/`：手写 class（`bots.ts`），`scripts/gen-models.ts` 生成 TypeBox schema（`bots.generated.ts`，提交进仓库）。bean 文件顶部 `import "./bots.generated.js"`，所以业务 import 这个 bean 文件时 schema 就注册好了，不需要额外的 barrel。生成物带漂移断言，class 改了没重新生成会编译报错。
+参数模型见 `app/beans/`：手写 class（`bots.ts`、`login.ts`），`scripts/gen-models.ts` 生成 TypeBox schema（`bots.generated.ts`，提交进仓库）。bean 文件顶部 `import "./bots.generated.js"`，所以业务 import 这个 bean 文件时 schema 就注册好了，不需要额外的 barrel。生成物带漂移断言，class 改了没重新生成会编译报错。
 
 handler 的参数不用写类型注解：`botsApi.post("/bots", BotsBody, (ctx, request) => …)` 已经推断出 `ctx: Context<HonoxEnv>` 和 `request: BotsBody`，再写一遍就是同一信息写两次。
 

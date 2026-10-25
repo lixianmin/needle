@@ -1,6 +1,6 @@
 {
   "name": "@needle/got",
-  "version": "0.3.61",
+  "version": "0.3.62",
   "description": "Needle 的通用工具：SortedTable 数据结构、ULID / Snowflake id 生成",
   "type": "module",
   "sideEffects": false,

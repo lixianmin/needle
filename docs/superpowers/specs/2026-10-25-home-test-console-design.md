@@ -28,10 +28,17 @@
 ## 3. 登录契约
 
 ```
-POST /login?uid=alice          # uid 可省，默认 "mock-user"
+POST /login   {"uid":"alice"}   # uid 可省（body 可空 {}），默认 "mock-user"
 → 200 {"uid":"alice","token":"<HS256 JWT>","expiresAt":1761360000000}
+→ 400                                # body 不是合法 JSON，或带了未声明的字段
 ```
 
+- **参数走 body，不走 query。** 登录参数不该出现在 URL 里（会进网关日志、代理缓存、
+  浏览器历史）；更重要的是后面这条：带模型的写法直接接住 JSON body，schema 校验和
+  400 出口都是库自己的——`ctx.req.query("uid")` 是绕过这两者的裸读，也是全仓库唯一
+  一条不从框架入口进来的路由。body 模型见 `app/beans/login.ts`（`LoginBody`）。
+- `uid` 可选：`{}` 签 `mock-user`；`{"uid":""}` 也当没给——不该签出一枚 `sub` 为空的
+  token。
 - token 用 `auth.secret` 签，payload `{ sub: uid, iat, exp }`——与 `createAuth` 的校验口径
   完全一致（`sub` 取 uid、HS256）。所以这枚 token 与线上签出来的没有区别，测试台测的是
   真实链路，不是一条假路径。

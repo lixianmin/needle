@@ -369,7 +369,11 @@
       async function login() {
         // mock 登录：uid 由页面给，密码不校验（见 spec §3）。生产替换这个接口即可。
         const uid = el("uid").value.trim() === "" ? "mock-user" : el("uid").value.trim();
-        const response = await fetch(`/login?uid=${encodeURIComponent(uid)}`, { method: "POST" });
+        const response = await fetch("/login", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ uid }),
+        });
         const text = await response.text();
         if (!response.ok) {
           setStatus(response.status);
