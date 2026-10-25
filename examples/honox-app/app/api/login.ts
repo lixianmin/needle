@@ -70,7 +70,7 @@ loginApi.post("/login", LoginBody, (ctx, request) => {
   const record = USERS.get(request.user);
   if (record === undefined || !passcodeMatches(request.passcode, record.passcode)) {
     // 用户名不存在与口令不对回同一个响应：能区分两者，就等于送了一个用户名枚举接口。
-    traceOf(ctx).warn({ step: "login-failed", user: request.user });
+    traceOf(ctx).info({ step: "login-failed", user: request.user });
     return ResponseX.unauthorized("用户名或密码错误");
   }
 

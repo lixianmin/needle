@@ -1,6 +1,6 @@
 {
   "name": "needle",
-  "version": "0.3.64",
+  "version": "0.3.65",
   "private": true,
   "type": "module",
   "workspaces": [
