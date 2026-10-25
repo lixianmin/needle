@@ -89,6 +89,27 @@ describe("/exec 适配器", () => {
     expect(await res.json()).toEqual({ code: "bad_request", message: "unknown command: nope" });
   });
 
+  test("空命令返回 400 + bad_request", async () => {
+    const { handler } = await setup();
+    const res = await handler(post(JSON.stringify({ line: "   " })));
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ code: "bad_request", message: "空命令" });
+  });
+
+  test("停机之后 exec 返回 503 + service_unavailable", async () => {
+    const source = createShellSource({
+      logger: newLogger({ flushIntervalMs: 0, batch: false }),
+      auth: { users: { admin: "secret" }, secret: "s3cret" },
+    });
+    const handler = createExecHandler({ source });
+    source.dispose();
+
+    const res = await handler(post(JSON.stringify({ line: "help" })));
+
+    expect(res.status).toBe(503);
+    expect(await res.json()).toEqual({ code: "service_unavailable", message: "shell disposed" });
+  });
+
   test("普通异常只回 message", async () => {
     const { handler, token } = await setup();
     const res = await handler(post(JSON.stringify({ line: "fail" }), token));

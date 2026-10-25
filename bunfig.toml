@@ -1,0 +1,4 @@
+[test]
+# 覆盖率分母只留手写源码：dist 是构建产物（按包名 import 会把它一起算进去）、
+# test 是脚手架、*.generated.ts 是生成物。
+coveragePathIgnorePatterns = ["**/dist/**", "**/test/**", "**/*.generated.ts"]

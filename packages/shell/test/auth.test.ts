@@ -94,6 +94,29 @@ describe("/auth 请求体上限", () => {
   });
 });
 
+describe("/auth 请求体解析", () => {
+  test("body 不是 JSON、user 与 password 不是字符串都返回 400", async () => {
+    const source = createShellSource({
+      logger: newLogger({ flushIntervalMs: 0, batch: false }),
+      auth: { users: { admin: "secret" }, secret: "unit-test-secret" },
+    });
+    const handler = createAuthRoute({ source });
+
+    const notJson = await handler(new Request("http://x/auth", { method: "POST", body: "not json" }));
+    expect(notJson.status).toBe(400);
+    expect(await notJson.json()).toEqual({ code: "bad_request", message: "body 必须是 JSON" });
+
+    const wrongType = await handler(
+      new Request("http://x/auth", { method: "POST", body: JSON.stringify({ user: 1 }) }),
+    );
+    expect(wrongType.status).toBe(400);
+    expect(await wrongType.json()).toEqual({
+      code: "bad_request",
+      message: "user 与 password 都必须是字符串",
+    });
+  });
+});
+
 describe("配置校验", () => {
   test("空 secret 在构造时就报错", () => {
     expect(() => createAuth({ users: { admin: "secret" }, secret: "" })).toThrow(/secret/);

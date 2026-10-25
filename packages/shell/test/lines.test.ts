@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { Window } from "happy-dom";
-import { renderLogLine } from "../src/ui/lines.js";
+import { formatDuration, toHuman } from "@needle/logo";
+import { formatMetric, renderLogLine } from "../src/ui/lines.js";
 import type { LogRecord } from "@needle/logo";
 
 function newDoc(): Document {
@@ -55,5 +56,19 @@ describe("renderLogLine", () => {
     });
     expect(row.querySelector(".head")?.textContent).not.toContain("demo.ts:99:38");
     expect(row.querySelector(".stack")?.textContent).toContain("demo.ts:99:38");
+  });
+});
+
+describe("formatMetric", () => {
+  test("字符串与对象不做单位换算", () => {
+    expect(formatMetric("zone", "+08:00")).toBe("+08:00");
+    expect(formatMetric("extra", { a: 1 })).toBe('{"a":1}');
+  });
+
+  test("Ms 结尾按时长渲染，rss/heapUsed 走人话，其余数字原样", () => {
+    // 用不同的渲染函数做对照：61000 走 displayNumber 会变成 "61.0K"
+    expect(formatMetric("uptimeMs", 61000)).toBe(formatDuration(61000));
+    expect(formatMetric("rss", 2048)).toBe(toHuman(2048));
+    expect(formatMetric("count", 42)).toBe("42");
   });
 });
