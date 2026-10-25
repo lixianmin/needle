@@ -73,6 +73,20 @@ describe("createApi", () => {
     expect(await (await app.request("/bots?id=7")).json()).toEqual({ id: 7 });
   });
 
+  test("带模型的写法也把 module 写进日志前缀", async () => {
+    const records: LogRecord[] = [];
+    const logger = newLogger({ sinks: [(batch) => records.push(...batch)], batch: false });
+    const app = host();
+    const api = createApi("api/bots");
+    api.post("/bots", BotsBody, (ctx, body) => traceOf(ctx, logger).json({ got: body.ids }));
+    app.route("/", api);
+
+    await app.request("/bots", json({ ids: [1] }));
+
+    expect(records).toHaveLength(1);
+    expect(records[0]?.module).toBe("api/bots");
+  });
+
   test("不传模型的老写法照旧", async () => {
     const app = host();
     const api = createApi("api/health");
@@ -193,14 +207,22 @@ describe("createApi", () => {
     expect(await (await app.request("/probe", { method: "OPTIONS" })).text()).toBe("ok");
   });
 
-  test("链式登记：返回的是代理，后续调用照样抓位置", async () => {
+  test("链式登记：返回的是代理，后续调用照样带上 module", async () => {
     const app = host();
+    const seen: Array<string | undefined> = [];
     const api = createApi("api/chain")
-      .get("/a", (ctx) => ctx.json({ a: 1 }))
-      .get("/b", (ctx) => ctx.json({ b: 2 }));
+      .get("/a", (ctx) => {
+        seen.push(ctx.get("api")?.module);
+        return ctx.json({ a: 1 });
+      })
+      .get("/b", (ctx) => {
+        seen.push(ctx.get("api")?.module);
+        return ctx.json({ b: 2 });
+      });
     app.route("/", api);
 
     expect(await (await app.request("/a")).json()).toEqual({ a: 1 });
     expect(await (await app.request("/b")).json()).toEqual({ b: 2 });
+    expect(seen).toEqual(["api/chain", "api/chain"]);
   });
 });
