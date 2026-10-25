@@ -14,7 +14,11 @@ function declaredKeysOf(schema) {
 /** 首个错误 + 其余数量：message 只留摘要，完整列表在 TypeBox 侧还能再取。 */
 function messageOf(label, errors) {
     const first = errors[0];
+    // assert 只在有错时调用本函数，所以 errors 肯定非空；下面两个分支走不到，留着只是给
+    // noUncheckedIndexedAccess 收窄类型。
+    // Stryker disable next-line ConditionalExpression,BlockStatement
     if (first === undefined) {
+        // Stryker disable next-line StringLiteral
         return `${label} 不合法`;
     }
     const where = first.path === "" ? "/" : first.path;
@@ -48,6 +52,7 @@ export async function parseBody(c, schema) {
         }
         throw new RequestError(400, "bad_request", "body 不是合法 JSON");
     }
+    // Stryker disable next-line ConditionalExpression,LogicalOperator: TypeBox 的 Value.Default 对 null / 标量是 no-op，这层护栏不改变可观测行为
     if (typeof parsed === "object" && parsed !== null) {
         // 就地补默认值：`c.req.json()` 出来的对象是本次请求独占的，改它没有副作用。
         Value.Default(schema, parsed);

@@ -23,6 +23,7 @@ function codeForStatus(status) {
 }
 function normalizeBasePath(basePath) {
     const trimmed = basePath.replace(/\/+$/, "");
+    // Stryker disable next-line ConditionalExpression,StringLiteral: trimmed 为空时两侧同值（只有全是斜杠的输入会到这里），换任何写法都测不出差别
     return trimmed === "" ? "" : trimmed;
 }
 /**
@@ -38,10 +39,14 @@ export function createHonox(options) {
         // 挂到根路径等于把整站写进白名单——这种配置错误必须在启动时炸，不能默默放行。
         throw new Error("shell.basePath 不能是根路径：请挂到 /shell 这类子路径");
     }
-    const shell = options.shell === undefined || shellBasePath === null
+    const shell = 
+    // Stryker disable next-line ConditionalExpression,LogicalOperator: shellBasePath 为 null 与没传 shell 等价，子条件构不成独立分支
+    options.shell === undefined || shellBasePath === null
         ? null
         : createServerShell({ ...options.shell, basePath: shellBasePath });
-    const publicEntries = shellBasePath === null ? [] : [shellBasePath, `${shellBasePath}/*`];
+    const publicEntries = 
+    // Stryker disable next-line ArrayDeclaration: 没配 shell 时白名单本来就该为空，多塞一条不可达路径看不出差别（除非真去请求那个字符串）
+    shellBasePath === null ? [] : [shellBasePath, `${shellBasePath}/*`];
     // 中间件链（rid → 兜底日志 → JWT → 门禁）全在 middleware.ts，顺序由库固定。
     installMiddleware(app, {
         log,
@@ -77,6 +82,7 @@ export function createHonox(options) {
         }
         return ResponseX.internalError("服务内部错误");
     });
+    // Stryker disable next-line ConditionalExpression,LogicalOperator: shell 与 shellBasePath 总是同时为 null（上面同一行推导），改运算符不产生新分支
     if (shell !== null && shellBasePath !== null) {
         const handle = async (c) => {
             const res = await shell.handler(c.req.raw);
@@ -87,6 +93,7 @@ export function createHonox(options) {
             }
             return res;
         };
+        // Stryker disable next-line CallExpression: `/shell/*` 已经匹配 `/shell`（通配吃空段），这行只为了把两条挂载写清楚
         app.all(shellBasePath, handle);
         app.all(`${shellBasePath}/*`, handle);
     }

@@ -153,6 +153,8 @@ describe("traceOf", () => {
     expect(res.status).toBe(404);
     expect(records.map((r) => r.status)).toEqual([undefined, 404]);
     expect(records[0]).toMatchObject({ id: 9, reason: "gone" });
+    // 不传 message 时的默认文案也是对外的（响应体里看得到）
+    expect(await res.json()).toEqual({ code: "not_found", message: "接口不存在" });
   });
 
   test("没有 api 上下文时不出 module / site / fn", async () => {

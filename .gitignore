@@ -150,9 +150,10 @@ vite.config.ts.timestamp-*
 # macOS
 .DS_Store
 
-# Stryker 变异测试的临时目录
+# Stryker 变异测试的临时目录与报告（html 报告给人看存活明细，不进仓库）
 .stryker-tmp/
 .stryker/
+reports/
 
 # 生成器测试的临时产物（崩在中间时别让它进仓库、也别进 tsc）
 test/.tmp-gen/

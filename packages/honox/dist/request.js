@@ -14,8 +14,10 @@ export class RequestError extends Error {
             this.code = "bad_request";
         }
         else {
+            // Stryker disable next-line StringLiteral: 声明过的数字形态只有 3 参（status, code, message），`?? ""` 和 `?? "bad_request"` 都是运行期兼容，不构成契约
             super(message ?? "");
             this.status = first;
+            // Stryker disable next-line StringLiteral: 同上：number 形态不上传 code 不在声明里
             this.code = code ?? "bad_request";
         }
         this.name = "RequestError";

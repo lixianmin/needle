@@ -60,12 +60,30 @@ describe("parseBody", () => {
 
   test("字符串数字被拒（不做类型转换）", async () => {
     const { error } = await parseBodyOf(BotsBody, { ids: ["1"] });
-    expect(messageOf(error)).toContain("body /ids/0 Expected number");
+    // 单条错误不加「另有 N 处」，位置直接写 /ids/0，不是空路径的 /
+    expect(messageOf(error)).toBe("body /ids/0 Expected number");
+  });
+
+  test("多处错误只留摘要，其余报数量", async () => {
+    const { error } = await parseBodyOf(BotsBody, { ids: ["1", "2"] });
+    expect(messageOf(error)).toBe("body /ids/0 Expected number（另有 1 处）");
+  });
+
+  test("根路径的错误位置渲染成 /", async () => {
+    // body 本身类型不对时 TypeBox 给的 path 是空串，直接拼进 message 会变成 "body  Expected object"
+    const { error } = await parseBodyOf(BotsBody, null);
+    expect(messageOf(error)).toBe("body / Expected object");
+  });
+
+  test("body 是标量（不是对象）时也走 400，不是崩在补默认值上", async () => {
+    const { error } = await parseBodyOf(BotsBody, 5);
+    expect(error).toMatchObject({ status: 400, code: "bad_request" });
   });
 
   test("不是合法 JSON", async () => {
     const { error } = await parseBodyOf(BotsBody, "not json");
     expect(messageOf(error)).toContain("body 不是合法 JSON");
+    expect(error).toMatchObject({ status: 400, code: "bad_request" });
   });
 
   test("body 已经被读过：原样抛错，不当成 400", async () => {
@@ -107,7 +125,21 @@ describe("parseQuery", () => {
 
   test("空串视为未传", async () => {
     const { value } = await parseQueryOf(Query, "/x?id=");
-    expect(value).toMatchObject({});
+    // 断言整个对象为空：`{id: undefined}` 能骗过 toHaveProperty / toMatchObject，toStrictEqual 不忽略 undefined 键
+    expect(value).toStrictEqual({});
+  });
+
+  test("schema 外的键直接丢掉，strict schema 也不报错", async () => {
+    const strict = Type.Object({ id: Type.Optional(Type.Number()) }, { additionalProperties: false });
+    const { value, error } = await parseQueryOf(strict, "/x?id=1&_t=99");
+    expect(error).toBeUndefined();
+    expect(value).toEqual({ id: 1 });
+  });
+
+  test("query 的默认值也补上", async () => {
+    const paged = Type.Object({ page: Type.Number({ default: 1 }) });
+    const { value } = await parseQueryOf(paged, "/x");
+    expect(value).toEqual({ page: 1 });
   });
 
   test("非法值报错", async () => {
@@ -125,6 +157,10 @@ describe("RequestError", () => {
   test("默认 400 / bad_request；完整形态保留 status 与 code", () => {
     expect(new RequestError("x")).toMatchObject({ status: 400, code: "bad_request", message: "x" });
     expect(new RequestError(409, "conflict", "y")).toMatchObject({ status: 409, code: "conflict" });
+  });
+
+  test("name 是 RequestError：栈里要能认出来", () => {
+    expect(new RequestError("x").name).toBe("RequestError");
   });
 
   test("isRequestError 只认自己", () => {

@@ -22,7 +22,8 @@
     "example:build": "cd examples/honox-app && bun run build",
     "example": "cd examples/honox-app && bun dist/index.js",
     "example:typecheck": "cd examples/honox-app && bunx tsc --noEmit",
-    "mutate": "bunx stryker run --inPlace"
+    "mutate": "bunx stryker run --inPlace",
+    "mutate:full": "bunx stryker run --inPlace --force"
   },
   "devDependencies": {
     "@needle/got": "workspace:*",

@@ -1,7 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { newLogger, type LogRecord } from "@needle/logo";
 import { sign } from "hono/jwt";
+import { HTTPException } from "hono/http-exception";
+import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { createHonox } from "../src/index.js";
+import { RequestError } from "../src/request.js";
 import { apiRoute, createApi } from "../src/route.js";
 import { traceOf } from "../src/trace.js";
 
@@ -167,6 +170,30 @@ describe("createHonox", () => {
     expect(res.status).toBe(404);
     expect(records).toHaveLength(1);
     expect(records[0]).toMatchObject({ path: "/shell/zzz", status: 404, level: "info" });
+    // rid 必须与响应头一致，否则这条日志没法跟上游/客户端对上
+    expect(records[0]?.rid).toBe(res.headers.get("x-rid"));
+  });
+
+  test("Shell 命中时不记 404 日志", async () => {
+    const { app, records } = setup();
+
+    const res = await app.request("/shell");
+
+    expect(res.status).toBe(200);
+    expect(records).toHaveLength(0);
+  });
+
+  test("没命中任何路由时 404 的响应体是 {code, message}", async () => {
+    const { app, records } = setup();
+    app.allowAnonymous(["/nope"]);
+
+    const res = await app.request("/nope");
+
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ code: "not_found", message: "接口不存在" });
+    // 这条日志是这条路径上唯一的一条，rid 必须对得上响应头
+    expect(records).toHaveLength(1);
+    expect(records[0]?.rid).toBe(res.headers.get("x-rid"));
   });
 
   test("Shell 面板挂到 /shell，且不被门禁拦", async () => {
@@ -189,6 +216,108 @@ describe("createHonox", () => {
         shell: { basePath: "/", auth: { users: { admin: "pw" } } },
       }),
     ).toThrow(/basePath/);
+  });
+
+  test("不传 shell.basePath 时默认 /shell", async () => {
+    const app = createHonox({
+      auth: { secret: SECRET },
+      shell: { user: "local", auth: { users: {} }, title: "t", version: "0.0.0" },
+    });
+    expect((await app.request("/shell")).status).toBe(200);
+  });
+
+  test("basePath 末尾多余的斜杠被收掉", async () => {
+    const app = createHonox({
+      auth: { secret: SECRET },
+      shell: {
+        basePath: "/shell//",
+        user: "local",
+        auth: { users: {} },
+        title: "t",
+        version: "0.0.0",
+      },
+    });
+    expect((await app.request("/shell")).status).toBe(200);
+  });
+});
+
+describe("onError", () => {
+  /** 路由抛什么由 query 决定，一个 app 跑完整个状态码表。 */
+  function boomApp() {
+    const app = createHonox({ auth: { secret: SECRET } });
+    app.allowAnonymous(["/boom"]);
+    app.get("/boom", (c) => {
+      const status = Number(c.req.query("s")) as ContentfulStatusCode;
+      throw new HTTPException(status, { message: "boom" });
+    });
+    return app;
+  }
+
+  const STATUS_CODES: readonly (readonly [number, string])[] = [
+    [400, "bad_request"],
+    [401, "unauthorized"],
+    [403, "forbidden"],
+    [404, "not_found"],
+    [409, "conflict"],
+    [413, "payload_too_large"],
+    [422, "unprocessable_entity"],
+    [429, "too_many_requests"],
+    [500, "internal_error"],
+    [503, "service_unavailable"],
+    [504, "gateway_timeout"],
+    // 表外状态码统一 http_error，别现编
+    [418, "http_error"],
+  ];
+
+  test("HTTPException 的状态码按表映射成 code；5xx 不回原文", async () => {
+    const app = boomApp();
+    for (const [status, code] of STATUS_CODES) {
+      const res = await app.request(`/boom?s=${status}`);
+      expect(res.status).toBe(status);
+      expect(await res.json()).toEqual({
+        code,
+        message: status >= 500 ? "服务内部错误" : "boom",
+      });
+    }
+  });
+
+  test("HTTPException 自带响应时原样返回，不套信封", async () => {
+    const app = createHonox({ auth: { secret: SECRET } });
+    app.allowAnonymous(["/raw"]);
+    app.get("/raw", () => {
+      throw new HTTPException(401, { res: new Response("raw", { status: 401 }) });
+    });
+
+    const res = await app.request("/raw");
+
+    expect(res.status).toBe(401);
+    expect(await res.text()).toBe("raw");
+  });
+
+  test("RequestError 用自己的 status / code / message", async () => {
+    const app = createHonox({ auth: { secret: SECRET } });
+    app.allowAnonymous(["/conflict"]);
+    app.get("/conflict", () => {
+      throw new RequestError(409, "conflict", "已经存在");
+    });
+
+    const res = await app.request("/conflict");
+
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ code: "conflict", message: "已经存在" });
+  });
+
+  test("其它异常统一 500 + internal_error，不把内部细节漏给客户端", async () => {
+    const app = createHonox({ auth: { secret: SECRET } });
+    app.allowAnonymous(["/bang"]);
+    app.get("/bang", () => {
+      throw new Error("数据库炸了");
+    });
+
+    const res = await app.request("/bang");
+
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ code: "internal_error", message: "服务内部错误" });
   });
 });
 

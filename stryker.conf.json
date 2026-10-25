@@ -5,27 +5,24 @@
     "command": "bun test packages/honox/test"
   },
   "mutate": [
-    "packages/honox/src/auth.ts",
-    "packages/honox/src/config.ts",
-    "packages/honox/src/excel.ts",
-    "packages/honox/src/id.ts",
-    "packages/honox/src/middleware.ts",
-    "packages/honox/src/mongo.ts",
-    "packages/honox/src/node.ts",
-    "packages/honox/src/route.ts"
+    "packages/honox/src/**/*.ts",
+    "!packages/honox/src/types.ts"
   ],
   "coverageAnalysis": "off",
   "concurrency": 4,
   "timeoutMS": 30000,
   "thresholds": {
     "high": 90,
-    "low": 80,
-    "break": 80
+    "low": 85,
+    "break": 85
   },
   "reporters": [
     "clear-text",
-    "progress"
+    "progress",
+    "html"
   ],
+  "incremental": true,
+  "incrementalFile": ".stryker/incremental.json",
   "tempDirName": ".stryker-tmp",
   "disableTypeChecks": false
 }

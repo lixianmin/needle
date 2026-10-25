@@ -159,6 +159,21 @@
 3. 每一条用户反馈的 bug 都先整理成失败测试用例，然后通过跑通测试证明修复成功。
 4. bugfix 修改的代码加注释，解释修正了什么问题、为什么这么改。
 
+### 变异测试（Stryker）
+
+补充第 1 条而不是替代它：行覆盖率证明代码被执行过，变异分数证明断言抓得住错误。命令 `bun run mutate`（必须 `--inPlace`，原因见 `docs/01.memory.md`）。
+
+1. **分数口径固定看 `mutationScore`**：分母含 noCoverage，`thresholds.break` 比的就是它。`mutationScoreBasedOnCoveredCode` 只在讨论「已覆盖代码的断言质量」时引用。两个数混着用，阈值就失去意义。
+2. **`break` 定在当前分数略下方，只涨不跌。** 分数涨上去后，当次合并顺手把 `break` 抬到新分数下方；分数跌了先查是测试变弱还是新增代码难杀，改测试，不许改阈值。
+3. **存活突变体三选一，不许放养**：补一条能杀掉它的断言 / 删掉这段死代码 / 用 `// Stryker disable next-line <Mutator>: <理由>` 豁免。禁止 `disable all`，禁止无理由豁免——豁免理由是给下次复审的人看的。
+4. **等价突变体允许保留**，但必须走第 3 条的豁免写法。典型来源：只为收窄类型而写的判断、两侧恒同的三元、`null` / 非对象已被上游排除的护栏。
+5. **断言要能区分「没有该键」与「键值为 undefined」**：`toMatchObject({})`、`toHaveProperty` 都会放过 `{id: undefined}`，用 `toStrictEqual` 或显式键断言。这种假绿只有变异测试抓得出来。
+6. **变异范围只覆盖手写逻辑**：生成代码（`*.generated.ts`）、纯类型声明（`types.ts`）、渲染胶水不进 `mutate`；鉴权、配置、解析、id、日志落盘这类关键路径必须进。
+7. **`mutate` 用 glob，不用文件清单**：新增源文件必须默认进入范围，要排除就用 `!` 模式显式排除。清单会烂——有文件改名之后一直留在清单里，Stryker 静默跳过，分数还是「正常」的。
+8. **被变异的文件必须有直接打到源码的测试**：测试 import `../src/*`，不能走包名（包名测的是 `dist`，变异源码打不到测试）。新增文件进 `mutate` 前先确认这条。
+9. **`--inPlace` 直接改工作树文件**：只在干净工作树里跑，中断后先 `git status` 确认没有残留的变异源码。
+10. **合入前跑全量，日常迭代跑增量。** `bun run mutate` 默认读 `.stryker/incremental.json`（源码或测试改过的突变体重跑）；要重建基线、或断言改动语义可疑时用 `bun run mutate:full`（`--force`）。存活明细在 `reports/mutation/mutation.html`（已 gitignore）。
+
 ---
 
 ## 12. 架构原则（通用）
