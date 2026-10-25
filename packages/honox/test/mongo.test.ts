@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { MongoClient } from "mongodb";
+import { MongoClient } from "mongodb";
 import { createMongo } from "../src/mongo.js";
 
 function fakeClient() {
@@ -59,5 +59,45 @@ describe("createMongo", () => {
     const mongo = createMongo({ uri: "mongodb://127.0.0.1:27017/x" });
     await mongo.close();
     await mongo.close();
+  });
+});
+
+describe("所有权：只有自建的 client 才关", () => {
+  // 注入的 client 由调用方管生命周期；自建的要关，且只关一次。
+  // `owned` / `closed` 这两个标志没有返回值，只能通过对 driver 的原型打桩观测。
+  test("自建 client 关闭一次，重复 close 不再调 driver", async () => {
+    const original = MongoClient.prototype.close;
+    let calls = 0;
+    MongoClient.prototype.close = async function patched(this: MongoClient) {
+      calls += 1;
+      return undefined;
+    };
+
+    try {
+      const mongo = createMongo({ uri: "mongodb://127.0.0.1:27017/x" });
+      await mongo.close();
+      await mongo.close();
+      expect(calls).toBe(1);
+    } finally {
+      MongoClient.prototype.close = original;
+    }
+  });
+
+  test("注入的 client 一次都不关", async () => {
+    const original = MongoClient.prototype.close;
+    let calls = 0;
+    MongoClient.prototype.close = async function patched() {
+      calls += 1;
+      return undefined;
+    };
+
+    try {
+      const { client } = fakeClient();
+      const mongo = createMongo({ uri: "mongodb://x/y", client });
+      await mongo.close();
+      expect(calls).toBe(0);
+    } finally {
+      MongoClient.prototype.close = original;
+    }
   });
 });

@@ -71,6 +71,47 @@ describe("createApi", () => {
     expect(await res.json()).toEqual({ got: [3] });
   });
 
+  // 链式方法必须把 this 换回代理：返回裸 target 时，后续 .get() 不会被包，
+  // 那条路由的日志里就没有 module。
+  test("use / on / route / mount 返回的还是代理", () => {
+    const api = createApi("chain.ts");
+    const handler = (ctx: { text: (body: string) => Response }) => ctx.text("ok");
+    const sub = createApi("sub.ts");
+
+    expect(api.use("*", handler as never)).toBe(api as never);
+    expect(api.on("GET", "/on", handler as never)).toBe(api as never);
+    expect(api.route("/sub", sub as never)).toBe(api as never);
+    expect(api.mount("/mounted", handler as never)).toBe(api as never);
+  });
+
+  // 模型位置传了非函数：不能被当成模型，也不能抛 TypeError（应当按 handler 链处理）。
+  test("模型位置不是函数时按 handler 处理", async () => {
+    const app = host();
+    const api = createApi("notfn.ts");
+    api.get("/nf", {} as never, ((ctx: { text: (body: string) => Response }) => ctx.text("ok")) as never);
+    app.route("/", api);
+
+    const res = await app.request("/nf");
+    expect(res.status).toBe(200);
+  });
+
+  // GET / DELETE / OPTIONS 从 URL 的 query 串取参数；这三个都不能掉出 QUERY_METHODS。
+  test("get / delete / options 带模型时读 query 串", async () => {
+    for (const method of ["get", "delete", "options"] as const) {
+      const app = host();
+      const api = createApi("q.ts");
+      api[method]("/q", BotsQuery, (ctx, query) => ctx.json({ id: query.id ?? null }));
+      app.route("/", api);
+
+      const res = await app.request(`/q?id=7`, { method: method.toUpperCase() });
+      expect({ method, status: res.status, body: await res.json() }).toEqual({
+        method,
+        status: 200,
+        body: { id: 7 },
+      });
+    }
+  });
+
   test("POST + 模型：body 不合法 → 400", async () => {
     const app = host();
     const api = createApi("bots.ts");

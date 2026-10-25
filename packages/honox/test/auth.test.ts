@@ -86,6 +86,80 @@ describe("createAuthGuard", () => {
     expect(res.status).toBe(401);
   });
 
+  // 三条 message 是客户端唯一能看到的失败原因（authError 只进日志）。
+  test("401 的 message 按原因区分：缺 token / 无效 / 过期", async () => {
+    const missing = await appWith([]).request("/me");
+    expect((await missing.json()).message).toBe("需要登录");
+
+    const invalid = await appWith([]).request("/me", {
+      headers: { authorization: "Bearer not-a-token" },
+    });
+    expect((await invalid.json()).message).toBe("token 无效");
+
+    const expired = await token({ sub: "u1", exp: Math.floor(Date.now() / 1000) - 10 });
+    const stale = await appWith([]).request("/me", {
+      headers: { authorization: `Bearer ${expired}` },
+    });
+    expect((await stale.json()).message).toBe("登录已过期");
+  });
+
+  test("sub 是空串与不是字符串同罪：401 且 message 是「token 无效」", async () => {
+    const res = await appWith([]).request("/me", {
+      headers: { authorization: `Bearer ${await token({ sub: "" })}` },
+    });
+
+    expect(res.status).toBe(401);
+    expect((await res.json()).message).toBe("token 无效");
+  });
+
+  test("authorization 头解析：大小写不敏感、多空格可以、前缀不对要拦", async () => {
+    const valid = await token({ sub: "u1" });
+
+    const upper = await appWith([]).request("/me", {
+      headers: { authorization: `BEARER ${valid}` },
+    });
+    expect(await upper.json()).toMatchObject({ uid: "u1" });
+
+    // `\s+` 改成单个空格时，第二个空格会被算进 token，验签失败。
+    const spaced = await appWith([]).request("/me", {
+      headers: { authorization: `Bearer  ${valid}` },
+    });
+    expect(await spaced.json()).toMatchObject({ uid: "u1" });
+
+    // 去掉 `^` 的写法会把 "xxbearer …" 也当成 bearer。
+    const prefixed = await appWith([]).request("/me", {
+      headers: { authorization: `xxbearer ${valid}` },
+    });
+    expect(prefixed.status).toBe(401);
+
+    // 只有前缀没有凭据：`?.[1]` 去掉会抛 TypeError（500），正解是 401。
+    const bare = await appWith([]).request("/me", { headers: { authorization: "Bearer" } });
+    expect(bare.status).toBe(401);
+  });
+
+  test("401 的日志带 rid 与 authError，没有 rid 就没法跟请求日志对上", async () => {
+    const records: Array<Record<string, unknown>> = [];
+    const logger = newLogger({
+      batch: false,
+      flushIntervalMs: 0,
+      sinks: [(batch) => records.push(...(batch as unknown as Record<string, unknown>[]))],
+    });
+    const app = new Hono<HonoxEnv>();
+    // rid 平时由 createHonox 的中间件写；这里单独起一个，避免把整条链路拖进来。
+    app.use("*", async (ctx, next) => {
+      ctx.set("rid", "rid-1");
+      await next();
+    });
+    app.use("*", createAuthGuard({ secret: SECRET }, [], logger));
+    app.get("/me", (ctx) => ctx.text("ok"));
+
+    await app.request("/me");
+
+    expect(records[0]).toMatchObject({ status: 401, authError: "missing" });
+    expect(records[0]?.rid).toBe("rid-1");
+    expect(records[0]?.path).toBe("/me");
+  });
+
   test("claim 可配", async () => {
     const res = await appWith([], { claim: "uid" }).request("/me", {
       headers: { authorization: `Bearer ${await token({ uid: "u9" })}` },

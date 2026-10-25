@@ -13,16 +13,15 @@
   "timeoutMS": 30000,
   "thresholds": {
     "high": 90,
-    "low": 86.1,
-    "break": 86.1
+    "low": 89.7,
+    "break": 89.7
   },
   "reporters": [
     "clear-text",
     "progress",
     "html"
   ],
-  "incremental": true,
-  "incrementalFile": ".stryker/incremental.json",
+  "incremental": false,
   "tempDirName": ".stryker-tmp",
   "disableTypeChecks": false
 }

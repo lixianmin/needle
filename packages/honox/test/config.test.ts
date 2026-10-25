@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { applyEnv, assertRequired, coerceValue, createConfig, deepMerge, readPath } from "../src/config.js";
@@ -37,6 +37,33 @@ describe("loadConfig：文件与环境", () => {
     const dir = configDir({ "app_dev.yml": "a: 1\n" });
     expect(loadConfig({ dir, env: "dev" }).getInt("a")).toBe(1);
     expect(() => loadConfig({ dir, env: "fat" })).toThrow(/app_fat\.yml[\s\S]*ENV=fat/);
+  });
+
+  // 空文件合法（环境文件可能只写差异项，甚至先建成空壳）；顶层不是对象必须报错。
+  test("空 yml 当成空配置，顶层是数组要报错", () => {
+    const dir = configDir({ "app_dev.yml": "" });
+    expect(loadConfig({ dir, env: "dev" }).get("anything")).toBeUndefined();
+
+    const bad = configDir({ "app_dev.yml": "- 1\n- 2\n" });
+    expect(() => loadConfig({ dir: bad, env: "dev" })).toThrow(/配置顶层必须是对象/);
+  });
+
+  test("YAML 语法错误原样抛出，不被当成「文件缺失」吞掉", () => {
+    const dir = configDir({ "app_dev.yml": "a: [1, 2\n" });
+    expect(() => loadConfig({ dir, env: "dev" })).toThrow();
+  });
+
+  test("dir 默认是 <cwd>/config", () => {
+    const previous = process.cwd();
+    const base = configDir({});
+    mkdirSync(join(base, "config"));
+    writeFileSync(join(base, "config", "app_dev.yml"), "a: 1\n");
+    process.chdir(base);
+    try {
+      expect(loadConfig({ env: "dev" }).getInt("a")).toBe(1);
+    } finally {
+      process.chdir(previous);
+    }
   });
 
   test("env 大小写不敏感：DEV 读 app_dev.yml", () => {

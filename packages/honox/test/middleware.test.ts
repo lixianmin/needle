@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { newLogger, type LogRecord } from "@needle/logo";
 import { createHonox } from "../src/index.js";
+import { createApi } from "../src/route.js";
+import { sign } from "hono/jwt";
 import { HTTPException } from "hono/http-exception";
 import { RequestError } from "../src/request.js";
 
@@ -169,6 +171,78 @@ describe("兜底日志", () => {
     expect(records).toHaveLength(1);
     expect(records[0]).toMatchObject({ path: "/slow", status: 200, level: "warn" });
     expect(typeof records[0]?.durationMs).toBe("number");
+  });
+
+  // durationMs 保留 1 位小数。只断言「是数字」抓不住 *10/*10、now+start 这类改写；
+  // 睡 30ms 时合理值在 25~200 之间，改写后会落到 300 或几百万。
+  test("durationMs 是毫秒级一位小数，不是被放大过的数", async () => {
+    const { app, records } = setup({ slowMs: 10 });
+    app.allowAnonymous(["/slow2"]);
+    app.get("/slow2", async (ctx) => {
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      return ctx.json({ ok: true });
+    });
+
+    await app.request("/slow2");
+
+    const duration = records[0]?.durationMs as number;
+    expect(duration).toBeGreaterThan(20);
+    expect(duration).toBeLessThan(200);
+    expect(Number.isInteger(duration * 10)).toBe(true);
+  });
+
+  // 401 / 404 各自已经记过一行，慢请求不能再补一条；401 又是最常见的慢响应（客户端超时重试）。
+  test("401 即使超过 slowMs 也不补第二条", async () => {
+    const { app, records } = setup({ slowMs: 1 });
+    app.get("/private", (ctx) => ctx.text("ok"));
+
+    await app.request("/private");
+
+    expect(records).toHaveLength(1);
+    expect(records[0]).toMatchObject({ status: 401 });
+  });
+
+  // RequestError 只跳过 4xx；status 500 的 RequestError 仍然要记（`<=` 会把它也跳过）。
+  test("status 500 的 RequestError 照样记 error", async () => {
+    const { app, records } = setup();
+    app.allowAnonymous(["/boom"]);
+    app.get("/boom", () => {
+      throw new RequestError(500, "boom", "炸了");
+    });
+
+    const res = await app.request("/boom");
+
+    expect(res.status).toBe(500);
+    expect(records.filter((r) => r.level === "error")).toHaveLength(1);
+  });
+
+  // module / rid / uid / path 四个字段是排障时唯一的定位信息，缺一个就查不下去。
+  test("日志字段：module、rid、uid、path 都在", async () => {
+    const { app, records } = setup();
+    const api = createApi("mod.ts");
+    api.get("/mod", () => {
+      throw new Error("boom");
+    });
+    app.route("/", api);
+    app.allowAnonymous(["/mod"]);
+
+    const token = await sign({ sub: "u1" }, SECRET, "HS256");
+    await app.request("/mod", { headers: { authorization: `Bearer ${token}` } });
+
+    const record = records.find((r) => r.level === "error");
+    expect(record).toMatchObject({ path: "/mod", uid: "u1", module: "mod.ts", status: 500 });
+    expect(typeof record?.rid).toBe("string");
+  });
+
+  test("未 finalize 的错误消息点明原因", async () => {
+    const { app, records } = setup();
+    app.allowAnonymous(["/nofin2"]);
+    app.get("/nofin2", (() => undefined) as never);
+
+    await Promise.resolve(app.request("/nofin2")).catch(() => null);
+
+    const record = records.find((r) => r.level === "error");
+    expect(String(record?.msg ?? JSON.stringify(record))).toMatch(/没有 finalize/);
   });
 
   test("慢请求阈值 0 时关闭", async () => {
