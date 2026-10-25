@@ -16,6 +16,41 @@ afterEach(() => {
   globalThis.fetch = originalFetch;
 });
 
+describe("退订后再订阅", () => {
+  // 退订曾把 disposed 置位且永不复位，于是同一个 adapter 第二次 subscribe()
+  // 连一个 /events 请求都不发：面板空白、表头停在「未登录」，全程没有任何提示。
+  test("退订后再订阅仍然会连上", async () => {
+    const calls: string[] = [];
+    globalThis.fetch = (async (input: unknown) => {
+      calls.push(String(input));
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(
+            encoder.encode('event: handshake\ndata: {"title":"t","version":"1","user":"u","commands":[],"topics":[]}\n\n'),
+          );
+        },
+      });
+      return new Response(stream, { status: 200 });
+    }) as typeof fetch;
+
+    localStorage.setItem("logo.shell.token", "token");
+    const adapter = createFetchAdapter({ basePath: "" });
+
+    const first = adapter.subscribe(() => {});
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    first();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    const events:ShellEvent[] = [];
+    const second = adapter.subscribe((event) => events.push(event));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    expect(calls.length).toBeGreaterThanOrEqual(2);
+    expect(events.some((event) => event.type === "handshake")).toBe(true);
+    second();
+  });
+});
+
 describe("重连", () => {
   test("重新订阅时只 abort 旧连接，旧轮次不会再排一次重连", async () => {
     const calls: Array<AbortSignal | null | undefined> = [];

@@ -272,6 +272,10 @@ export function createFetchAdapter(options: FetchAdapterOptions):ShellAdapter {
     subscribe(listener) {
       listeners.add(listener);
       if (listeners.size === 1) {
+        // 退订（订阅者归零）会把 disposed 置位，表示「这一轮作废」。再订阅时
+        // 必须复位，否则 connect() 直接短路：一个 /events 请求都不发，连「未登录」
+        // 的 status 也没有，面板永远空白且没有任何提示。
+        disposed = false;
         void connect();
       }
 
