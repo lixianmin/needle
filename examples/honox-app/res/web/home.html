@@ -231,15 +231,18 @@
         <h2>接口</h2>
         <div class="grid" id="buttons">
           <button data-method="GET" data-path="/health">健康检查</button>
-          <button data-method="GET" data-path="/bots">全部 bot</button>
-          <button data-method="GET" data-path="/bots?id=1">单条 bot</button>
-          <button data-method="GET" data-path="/bots?id=999">不存在的 bot（404）</button>
-          <button data-method="GET" data-path="/bots?id=abc">id 非数字（400）</button>
-          <button data-method="POST" data-path="/bots" data-body='{"ids":[1,99]}'>
-            批量查询
+          <button data-method="GET" data-path="/bots/get_bots">全部 bot</button>
+          <button data-method="GET" data-path="/bots/get_bots?id=1">单条 bot</button>
+          <button data-method="GET" data-path="/bots/get_bots?id=999">不存在的 bot（404）</button>
+          <button data-method="GET" data-path="/bots/get_bots?id=abc">id 非数字（400）</button>
+          <button data-method="POST" data-path="/bots/get_bot_name" data-body='{"id":1}'>
+            按 id 取名字
           </button>
-          <button data-method="POST" data-path="/bots" data-body="{}">空 body（400）</button>
-          <button data-method="GET" data-path="/bots" data-auth="0">不带 token（401）</button>
+          <button data-method="POST" data-path="/bots/get_bot_name" data-body='{"id":999}'>
+            不存在的 bot 取名字（404）
+          </button>
+          <button data-method="POST" data-path="/bots/get_bot_name" data-body="{}">空 body（400）</button>
+          <button data-method="GET" data-path="/bots/get_bots" data-auth="0">不带 token（401）</button>
         </div>
         <p class="hint">
           先点「登录」拿 token 再点这些按钮；最后一个是故意不带 token 的对照组。
@@ -257,8 +260,8 @@
             <option>PUT</option>
             <option>DELETE</option>
           </select>
-          <input id="path" value="/bots" />
-          <textarea id="body" placeholder='body（JSON，可空）：{"ids":[1,99]}'></textarea>
+          <input id="path" value="/bots/get_bots" />
+          <textarea id="body" placeholder='body（JSON，可空）：{"id":1}'></textarea>
           <button id="send" class="primary">发送</button>
         </div>
       </section>

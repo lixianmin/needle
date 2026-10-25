@@ -1,18 +1,18 @@
 import { createApi, traceOf } from "@needle/honox";
-import { BotsBody, BotsQuery } from "../beans/bots.js";
-import { getBotTemplate, getBotTemplates, type BotTemplate } from "../md/bot-template.js";
+import { BotNameBody, BotsQuery } from "../beans/bots.js";
+import { getBotTemplate, getBotTemplates } from "../md/bot-template.js";
 import { viper } from "../viper.js";
 
 export const botsApi = createApi("api/bots");
 
 /**
- * `GET /bots?id=1` 取单条，不带 id 取全表。
+ * `GET /bots/get_bots?id=1` 取单条，不带 id 取全表。
  *
  * 例行写法：`traceOf(ctx).info(request)` 一行同时拿到 trace 和第一条日志，
  * 之后每个出口都用 `trace.json` / `trace.notFound`——它们先落一行 info，
  * 再把响应返回出去。`ctx` 除了这次取 trace，基本不用再碰。
  */
-botsApi.get("/bots", BotsQuery, (ctx, request) => {
+botsApi.get("/bots/get_bots", BotsQuery, (ctx, request) => {
   const trace = traceOf(ctx).info(request);
 
   const baseUrl = viper.getString("metadata.base_url");
@@ -29,21 +29,17 @@ botsApi.get("/bots", BotsQuery, (ctx, request) => {
 });
 
 /**
- * `POST /bots`，body 形如 `{"ids":[1,99]}`：命中的放在 `bots`，找不到的放在
- * `missing`——批量查询里"部分不存在"不该整单失败。
+ * `POST /bots/get_bot_name`，body 形如 `{"id":1}`：只回名字。
+ *
+ * 与 `get_bots` 一样，id 是筛选条件而不是路径段——路径里放 id 会让不存在
+ * 的 id 也命中路由，最后还是要靠 handler 判断，白多一层。
  */
-botsApi.post("/bots", BotsBody, (ctx, request) => {
+botsApi.post("/bots/get_bot_name", BotNameBody, (ctx, request) => {
   const trace = traceOf(ctx).info(request);
 
-  const bots: BotTemplate[] = [];
-  const missing: number[] = [];
-  for (const id of request.ids) {
-    const bot = getBotTemplate(id);
-    if (bot === undefined) {
-      missing.push(id);
-    } else {
-      bots.push(bot);
-    }
+  const bot = getBotTemplate(request.id);
+  if (bot === undefined) {
+    return trace.notFound("bot 不存在");
   }
-  return trace.json({ bots, missing });
+  return trace.json({ name: bot.name });
 });

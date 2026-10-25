@@ -69,8 +69,8 @@ viper.env / viper.isDev() / viper.isFat() / viper.isPro()
 | `GET /` | 公开 | 测试台页面（见下节） |
 | `POST /login` | 公开 | body `{"user":"alice","passcode":"<sha256hex(盐+密码)>"}`，返回 `{uid, token, expiresAt}`；token 是 `auth.secret` 签的真 JWT，口令不对 → 401 |
 | `GET /health` | 公开 | `{"ok":true}` |
-| `GET /bots?id=1` | 需要 JWT | 命中返回 `{ baseUrl, bot }`；不带 `id` 返回 `{ baseUrl, bots }`（全表）；`id` 非数字 → 400，查不到 → 404 |
-| `POST /bots` | 需要 JWT | body `{"ids":[1,99]}`，命中放 `bots`、找不到放 `missing`（批量里部分不存在不算失败）；body 不合规 → 400 |
+| `GET /bots/get_bots?id=1` | 需要 JWT | 命中返回 `{ baseUrl, bot }`；不带 `id` 返回 `{ baseUrl, bots }`（全表）；`id` 非数字 → 400，查不到 → 404 |
+| `POST /bots/get_bot_name` | 需要 JWT | body `{"id":1}`，返回 `{ name }`；body 不合规 → 400，查不到 → 404 |
 | `GET /shell` | 公开（面板自己用 `server.shell_users` 里的账号登录） | 调试面板 |
 
 ## 首页测试台
@@ -78,7 +78,7 @@ viper.env / viper.isDev() / viper.isFat() / viper.isPro()
 `bun run dev` 之后打开 <http://localhost:8001/>，根目录是一张测试页（`res/web/home.html`，单文件、零依赖、零构建）。它解决的是「接口都在 JWT 后面，没有 token 就只能看到 401」这件事：
 
 1. 在右上角输用户名 + 密码（默认 `alice` / `alice123`），点**登录**：页面算 `sha256(盐+密码)` 当 passcode，`POST /login` 换回一枚真 token（HS256、uid 在 `sub`、1 小时过期），存进 localStorage；
-2. 点左边的按钮打 `/bots` 的各个分支——200 / 400（`?id=abc` 与空 body）/ 404（`?id=999`）/ 401（故意不带 token 的对照组）；
+2. 点左边的按钮打 `/bots/*` 的各个分支——200 / 400（`?id=abc` 与空 body）/ 404（`?id=999`）/ 401（故意不带 token 的对照组）；
 3. 右侧显示状态码、`x-rid`、耗时和格式化后的 JSON，底部是本次会话的历史。
 
 登录会**真校验**：服务端按用户名查记录，用同一份盐比对 passcode。测试用户硬编码在 `app/api/login.ts`（`alice`/`alice123`、`bob`/`bob123`），用户名不存在与口令不对回同一个 401（否则就是个用户名枚举接口）。
@@ -107,7 +107,7 @@ app/api/
   home.ts        # GET /（测试台页面，JWT 白名单）
   login.ts       # POST /login（用户名 + passcode 换 JWT，白名单）
   health.ts      # GET /health（JWT 白名单，匿名可访问）
-  bots.ts        # 一个路由组：GET /bots?id= + POST /bots
+  bots.ts        # 一个路由组：GET /bots/get_bots + POST /bots/get_bot_name
 app/viper.ts     # 配置实例（viper 风格取值器）+ c.get 的键声明
 res/web/home.html # 测试台页面本体（随 res/ 进镜像，启动时读一次）
 ```
@@ -119,20 +119,20 @@ res/web/home.html # 测试台页面本体（随 res/ 进镜像，启动时读一
 ```ts
 // app/api/bots.ts —— 一个文件一个组，可以挂多条路由
 import { createApi } from "@needle/honox";
-import { BotsBody, BotsQuery } from "../beans/bots.js";
+import { BotNameBody, BotsQuery } from "../beans/bots.js";
 
 export const botsApi = createApi("api/bots");   // 参数是日志里的模块名，必填
 
-botsApi.get("/bots", BotsQuery, (ctx, request) => { ... });   // GET/DELETE：解析 query
-botsApi.post("/bots", BotsBody, (ctx, request) => { ... });    // POST/PUT/PATCH：解析 body
+botsApi.get("/bots/get_bots", BotsQuery, (ctx, request) => { ... });          // GET/DELETE：解析 query
+botsApi.post("/bots/get_bot_name", BotNameBody, (ctx, request) => { ... });  // POST/PUT/PATCH：解析 body
 botsApi.get("/health", (ctx) => ctx.json({ ok: true }));       // 不校验参数
 ```
 
-`createApi(module)` 返回的是真正的 `Hono`，所以 `app.route("/", botsApi)` 照常挂。`module` 会写进 context，业务日志里因此带 `"module":"api/bots"`——打包、压缩后 `文件:行` 会变成 bundle 坐标，这个字符串才是生产环境唯一还活着的定位信息。
+`createApi(module)` 返回的是真正的 `Hono`，所以 `app.route("/", botsApi)` 照常挂。`module` 会写进 context，业务日志的**行前缀**因此是 `api/bots`——打包、压缩后 `文件:行` 会变成 bundle 坐标，这个字符串才是生产环境唯一还活着的定位信息（不再重复写进 JSON）。
 
 参数模型见 `app/beans/`：手写 class（`bots.ts`、`login.ts`），`scripts/gen-models.ts` 生成 TypeBox schema（`bots.generated.ts`，提交进仓库）。bean 文件顶部 `import "./bots.generated.js"`，所以业务 import 这个 bean 文件时 schema 就注册好了，不需要额外的 barrel。生成物带漂移断言，class 改了没重新生成会编译报错。
 
-handler 的参数不用写类型注解：`botsApi.post("/bots", BotsBody, (ctx, request) => …)` 已经推断出 `ctx: Context<HonoxEnv>` 和 `request: BotsBody`，再写一遍就是同一信息写两次。
+handler 的参数不用写类型注解：`botsApi.post("/bots/get_bot_name", BotNameBody, (ctx, request) => …)` 已经推断出 `ctx: Context<HonoxEnv>` 和 `request: BotNameBody`，再写一遍就是同一信息写两次。
 
 **模型类名在压缩后必须还在**：注册表按 `class.name` 查 schema，`bun build --minify` 会把类名抹平（和下面 Excel sheet 名同一个坑）。线上要用压缩构建就给生成物传显式名字，或者别压缩 bean 文件。
 
@@ -150,20 +150,20 @@ handler 的参数不用写类型注解：`botsApi.post("/bots", BotsBody, (ctx, 
 ```ts
 import { traceOf } from "@needle/honox";
 
-botsApi.post("/bots", BotsBody, (ctx, request) => {
+botsApi.post("/bots/get_bot_name", BotNameBody, (ctx, request) => {
   // 一行：建 trace + 打第一条日志（四个级别方法都返回 trace 自己）
   const trace = traceOf(ctx).info(request);
   ...
   // 出口：记一行 info（status + result），然后把响应返回
-  return trace.json({ bots, missing });
+  return trace.json({ name: bot.name });
 });
 ```
 
 ```
-[I] bots.ts:35 {"rid":"01M5Q4VBM312ET9MKN9RRYB40N","uid":"u1","path":"/bots","module":"api/bots","ids":[1,99]}
+2026-10-25T11:20:03 [I] api/bots {"rid":"01M5Q4VBM312ET9MKN9RRYB40N","uid":"u1","path":"/bots/get_bot_name","id":1}
 ```
 
-（`bots.ts:35` 是注册那一行；`fn` 为空所以没有 `[fn()]`。打包后这个行号会变成 bundle 坐标，`module` 才是生产环境的定位依据。）
+（`api/bots` 是 `createApi(module)` 手写的模块名，只出现一次，在前缀里；JSON 里只留 `rid` / `uid` / `path` 和业务字段。日志不再抓注册位置，所以同一路由的多条日志不会再共享同一个误导性的 `文件:行`。）
 
 库只补业务补不了的四种：401（门禁）、404（未命中）、500（含未捕获异常）、慢请求（默认 >1000ms）。`/health` 这种不写日志的接口就是零日志。
 
