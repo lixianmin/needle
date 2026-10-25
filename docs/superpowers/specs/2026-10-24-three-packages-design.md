@@ -148,7 +148,7 @@ packages/
 - 验收命令（写入 `docs/01.memory.md`，替换旧值）：
   `bun install && bun run build && bunx tsc --noEmit && bun test && node test/smoke/node.mjs`
 - `test/smoke/node.mjs` 改读三份 dist：`packages/logo/dist/index.js`、`packages/shell/dist/index.js`、`packages/shell/dist/node.js`；版本号读根 `package.json`。
-- `examples/shell-demo.ts`：`logo` / `createFileSink` / `createLogFiles` 用包名（`@needle/logo`、`@needle/logo/node`，解析到 dist），Shell 侧引 `../packages/shell/src/*` 源码。理由是**单例**：shell 源码内部 import `@needle/logo`，demo 必须拿同一个 dist 实例，否则 sink 加在另一个 logger 上、页面看不到日志。版本号读根 `package.json`。根脚本 `demo` = `bun run build:logo && bun examples/shell-demo.ts`：改 logo 后要重建，改 shell/UI 不必。
+- `examples/shell-demo.ts`：`logo` / `createFileSink` / `createLogFiles` 用包名（`@needle/logo`、`@needle/logo/node`，解析到 dist），Shell 侧引 `../packages/shell/src/*` 源码。理由是**单例**：shell 源码内部 import `@needle/logo`，demo 必须拿同一个 dist 实例，否则 sink 加在另一个 logger 上、页面看不到日志。版本号读根 `package.json`。根脚本 `shell:demo` = `bun run build:logo && bun examples/shell-demo.ts`：改 logo 后要重建，改 shell/UI 不必。
 - `.githooks/pre-commit`：先 `bun run version:sync`（把根版本写进三个包），再 `bun run build`，最后 `git add packages/*/package.json packages/*/dist packages/shell/src/ui/script.generated.ts`。
 
 ## 10. 跨包与 dist 的代价（必须写进文档，不准藏）
@@ -158,7 +158,7 @@ packages/
 - 改了 `packages/logo/src` 之后，必须 `bun run build:logo` 才能让 shell 的测试与 `examples/shell-demo.ts` 看到新代码；否则测试跑的是旧产物，可能静默通过。
 - 同一份 logo 在 shell 测试里只出现一次（都来自 dist），不会出现两个单例——这正是禁止测试跨包相对引用源码的原因。
 - 兜底：根目录加一条 `test/build-fresh.test.ts`，覆盖三处：`packages/{core,logo,shell}/src` 最新 mtime 对比各自 `dist/index.js`，以及 `packages/shell/src/ui/*.ts` 对比 `script.generated.ts`（比对时排除 `script.generated.ts` 自身）。过期则失败并提示对应的 `build:*` 命令。给 2 秒容差：刚 clone / checkout 时 mtime 同批写入，不误报。
-- `examples/shell-demo.ts` 因此把日志侧写成包名（解析到 dist）、Shell 侧引源码：这样 logger 单例只有一份，改 UI 不必重建。根脚本 `demo` = `bun run build:logo && bun examples/shell-demo.ts`。
+- `examples/shell-demo.ts` 因此把日志侧写成包名（解析到 dist）、Shell 侧引源码：这样 logger 单例只有一份，改 UI 不必重建。根脚本 `shell:demo` = `bun run build:logo && bun examples/shell-demo.ts`。
 
 ## 11. 版本号与提交规则
 

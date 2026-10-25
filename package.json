@@ -1,6 +1,6 @@
 {
   "name": "needle",
-  "version": "0.3.81",
+  "version": "0.3.82",
   "private": true,
   "type": "module",
   "workspaces": [
@@ -13,7 +13,7 @@
     "build:shell": "tsc -p packages/shell/tsconfig.build.json",
     "build:honox": "tsc -p packages/honox/tsconfig.build.json",
     "build": "rm -rf packages/*/dist && bun run build:got && bun run build:logo && bun run build:ui && bun run build:shell && bun run build:honox",
-    "demo": "bun run build:logo && bun examples/shell-demo.ts",
+    "shell:demo": "bun run build:logo && bun examples/shell-demo.ts",
     "test": "bun test",
     "typecheck": "tsc --noEmit",
     "size": "bun build scripts/size-log-only.ts --minify --target=browser | gzip -c | wc -c && bun build packages/shell/dist/index.js --minify --target=browser | gzip -c | wc -c",

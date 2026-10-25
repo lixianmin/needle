@@ -302,7 +302,7 @@ bun server.ts
 
 ```bash
 cd ~/needle                 # demo 在仓库里
-bun run demo                # 先构建 @needle/logo，再起 demo（改 logo 源码后必须重建）
+bun run shell:demo          # 先构建 @needle/logo，再起 Shell 面板（改 logo 源码后必须重建）
 # 打开 http://127.0.0.1:1234/shell
 # 使用 auth xmli 登录，密码 123456
 # 使用 help 查看命令列表
