@@ -126,6 +126,11 @@ function handleEvent(event, ctx) {
             // 服务端的 /events 未登录会 401，所以这里的 handshake 一定带账号；
             // 未登录的提示由适配器的 401 分支给出。
             break;
+        case "auth":
+            // token 失效时也要把头栏和 loggedIn 复位，否则 sub/unsub 会按「已登录」继续走。
+            state.loggedIn = event.user !== null;
+            ui.user.textContent = event.user ?? "未登录";
+            break;
         case "logs": {
             if (state.paused) {
                 state.pausedDropped += event.records.length;

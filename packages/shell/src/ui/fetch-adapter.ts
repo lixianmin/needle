@@ -111,6 +111,7 @@ export function createFetchAdapter(options: FetchAdapterOptions):ShellAdapter {
 
     const token = readToken();
     if (token === null) {
+      emit({ type: "auth", user: null });
       // 没有 token 就不去碰 /events：服务端一定回 401，既不建流也不会有
       // topic 定时器。等 auth 成功后再连，提示直接给，省一个来回。
       status("未登录：执行 auth <user> 登录；help 查看命令", "warn");
@@ -129,6 +130,7 @@ export function createFetchAdapter(options: FetchAdapterOptions):ShellAdapter {
       if (response.status === 401) {
         // token 过期或无效：清掉，下次打开页面连探测请求都不用发。
         writeToken(null);
+        emit({ type: "auth", user: null });
         status("未登录：执行 auth <user> 登录；help 查看命令", "warn");
         return;
       }
@@ -257,6 +259,7 @@ export function createFetchAdapter(options: FetchAdapterOptions):ShellAdapter {
       }
 
       writeToken(body.token);
+      emit({ type: "auth", user: body.user ?? user });
       // 日志流是鉴权的：拿到 token 立刻重连。
       void connect();
       return { ok: true, user: body.user ?? user };

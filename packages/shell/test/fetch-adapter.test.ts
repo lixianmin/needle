@@ -16,6 +16,56 @@ afterEach(() => {
   globalThis.fetch = originalFetch;
 });
 
+describe("登录态事件", () => {
+  // 只靠 handshake 的话，401 之后 UI 的 loggedIn 永远停在 true：sub / unsub 会
+  // 打一句「已订阅」，实际一条都没订上。
+  test("401 之后发出 auth(user: null)", async () => {
+    globalThis.fetch = (async () => new Response("{}", { status: 401 })) as unknown as typeof fetch;
+    localStorage.setItem("logo.shell.token", "stale");
+
+    const events:ShellEvent[] = [];
+    const adapter = createFetchAdapter({ basePath: "" });
+    const unsubscribe = adapter.subscribe((event) => events.push(event));
+    await new Promise((resolve) => setTimeout(resolve, 30));
+
+    const auth = events.filter((event): event is { type: "auth"; user: string | null } => event.type === "auth");
+    expect(auth.at(-1)?.user).toBeNull();
+    expect(localStorage.getItem("logo.shell.token")).toBeNull();
+    unsubscribe();
+  });
+
+  test("登录成功后发出 auth(user)", async () => {
+    globalThis.fetch = (async (input: unknown) => {
+      if (String(input).endsWith("/auth")) {
+        return new Response(JSON.stringify({ token: "t1", user: "admin" }), { status: 200 });
+      }
+      // 登录成功后 adapter 会立刻重连 /events：这一路要给正常流，否则 401 会把
+      // 刚发出的 auth(admin) 覆盖成 auth(null)。
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(
+            encoder.encode('event: handshake\ndata: {"title":"t","version":"1","user":"admin","commands":[],"topics":[]}\n\n'),
+          );
+        },
+      });
+      return new Response(stream, { status: 200 });
+    }) as unknown as typeof fetch;
+
+    const events:ShellEvent[] = [];
+    const adapter = createFetchAdapter({ basePath: "" });
+    const unsubscribe = adapter.subscribe((event) => events.push(event));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    const result = await adapter.authenticate("admin", "pw");
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    const auth = events.filter((event): event is { type: "auth"; user: string | null } => event.type === "auth");
+    expect(result.ok).toBe(true);
+    expect(auth.at(-1)?.user).toBe("admin");
+    unsubscribe();
+  });
+});
+
 describe("退订后再订阅", () => {
   // 退订曾把 disposed 置位且永不复位，于是同一个 adapter 第二次 subscribe()
   // 连一个 /events 请求都不发：面板空白、表头停在「未登录」，全程没有任何提示。

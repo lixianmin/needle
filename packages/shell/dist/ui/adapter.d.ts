@@ -31,6 +31,15 @@ export type ShellEvent = {
     type: "status";
     message: string;
     level: "info" | "warn" | "error";
+}
+/**
+ * 登录态变化。token 失效（401）或重新登录都要发一条：
+ * 只靠 handshake 的话，401 之后 UI 里的 loggedIn 会一直是 true，
+ * `sub` / `unsub` 会打一句假的「已订阅」，实际什么都没订阅。
+ */
+ | {
+    type: "auth";
+    user: string | null;
 };
 export type ExecResult = {
     ok: true;
