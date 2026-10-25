@@ -30,7 +30,9 @@ const DEFAULT_KEEP_DAYS = 7;
  */
 function readLevel(path: string, fallback: Level): Level {
   const value = viper.getString(path, fallback);
-  if (!(value in LEVELS)) {
+  // 必须用 hasOwn：`"toString" in LEVELS` 也为真（原型链），那样的配置会被当成
+  // 合法级别返回，LEVELS["toString"] 是函数，之后所有比较都失真、日志一条不写。
+  if (!Object.hasOwn(LEVELS, value)) {
     throw new Error(`${path} 只能是 ${Object.keys(LEVELS).join(" / ")}，拿到 "${value}"`);
   }
 

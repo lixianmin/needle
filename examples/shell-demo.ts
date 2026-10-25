@@ -4,7 +4,8 @@
  * 打开 http://127.0.0.1:1234/shell
  * 登录：xmli / 123456
  *
- * SSE 空闲 15 秒发一次 `: ping` 注释心跳；面板里看不到它，只能从连接不断确认。
+ * SSE 每 2 秒（DEFAULT_HEARTBEAT_MS）无条件发一次 `: ping` 注释心跳；面板里看不到它。
+ * 刻意不做「空闲才发」：跳过逻辑会把实际间隔抖到 2×，正好撞上 Bun 的 10 秒 idleTimeout。
  */
 import { readFileSync } from "node:fs";
 

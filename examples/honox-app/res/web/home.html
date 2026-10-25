@@ -466,12 +466,22 @@
         // 密码不出浏览器：只发 sha256(盐 + 密码)。用户名给服务端查记录，uid 由服务端定。
         const user = el("user").value.trim();
         const passcode = sha256Hex(DEMO_SALT + el("password").value);
-        const response = await fetch("/api/v1/login", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ user, passcode }),
-        });
-        const text = await response.text();
+        // 网络层失败（断网、服务没起）必须自己兜：不兜就是一次未处理的 rejection，
+        // 页面上什么都不显示，看起来像按钮没反应。
+        let response;
+        let text;
+        try {
+          response = await fetch("/api/v1/login", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ user, passcode }),
+          });
+          text = await response.text();
+        } catch (error) {
+          setStatus("网络错误");
+          el("out").textContent = `登录请求失败：${String(error)}`;
+          return;
+        }
         if (!response.ok) {
           setStatus(response.status);
           el("out").textContent = text;
