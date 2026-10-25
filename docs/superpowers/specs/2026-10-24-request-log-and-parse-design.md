@@ -73,6 +73,24 @@
 - **删除 `captureCallSite`**：路由注册不再抓 `文件:行`——打包后那是 bundle 坐标，`module` 已经是定位手段；包内没有别的消费者。
 - `buildRecord` / `formatPayload` / `formatLine`：`site`/`fn` 仍可由 payload 提供，只进前缀；新增同义的 `module`（模块名）也走前缀、不进 JSON，两者都有时 `site` 优先。
 
+#### 5.1.1 写入路径的性能预算（2026-10-25）
+
+一条日志的成本分两段：`info()` 时建记录，flush 时每条落一行。基准（Bun 1.4.4 / arm64，字段规模 = 绑定字段 4 + 业务参数 3）：
+
+| 段 | 改造前 | 改造后 |
+|---|---|---|
+| `buildRecord` | 293 ns | 221 ns |
+| `formatLine` | 313 ns | 125 ns |
+| 合计 | 606 ns | **345 ns** |
+
+三条硬约束，改这块之前先读：
+
+1. **记录只在 `buildRecord` 里 sanitize 一次。** `formatPayload` 不再跑第二遍 `safeStringify`——正常路径直接 `JSON.stringify`，只有绕开 `buildRecord` 的手搓记录（带环 / BigInt）才走 `catch` 退回 `safeStringify`。新增 sink 必须接受「收到的是 JSON 安全的纯数据」这条前提，要再校验就自己付钱。
+2. **信封字段用「拷贝时跳过」而不是「`Object.assign` 后 `delete`」。** `delete` 把对象打到字典模式，后面再 `{...fields}` 展开一次整份拷贝。语义必须保持：业务对象里的 `time` / `level` / `msg` / `name` 一律进不了记录。
+3. **`formatTime` 按秒缓存前缀。** 键是记录自己的 `time` 换算出的秒（不是 `Date.now()`），所以乱序或注入时间都正确；跨秒才 `new Date` + 6 次 `padStart`。同秒 60 → 5 ns，最坏（每条都跨秒）51 → 66 ns。
+
+评估过但**未采纳**：`sanitize` 的「平铺标量对象不递归」快路径。实测省 4 ns/条（标量对象 -14 ns，带数组的对象反而 +10 ns），不值得为安全网代码加分支。
+
 ### 5.2 `traceOf(ctx)`
 
 ```ts

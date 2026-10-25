@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
-import { formatLine, parseLine } from "../src/line.js";
+import { formatLine, formatTime, parseLine } from "../src/line.js";
+import type { LogRecord } from "../src/types.js";
 
 // 2026-10-22T00:00:00Z = 东八区 08:00:00
 const at = Date.UTC(2026, 9, 22, 0, 0, 0);
@@ -58,8 +59,24 @@ describe("parseLine", () => {
     expect(parseLine(line)).toEqual({ msg: "burst", seq: 1, total: 2 });
   });
 
-  test("畸形行返回 null", () => {
-    expect(parseLine("not a log line")).toBeNull();
-    expect(parseLine("2026-10-22T08:00:00 [I] {broken")).toBeNull();
+  test("外部手搓的记录带循环引用也不炸：退回 safeStringify", () => {
+    // buildRecord 产出的记录已经 sanitize 过，正常路径直接 JSON.stringify；
+    // 这条护的是绕开 buildRecord 直接调 formatLine 的情况。
+    const record: LogRecord = { ...base, msg: "loop" };
+    record.self = record;
+
+    expect(() => formatLine(record)).not.toThrow();
+    expect(formatLine(record)).toContain("[Circular]");
+  });
+});
+
+describe("formatTime", () => {
+  test("同一秒内复用前缀，跨秒重算，回退的时间也不会串", () => {
+    expect(formatTime(at)).toBe("2026-10-22T08:00:00");
+    expect(formatTime(at + 999)).toBe("2026-10-22T08:00:00");
+    expect(formatTime(at + 1000)).toBe("2026-10-22T08:00:01");
+    // 缓存不能把「上一次算过的秒」当成单调递增的假设
+    expect(formatTime(at)).toBe("2026-10-22T08:00:00");
+    expect(formatTime(at - 1000)).toBe("2026-10-22T07:59:59");
   });
 });

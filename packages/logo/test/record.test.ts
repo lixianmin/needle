@@ -40,12 +40,25 @@ describe("buildRecord", () => {
     expect(() => JSON.stringify(record)).not.toThrow();
   });
 
-  test("保留字段压过同名业务字段", () => {
-    const record = buildRecord("info", [{ level: "hack", msg: "no", time: 0 }]);
+  test("保留字段压过同名业务字段（含 name：只能由 child 设置）", () => {
+    const record = buildRecord("info", [{ level: "hack", msg: "no", time: 0, name: "hack" }], {
+      name: "db",
+    });
     expect(record.level).toBe("info");
     expect("msg" in record).toBe(false);
+    expect(record.name).toBe("db");
     expect(typeof record.time).toBe("number");
     expect(record.time).not.toBe(0);
+
+    // 没给 name 时业务字段也不能凭空造出一个
+    expect("name" in buildRecord("info", [{ name: "hack" }])).toBe(false);
+    // msg 同理：只有非对象参数才会填 msg
+    expect("msg" in buildRecord("info", [{ msg: "hack" }])).toBe(false);
+  });
+
+  test("保留字段在多个参数之间也一律丢掉", () => {
+    const record = buildRecord("warn", [{ level: "info" }, { level: "error" }]);
+    expect(record.level).toBe("warn");
   });
 
   test("数组当作值渲染进 msg", () => {
