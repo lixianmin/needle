@@ -9,7 +9,7 @@
 ```bash
 bun install        # 装 hono / typescript 等
 bun run dev        # 开发：bun --watch 直接跑 app/main.ts，改代码自动重启
-bun run build      # bun build → dist/index.js（自包含产物）
+bun run build      # 打包 + 把 git 版本烘焙进 dist/index.js（自包含产物）
 bun run start      # 跑构建产物；端口取自 res/config，ENV 默认 dev
 ```
 
@@ -224,10 +224,14 @@ export class BotTemplate {
 构建上下文必须是仓库根，因为要把 `packages/` 一起带进去：
 
 ```bash
-docker build -f examples/honox-app/Dockerfile -t honox-app .
+docker build -f examples/honox-app/Dockerfile \
+  --build-arg GIT_SHA=$(git describe --tags --always --dirty) \
+  -t honox-app .
 docker run --rm -p 5001:5001 \
   -e APP_AUTH__SECRET="换成你自己的随机串" \
   honox-app
 ```
+
+`GIT_SHA` 必须传：`.git` 被根 `.dockerignore` 排掉（否则上下文翻倍），容器里跑不了 `git describe`，缺它构建直接失败。版本号在 `bun run build` 时用 `--define` 烘焙进 `dist/index.js`（默认 `git describe --tags --always --dirty`，当前仓库没有 tag，所以就是短 SHA，工作树脏时带 `-dirty`），Shell 面板与飞书启动通知显示的都是它；`bun run dev` 不打包，直接跑 [app/version.ts](app/version.ts) 里的 git 回落。
 
 镜像里 `ENV=pro`，读 `res/config/app_pro.yml`。那份配置刻意没写 `auth.secret`，所以不传 `APP_AUTH__SECRET` 就启动报错，不会带着仓库里的 dev 密钥裸奔。Shell 面板要开就在 `server.shell_users` 里配账号（pro 的配置里没有，所以镜像默认不挂面板）；`/shell` 在 JWT 白名单里，对它唯一的门就是这些账号。镜像不带 `node_modules`：`dist/index.js` 是自包含产物；`res/` 是运行时 fs 读的，整目录拷进镜像。

@@ -2,12 +2,10 @@ import { LEVELS, createLarkSink, formatTime, logo, type LarkSink, type Level, ty
 import { createFileSink, createLogFiles } from "@needle/logo/node";
 import { networkInterfaces } from "node:os";
 import { viper } from "./viper.js";
+import { APP_VERSION } from "./version.js";
 
 /** 应用名，写进飞书标题。 */
 const APP_NAME = "honox-app";
-
-/** 版本号：Shell 面板与启动通知共用一处。 */
-export const APP_VERSION = "0.1.0";
 
 /**
  * 日志目录固定是进程工作目录下的 `logs/`，不做配置项。
