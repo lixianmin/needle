@@ -232,22 +232,22 @@
         <h2>接口</h2>
         <div class="grid" id="buttons">
           <button data-method="GET" data-path="/health">健康检查</button>
-          <button data-method="POST" data-path="/bots/get_bots" data-body="{}">全部 bot</button>
-          <button data-method="POST" data-path="/bots/get_bots" data-body='{"id":1}'>单条 bot</button>
-          <button data-method="POST" data-path="/bots/get_bots" data-body='{"id":999}'>
+          <button data-method="POST" data-path="/api/v1/bots/get_bots" data-body="{}">全部 bot</button>
+          <button data-method="POST" data-path="/api/v1/bots/get_bots" data-body='{"id":1}'>单条 bot</button>
+          <button data-method="POST" data-path="/api/v1/bots/get_bots" data-body='{"id":999}'>
             不存在的 bot（404）
           </button>
-          <button data-method="POST" data-path="/bots/get_bots" data-body='{"id":"abc"}'>
+          <button data-method="POST" data-path="/api/v1/bots/get_bots" data-body='{"id":"abc"}'>
             id 不是数字（400）
           </button>
-          <button data-method="POST" data-path="/bots/get_bot_name" data-body='{"id":1}'>
+          <button data-method="POST" data-path="/api/v1/bots/get_bot_name" data-body='{"id":1}'>
             按 id 取名字
           </button>
-          <button data-method="POST" data-path="/bots/get_bot_name" data-body='{"id":999}'>
+          <button data-method="POST" data-path="/api/v1/bots/get_bot_name" data-body='{"id":999}'>
             不存在的 bot 取名字（404）
           </button>
-          <button data-method="POST" data-path="/bots/get_bot_name" data-body="{}">空 body（400）</button>
-          <button data-method="POST" data-path="/bots/get_bots" data-body="{}" data-auth="0">
+          <button data-method="POST" data-path="/api/v1/bots/get_bot_name" data-body="{}">空 body（400）</button>
+          <button data-method="POST" data-path="/api/v1/bots/get_bots" data-body="{}" data-auth="0">
             不带 token（401）
           </button>
         </div>
@@ -261,7 +261,7 @@
 
         <h2>自由请求</h2>
         <div class="free">
-          <input id="path" value="/bots/get_bots" />
+          <input id="path" value="/api/v1/bots/get_bots" />
           <textarea id="body" placeholder='body（JSON，可空）：{"id":1}'></textarea>
           <button id="send" class="primary">发送</button>
         </div>
@@ -466,7 +466,7 @@
         // 密码不出浏览器：只发 sha256(盐 + 密码)。用户名给服务端查记录，uid 由服务端定。
         const user = el("user").value.trim();
         const passcode = sha256Hex(DEMO_SALT + el("password").value);
-        const response = await fetch("/login", {
+        const response = await fetch("/api/v1/login", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ user, passcode }),

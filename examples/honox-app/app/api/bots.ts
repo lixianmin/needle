@@ -4,6 +4,7 @@ import { getBotTemplate, getBotTemplates } from "../md/bot-template.js";
 import { viper } from "../viper.js";
 
 export function createBotsApi() {
+  // 本组挂在 `/api/v1/bots` 下，组内只写资源名——版本号与领域前缀都在 index.ts
   const api = createApi("api/bots");
 
   /**
@@ -14,7 +15,7 @@ export function createBotsApi() {
    * 之后每个出口都用 `trace.json` / `trace.notFound`——它们先落一行 info，
    * 再把响应返回出去。`ctx` 除了这次取 trace，基本不用再碰。
    */
-  api.post("/bots/get_bots", BotsBody, (ctx, request) => {
+  api.post("/get_bots", BotsBody, (ctx, request) => {
     const trace = traceOf(ctx).info(request);
 
     const baseUrl = viper.getString("metadata.base_url");
@@ -37,7 +38,7 @@ export function createBotsApi() {
    * 与 `get_bots` 一样，id 是筛选条件而不是路径段——路径里放 id 会让不存在
    * 的 id 也命中路由，最后还是要靠 handler 判断，白多一层。
    */
-  api.post("/bots/get_bot_name", BotNameBody, (ctx, request) => {
+  api.post("/get_bot_name", BotNameBody, (ctx, request) => {
     const trace = traceOf(ctx).info(request);
 
     const bot = getBotTemplate(request.id);

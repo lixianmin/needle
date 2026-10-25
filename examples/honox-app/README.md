@@ -67,18 +67,20 @@ viper.env / viper.isDev() / viper.isFat() / viper.isPro()
 | 路径 | 鉴权 | 说明 |
 |---|---|---|
 | `GET /` | 公开 | 测试台页面（见下节） |
-| `POST /login` | 公开 | body `{"user":"alice","passcode":"<sha256hex(盐+密码)>"}`，返回 `{uid, token, expiresAt}`；token 是 `auth.secret` 签的真 JWT，口令不对 → 401 |
+| `POST /api/v1/login` | 公开 | body `{"user":"alice","passcode":"<sha256hex(盐+密码)>"}`，返回 `{uid, token, expiresAt}`；token 是 `auth.secret` 签的真 JWT，口令不对 → 401 |
 | `GET /health` | 公开 | `{"ok":true}` |
-| `POST /bots/get_bots` | 需要 JWT | body `{"id":1}` 命中返回 `{ baseUrl, bot }`；空 body `{}` 返回 `{ baseUrl, bots }`（全表）；`id` 非数字 → 400，查不到 → 404 |
-| `POST /bots/get_bot_name` | 需要 JWT | body `{"id":1}`，返回 `{ name }`；body 不合规 → 400，查不到 → 404 |
+| `POST /api/v1/bots/get_bots` | 需要 JWT | body `{"id":1}` 命中返回 `{ baseUrl, bot }`；空 body `{}` 返回 `{ baseUrl, bots }`（全表）；`id` 非数字 → 400，查不到 → 404 |
+| `POST /api/v1/bots/get_bot_name` | 需要 JWT | body `{"id":1}`，返回 `{ name }`；body 不合规 → 400，查不到 → 404 |
 | `GET /shell` | 公开（面板自己用 `server.shell_users` 里的账号登录） | 调试面板 |
+
+**版本前缀只加在业务接口上**（`/api/v1/...`），`/health`、`/shell`、`/` 不带版本。探针和运维面是部署配置里写死的一次性契约——跟着业务大版本走，等于每次升版本都要改一轮探针配置；Kubernetes 自己的 `/healthz`、`/livez`、`/readyz` 也放在根上。前缀本身只出现在 `app/api/index.ts` 的 `API_PREFIX` 一处，各接口文件里的路径都是挂载点之后的相对路径。
 
 ## 首页测试台
 
 `bun run dev` 之后打开 <http://localhost:5001/>，根目录是一张测试页（`res/web/home.html`，单文件、零依赖、零构建）。它解决的是「接口都在 JWT 后面，没有 token 就只能看到 401」这件事：
 
-1. 在右上角输用户名 + 密码（默认 `alice` / `alice123`），点**登录**：页面算 `sha256(盐+密码)` 当 passcode，`POST /login` 换回一枚真 token（HS256、uid 在 `sub`、1 小时过期），存进 localStorage；
-2. 点左边的按钮打 `/bots/*` 的各个分支——200 / 400（`{"id":"abc"}` 与空 body）/ 404（`{"id":999}`）/ 401（故意不带 token 的对照组）；业务接口全是 POST，页面没有方法选择，只有健康检查固定 GET；
+1. 在右上角输用户名 + 密码（默认 `alice` / `alice123`），点**登录**：页面算 `sha256(盐+密码)` 当 passcode，`POST /api/v1/login` 换回一枚真 token（HS256、uid 在 `sub`、1 小时过期），存进 localStorage；
+2. 点左边的按钮打 `/api/v1/bots/*` 的各个分支——200 / 400（`{"id":"abc"}` 与空 body）/ 404（`{"id":999}`）/ 401（故意不带 token 的对照组）；业务接口全是 POST，页面没有方法选择，只有健康检查固定 GET；
 3. 右侧显示状态码、`x-rid`、耗时和格式化后的 JSON，底部是本次会话的历史。
 
 登录会**真校验**：服务端按用户名查记录，用同一份盐比对 passcode。测试用户硬编码在 `app/api/login.ts`（`alice`/`alice123`、`bob`/`bob123`），用户名不存在与口令不对回同一个 401（否则就是个用户名枚举接口）。
@@ -92,7 +94,7 @@ viper.env / viper.isDev() / viper.isFat() / viper.isPro()
 ```bash
 # passcode = sha256hex("needle-demo-salt" + 密码)，与页面算的是同一个值
 PASSCODE=$(bun -e 'const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode("needle-demo-saltalice123")); console.log([...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, "0")).join(""))')
-curl -s -X POST "http://127.0.0.1:5001/login" \
+curl -s -X POST "http://127.0.0.1:5001/api/v1/login" \
   -H 'content-type: application/json' -d "{\"user\":\"alice\",\"passcode\":\"$PASSCODE\"}" \
   | bun -e 'const j = await Bun.stdin.json(); console.log(j.token)'
 ```
@@ -103,18 +105,18 @@ curl -s -X POST "http://127.0.0.1:5001/login" \
 
 ```
 app/api/
-  index.ts       # registerApis(app)：逐个 app.route("/", xxx)
+  index.ts       # registerApis(app)："/" 挂页面与探活，"/api/v1" 挂 login 与 bots
   home.ts        # GET /（测试台页面，JWT 白名单）
-  login.ts       # POST /login（用户名 + passcode 换 JWT，白名单）
+  login.ts       # POST /api/v1/login（用户名 + passcode 换 JWT，白名单）
   health.ts      # GET /health（JWT 白名单，匿名可访问）
-  bots.ts        # 一个路由组：POST /bots/get_bots + POST /bots/get_bot_name
+  bots.ts        # 一个领域组，挂在 /api/v1/bots：/get_bots + /get_bot_name
 app/viper.ts     # 配置实例（viper 风格取值器）+ c.get 的键声明
 res/web/home.html # 测试台页面本体（随 res/ 进镜像，启动时读一次）
 ```
 
 文件数量不是目的：一个领域一个文件就够了，同文件里挂多条路由（`botsApi.post`）。要覆盖更多情况就加路由，不要一个新接口开一个新文件。
 
-新增接口：在 `app/api/` 加一个文件，建一个组，把该领域的所有路由挂上去，再到 `index.ts` 里 `app.route("/", xxxApi)`。`app/main.ts` 不用动。
+新增接口：在 `app/api/` 加一个文件，建一个领域组，把该领域的路由挂上去（组内只写资源名），再到 `index.ts` 里 `v1.route("/<领域>", xxxApi)`。`app/main.ts` 不用动，版本号也不用动——它只在 `index.ts` 里写一次。
 
 ```ts
 // app/api/bots.ts —— 一个文件一个组，可以挂多条路由
@@ -123,12 +125,12 @@ import { BotNameBody, BotsBody } from "../beans/bots.js";
 
 export const botsApi = createApi("api/bots");   // 参数是日志里的模块名，必填
 
-botsApi.post("/bots/get_bots", BotsBody, (ctx, request) => { ... });          // POST/PUT/PATCH：解析 body
-botsApi.post("/bots/get_bot_name", BotNameBody, (ctx, request) => { ... });  // POST/PUT/PATCH：解析 body
+botsApi.post("/get_bots", BotsBody, (ctx, request) => { ... });          // POST/PUT/PATCH：解析 body
+botsApi.post("/get_bot_name", BotNameBody, (ctx, request) => { ... });  // POST/PUT/PATCH：解析 body
 botsApi.get("/health", (ctx) => ctx.json({ ok: true }));       // 不校验参数
 ```
 
-`createApi(module)` 返回的是真正的 `Hono`，所以 `app.route("/", botsApi)` 照常挂。`module` 会写进 context，业务日志的**行前缀**因此是 `api/bots`——打包、压缩后 `文件:行` 会变成 bundle 坐标，这个字符串才是生产环境唯一还活着的定位信息（不再重复写进 JSON）。
+`createApi(module)` 返回的是真正的 `Hono`，所以 `app.route("/", botsApi)`、`v1.route("/bots", botsApi)` 都照常挂。`module` 会写进 context，业务日志的**行前缀**因此是 `api/bots`——打包、压缩后 `文件:行` 会变成 bundle 坐标，这个字符串才是生产环境唯一还活着的定位信息（不再重复写进 JSON）。
 
 参数模型见 `app/beans/`：手写 class（`bots.ts`、`login.ts`），`scripts/gen-models.ts` 生成 TypeBox schema（`bots.generated.ts`，提交进仓库）。bean 文件顶部 `import "./bots.generated.js"`，所以业务 import 这个 bean 文件时 schema 就注册好了，不需要额外的 barrel。生成物带漂移断言，class 改了没重新生成会编译报错。
 

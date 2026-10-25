@@ -66,9 +66,10 @@ function passcodeMatches(given: string, expected: string): boolean {
  */
 
 export function createLoginApi() {
+  // 本组挂在 `/api/v1/login` 下：登录只有一个资源，组内路径就是 `/`
   const api = createApi("api/login");
 
-  api.post("/login", LoginBody, (ctx, request) => {
+  api.post("/", LoginBody, (ctx, request) => {
     const record = USERS.get(request.user);
     if (record === undefined || !passcodeMatches(request.passcode, record.passcode)) {
       // 用户名不存在与口令不对回同一个响应：能区分两者，就等于送了一个用户名枚举接口。
