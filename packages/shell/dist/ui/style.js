@@ -64,8 +64,10 @@ export const STYLE = `
 /* 文件名 hover 的末尾样本提示：结构与 GONSOLE 同款，配色走 Solarized 变量 */
 .logo-shell .tips { position: relative; display: inline-block; }
 .logo-shell .tips .tips_text {
-  /* 纯文本样本，\n 换行要保留 */
-  visibility: hidden; white-space: pre-wrap;
+  /* 纯文本样本，\n 换行要保留。日志行是紧凑 JSON，中间没有断行机会，
+     只有 pre-wrap 时长 token 会直接冲出 max-width（warn.log 的末尾样本就是这样），
+     所以要像主面板 .row .head 一样允许任意位置折行。 */
+  visibility: hidden; white-space: pre-wrap; overflow-wrap: anywhere;
   position: absolute; z-index: 1; top: -5px; left: 105%;
   min-width: 280px; max-width: 560px;
   background: var(--bg-alt); color: var(--text-strong);
