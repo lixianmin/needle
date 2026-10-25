@@ -43,6 +43,45 @@ async function oneFile(name: string, rows: Cell[][], file = `${name}.xlsx`): Pro
   return metadataDir([{ file, sheets: [{ name, rows }] }]);
 }
 
+describe("重复 load 读磁盘上的新内容", () => {
+  // workbook 曾按绝对路径做进进程级缓存，只有 zip 解不开才失效：改完 Excel 再 load
+  // 读到的还是旧内容，修好一个坏 id 再 load 也永远抛同一个错（spec 说「可重试」）。
+  test("同一目录改完文件重新 load，取到的是新内容", async () => {
+    const dir = await oneFile("BotTemplate", [
+      ["id", "name"],
+      [1, "旧"],
+    ]);
+    const metadata = createMetadata();
+    await metadata.load(dir);
+    expect(metadata.template<{ id: number; name: string }>("BotTemplate").get(1)?.name).toBe("旧");
+
+    const updated = await writeXlsx({
+      sheets: [{ name: "BotTemplate", rows: [["id", "name"], [1, "新"]] }],
+    });
+    writeFileSync(join(dir, "BotTemplate.xlsx"), updated);
+    await metadata.load(dir);
+
+    expect(metadata.template<{ id: number; name: string }>("BotTemplate").get(1)?.name).toBe("新");
+  });
+
+  test("坏 id 修好后重试能成功", async () => {
+    const dir = await oneFile("BotTemplate", [
+      ["id", "name"],
+      ["abc", "x"],
+    ]);
+    const metadata = createMetadata();
+    await expect(metadata.load(dir)).rejects.toThrow(/id 不是数字/);
+
+    const fixed = await writeXlsx({
+      sheets: [{ name: "BotTemplate", rows: [["id", "name"], [1, "ok"]] }],
+    });
+    writeFileSync(join(dir, "BotTemplate.xlsx"), fixed);
+    await metadata.load(dir);
+
+    expect(metadata.template<{ id: number; name: string }>("BotTemplate").get(1)?.name).toBe("ok");
+  });
+});
+
 describe("Template：按 sheet 名 + id 两级取数", () => {
   test("按 id 取单条与全表", async () => {
     const dir = await oneFile("BotTemplate", [

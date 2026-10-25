@@ -12,19 +12,17 @@ const CONFIG_SUFFIX = "Config";
 const SPREADSHEET_EXTENSIONS = [".xlsx", ".xlsm"];
 /** 拆列的默认分隔符：配置表里 `503048|508012|0|0` 这种形态。 */
 const SPLIT_SEPARATOR = "|";
-/** 同一文件里的多个 sheet 只解析一次 zip；失败时把缓存删掉，允许重试。 */
-const workbooks = new Map();
+/**
+ * 每次都重新读盘。
+ *
+ * 这里曾经用「按绝对路径做进程级缓存」省一次 zip 解析，代价是两种行为都坏了：
+ * 改完 Excel 再 `load()` 读到的还是旧内容；某个 sheet 校验失败（坏 id、重复 id、
+ * Config 无数据行）后改好文件再 `load()`，缓存里还是那份坏 workbook，于是永远抛
+ * 同一个错——spec 明说「任一 sheet 出错整体抛，旧的已加载状态不变（可重试）」。
+ * `load()` 对每个文件只调用一次，本来就没有同一次 load 内的重复解析可省。
+ */
 function loadWorkbook(path) {
-    const cached = workbooks.get(path);
-    if (cached !== undefined) {
-        return cached;
-    }
-    const pending = readXlsx(readFileSync(path));
-    workbooks.set(path, pending);
-    pending.catch(() => {
-        workbooks.delete(path);
-    });
-    return pending;
+    return readXlsx(readFileSync(path));
 }
 /** 首行当表头：trim + 小写；空表头列直接丢掉（合并单元格常留空）。 */
 function headerOf(rows) {
