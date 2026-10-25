@@ -80,6 +80,8 @@ export function sanitize(
     if (value instanceof Map) {
       return Object.fromEntries(
         [...value.entries()].map(([key, item]) => [
+          // Stryker disable next-line ConditionalExpression,EqualityOperator,StringLiteral: 字符串键直接当键名与 String(sanitize(key)) 完全等价，非字符串键的差异由 Date 键的测试钉住
+          // Stryker disable next-line ArithmeticOperator: 非字符串键最后被 String() 成 "[object Object]"，键里递归到多深都看不出来（等价突变体）
           typeof key === "string" ? key : String(sanitize(key, depth + 1, ancestors, budget)),
           sanitize(item, depth + 1, ancestors, budget),
         ]),
@@ -94,6 +96,7 @@ export function sanitize(
       return Object.fromEntries(
         [...value.entries()].map(([key, item]) => [
           key,
+          // Stryker disable next-line ArithmeticOperator: URLSearchParams 的值只能是字符串，递归深度对它不可观测（等价突变体）
           sanitize(item, depth + 1, ancestors, budget),
         ]),
       );
@@ -135,6 +138,7 @@ export function safeStringify(value: unknown): string {
 
 /** 只有"纯对象"才合并进记录字段；数组、Date、类实例都当作值渲染进 msg。 */
 function isPlainObject(value: unknown): value is Record<string, unknown> {
+  // Stryker disable next-line ConditionalExpression: `typeof value !== "object"` 置 false 与原式等价——非对象落到 getPrototypeOf 装箱后仍不是纯对象
   if (typeof value !== "object" || value === null) {
     return false;
   }
@@ -200,10 +204,12 @@ export function buildRecord(
       mergeFields(record, sanitize(arg) as Record<string, unknown>);
     } else if (isPlainObject(arg)) {
       mergeFields(record, sanitize(arg) as Record<string, unknown>);
-    } else if (arg === null || typeof arg !== "object") {
-      parts.push(String(arg));
-    } else {
+    } else if (typeof arg === "object") {
+      // 这里剩下的对象（Date / Map / 类实例 / null）都走序列化；null 序列化出来就是 "null"，
+      // 与 String(null) 一致，所以不必单独判它。
       parts.push(safeStringify(arg));
+    } else {
+      parts.push(String(arg));
     }
   }
 

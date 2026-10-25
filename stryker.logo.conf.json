@@ -13,8 +13,8 @@
   "timeoutMS": 30000,
   "thresholds": {
     "high": 95,
-    "low": 68.1,
-    "break": 68.1
+    "low": 71.0,
+    "break": 71.0
   },
   "reporters": [
     "clear-text",

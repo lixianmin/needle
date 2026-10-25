@@ -56,6 +56,8 @@ export function sanitize(value, depth = 0, ancestors = new WeakSet(), budget = {
         // 带标记，读的人会以为真的没有内容。按内容摊开，与数组同口径。
         if (value instanceof Map) {
             return Object.fromEntries([...value.entries()].map(([key, item]) => [
+                // Stryker disable next-line ConditionalExpression,EqualityOperator,StringLiteral: 字符串键直接当键名与 String(sanitize(key)) 完全等价，非字符串键的差异由 Date 键的测试钉住
+                // Stryker disable next-line ArithmeticOperator: 非字符串键最后被 String() 成 "[object Object]"，键里递归到多深都看不出来（等价突变体）
                 typeof key === "string" ? key : String(sanitize(key, depth + 1, ancestors, budget)),
                 sanitize(item, depth + 1, ancestors, budget),
             ]));
@@ -66,6 +68,7 @@ export function sanitize(value, depth = 0, ancestors = new WeakSet(), budget = {
         if (value instanceof URLSearchParams || (typeof Headers !== "undefined" && value instanceof Headers)) {
             return Object.fromEntries([...value.entries()].map(([key, item]) => [
                 key,
+                // Stryker disable next-line ArithmeticOperator: URLSearchParams 的值只能是字符串，递归深度对它不可观测（等价突变体）
                 sanitize(item, depth + 1, ancestors, budget),
             ]));
         }
@@ -105,6 +108,7 @@ export function safeStringify(value) {
 }
 /** 只有"纯对象"才合并进记录字段；数组、Date、类实例都当作值渲染进 msg。 */
 function isPlainObject(value) {
+    // Stryker disable next-line ConditionalExpression: `typeof value !== "object"` 置 false 与原式等价——非对象落到 getPrototypeOf 装箱后仍不是纯对象
     if (typeof value !== "object" || value === null) {
         return false;
     }
@@ -151,11 +155,13 @@ export function buildRecord(level, args, options = {}) {
         else if (isPlainObject(arg)) {
             mergeFields(record, sanitize(arg));
         }
-        else if (arg === null || typeof arg !== "object") {
-            parts.push(String(arg));
+        else if (typeof arg === "object") {
+            // 这里剩下的对象（Date / Map / 类实例 / null）都走序列化；null 序列化出来就是 "null"，
+            // 与 String(null) 一致，所以不必单独判它。
+            parts.push(safeStringify(arg));
         }
         else {
-            parts.push(safeStringify(arg));
+            parts.push(String(arg));
         }
     }
     // 信封字段由库拥有，业务对象里的同名键已经在 mergeFields 里丢掉——否则调用方能用

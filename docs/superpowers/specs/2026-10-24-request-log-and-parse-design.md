@@ -98,19 +98,21 @@
 | 配置 | 范围 | 当前分数 | `break` | 单次耗时（并发 8） |
 |---|---|---|---|---|
 | `stryker.conf.json` | `packages/honox/src/**/*.ts` − `types.ts` | 93.99% | 93.7 | ~1.5 min |
-| `stryker.logo.conf.json` | `packages/logo/src/**/*.ts` − `types.ts` | 68.19% | 68.1 | ~6 min |
+| `stryker.logo.conf.json` | `packages/logo/src/**/*.ts` − `types.ts` | 71.16% | 71.0 | ~6 min |
 
 两个都是 glob，新增文件自动进范围。`bun run mutate` 顺序跑两份，全量约 8 分钟。
 
-**现存欠账 375 个存活突变体**（logo），按文件分布从差到好：`log-files.ts` 72/127、`sinks/lark.ts` 83/191、`sinks/file.ts` 44/104、`logo.ts` 77/204、`sinks/idb.ts` 60/209、`record.ts` 39/185。已清到 100% 的是 `index.ts`、`human.ts`、`sinks/stdout.ts`、`line.ts`（`line.ts` 的 6 个 `Stryker disable` 全是时间缓存的等价突变体，理由写在代码里）。
+已清到 100% 的文件：`record.ts`、`line.ts`、`index.ts`、`human.ts`、`sinks/stdout.ts`。**现存欠账 336 个存活突变体**，按文件从差到好：`log-files.ts` 72/127、`sinks/lark.ts` 83/191、`logo.ts` 77/204、`sinks/idb.ts` 60/209、`sinks/file.ts` 44/104。
 
-下一轮开 `record.ts` 时直接用这些位置，不用重新跑一遍找：
+`record.ts` 这一轮的做法可以当模板：边界值（8 层、10000 个节点）逐个拿数字顶住，不是「覆盖到就行」；剩下 10 个突变体全部走 `Stryker disable next-line <Mutator>: <理由>`，每个理由都写清「为什么输出不变」（字符串键与 `String(sanitize(key))` 等价、URLSearchParams 的值只能是字符串所以递归深度不可观测、catch 是护栏、`typeof x !== "object"` 置 false 与原式等价）。
 
-- `sanitize` 的边界：`sanitize(null)`、8 层精确边界（`[Depth]`）、预算正好 10000 个对象（`[Truncated]`）、`Object.keys` 抛异常的 Proxy（`[Throws]`）、四条 `depth + 1` 递归分支各自拿 9 层嵌套去顶。
-- `safeStringify(undefined)` 要走 `String(value)` 那条（现在没测）。
-- `isPlainObject`：`Object.create(null)` 的对象要算纯对象（`proto === null` 分支），Date / 类实例不算。
-- `buildRecord` 的标量参数：`info("hello")` 的 msg 必须是 `hello` 不能是 `"hello"`（带引号就说明走了 `safeStringify` 而非 `String`）。
-- `options.site` / `options.fn` 目前**没有任何测试走到**（9 个存活的根源），要补：给了就写、业务字段已占同名键时不覆盖。
+**下一步建议先开 `logo.ts`（77 个，emit / flush / schedule / child / dispose 全在这里）**，再是 `sinks/idb.ts`（60 个）。`log-files.ts` 与 `sinks/lark.ts` 的存活大半是 IO 失败分支与字符串文案，收益递减，排在最后。
+
+### 5.1.3 增量闸门 `bun run mutate:diff`
+
+全仓 `break` 守的是「总分不许掉」，守不住「新代码里全是没测的分支」——一块新代码哪怕 30% 存活，只要总分还在门槛之上就没人知道。`scripts/mutate-diff.ts` 补这个洞：取 `git diff --name-only origin/main`，按包筛出 `packages/<pkg>/src/**/*.ts`（排除 `types.ts`），用该包的配置只变异这些文件。
+
+**不进合并门禁**：合并流程会先 rebase 到最新主分支，那一刻差异为空，跑了等于没跑。用法是功能分支上推之前手动跑，或以后接成 pre-push hook。
 
 ### 5.2 `traceOf(ctx)`
 

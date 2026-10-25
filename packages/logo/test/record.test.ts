@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { buildRecord, safeStringify } from "../src/record.js";
+import { buildRecord, safeStringify, sanitize } from "../src/record.js";
 
 describe("buildRecord", () => {
   test("原始值按空格拼进 msg", () => {
@@ -56,6 +56,26 @@ describe("buildRecord", () => {
     expect("msg" in buildRecord("info", [{ msg: "hack" }])).toBe(false);
   });
 
+  test("信封字段不抢键序：time / level 永远排在业务字段之后", () => {
+    // time / level 会被无条件覆盖，但若它们漏过 ENVELOPE_FIELDS 就会先占住键位，
+    // 记录的键序跟着变——日志文件的行内字段顺序对读的人是有意义的。
+    const record = buildRecord("info", [{ time: 0, level: "hack", a: 1 }]);
+    expect(Object.keys(record)).toEqual(["a", "time", "level"]);
+  });
+
+  test("options.site / options.fn 注入进去，业务数据已占同名键时不覆盖", () => {
+    const injected = buildRecord("info", [], { site: "api/bots.ts:12", fn: "getBots" });
+    expect(injected.site).toBe("api/bots.ts:12");
+    expect(injected.fn).toBe("getBots");
+
+    const kept = buildRecord("info", [{ site: "业务.ts:1", fn: "mine" }], {
+      site: "api/bots.ts:12",
+      fn: "getBots",
+    });
+    expect(kept.site).toBe("业务.ts:1");
+    expect(kept.fn).toBe("mine");
+  });
+
   test("保留字段在多个参数之间也一律丢掉", () => {
     const record = buildRecord("warn", [{ level: "info" }, { level: "error" }]);
     expect(record.level).toBe("warn");
@@ -88,6 +108,24 @@ describe("buildRecord", () => {
 });
 
 describe("safeStringify", () => {
+  test("序列化结果是 undefined 时退回 String(value)", () => {
+    expect(safeStringify(undefined)).toBe("undefined");
+  });
+
+  test("sanitize 自己抛错时退回 String(value)，绝不把异常抛给调用方", () => {
+    // entries() 一取就炸的 Map：sanitize 会抛，safeStringify 必须接住
+    const hostile = new Proxy(new Map([[1, 2]]), {
+      get(target, prop, receiver) {
+        if (prop === "entries") {
+          throw new Error("entries 炸了");
+        }
+        return Reflect.get(target, prop, receiver);
+      },
+    });
+
+    expect(safeStringify(hostile)).toBe("[object Map]");
+  });
+
   test("普通值走 JSON", () => {
     expect(safeStringify({ a: 1 })).toBe('{"a":1}');
   });
@@ -128,6 +166,91 @@ describe("共享引用与函数", () => {
     const record = buildRecord("info", [{ cb: () => 1, list: [() => 1] }], {});
     expect(record.cb).toBe("[Function]");
     expect(record.list).toEqual(["[Function]"]);
+  });
+});
+
+// sanitize 是「日志不会把写入端炸掉」的唯一防线，它的边界值（8 层 / 10000 个节点）
+// 必须逐个钉住：变异测试里这些边界一旦偏移，断言必须变红。
+describe("sanitize 的边界", () => {
+  const nest = (levels: number, wrap: (value: unknown) => unknown): unknown => {
+    let value: unknown = "bottom";
+    for (let i = 0; i < levels; i += 1) {
+      value = wrap(value);
+    }
+    return value;
+  };
+
+  test("标量原样返回（不进 WeakSet：null / 原始值进去会抛）", () => {
+    expect(sanitize(null)).toBeNull();
+    expect(sanitize(undefined)).toBeUndefined();
+    expect(sanitize(42)).toBe(42);
+    expect(sanitize("x")).toBe("x");
+    expect(sanitize(true)).toBe(true);
+    expect(sanitize(10n)).toBe("10");
+  });
+
+  test("第 8 层才是 [Depth]，四条递归路径各有自己的深度计数", () => {
+    // 顶层 depth=0，所以 9 层包装的第 9 个进去时 depth=8。
+    for (const wrap of [
+      (value: unknown) => ({ n: value }),
+      (value: unknown) => [value],
+      (value: unknown) => new Set([value]),
+      (value: unknown) => new Map([["k", value]]),
+      (value: unknown) => new Map([[{ k: 1 }, value]]),   // 非字符串键走 sanitize 的分支
+    ]) {
+      expect(JSON.stringify(sanitize(nest(9, wrap)))).toContain("[Depth]");
+    }
+
+    // 7 层还看得到内容，说明不是「一律截断」
+    expect(JSON.stringify(sanitize(nest(7, (value) => ({ n: value }))))).toContain("bottom");
+  });
+
+  test("预算正好 10000 个对象时，多出来的那个是 [Truncated]（且只有一个）", () => {
+    const wide: Record<string, unknown> = {};
+    for (let i = 0; i < 10_000; i += 1) {
+      wide[`k${i}`] = {};
+    }
+
+    const json = JSON.stringify(sanitize(wide));
+    expect(json.split("[Truncated]")).toHaveLength(2);
+  });
+
+  test("Object.keys 自己抛异常时整条记成 [Throws]", () => {
+    const hostile = new Proxy({}, {
+      ownKeys() {
+        throw new Error("ownKeys 炸了");
+      },
+    });
+    expect(sanitize(hostile)).toBe("[Throws]");
+  });
+
+  test("Map 的非字符串键按 sanitize 后的形态当键名（Date 不能退化成 toString）", () => {
+    const sanitized = sanitize(new Map([[new Date(0), 1]])) as Record<string, unknown>;
+    expect(Object.keys(sanitized)).toEqual(["1970-01-01T00:00:00.000Z"]);
+  });
+
+  test("没有 Headers 的环境（Workers 之外的老运行时）里 URLSearchParams 照样摊开", () => {
+    const originalHeaders = globalThis.Headers;
+    // @ts-expect-error 故意抽掉全局构造器
+    delete globalThis.Headers;
+    try {
+      expect(sanitize({ a: 1 })).toEqual({ a: 1 });
+      expect(sanitize(new URLSearchParams([["k", "v"]]))).toEqual({ k: "v" });
+    } finally {
+      globalThis.Headers = originalHeaders;
+    }
+  });
+
+  test("纯对象按原型判：Object.create(null) 算，null / Date / 类实例不算", () => {
+    expect(buildRecord("info", [{ a: 1 }]).msg).toBeUndefined();
+    // null 不是纯对象：走的是「其余一切拼成 msg」，不是 safeStringify 的带引号形态
+    expect(buildRecord("info", [null]).msg).toBe("null");
+    expect(buildRecord("info", [Object.assign(Object.create(null), { a: 1 })]).a).toBe(1);
+    expect(buildRecord("info", [new Date(0)]).msg).toContain("1970-01-01");
+    class Thing {
+      value = 1;
+    }
+    expect(buildRecord("info", [new Thing()]).msg).toContain('"value":1');
   });
 });
 
