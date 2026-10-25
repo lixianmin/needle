@@ -1,5 +1,4 @@
-import { Hono } from "hono";
-import type { HonoxApp, HonoxEnv } from "@needle/honox";
+import type { HonoxApp } from "@needle/honox";
 import { createBotsApi } from "./bots.js";
 import { createHealthApi } from "./health.js";
 import { createHomeApi } from "./home.js";
@@ -30,17 +29,17 @@ const API_PREFIX = "/api/v1";
 export function registerApis(app: HonoxApp): void {
   app.route("/", createHomeApi());
   app.route("/", createHealthApi());
+  app.route(`${API_PREFIX}/login`, createLoginApi());
+  app.route(`${API_PREFIX}/bots`, createBotsApi());
 
-  // 业务面：版本组。注意不能用 `const v1 = app.route(...)`——Hono 的 route() 返回的是
-  // 父 app，拿它登记会把 /login 挂到根上；而且 route() 只在挂载那一刻拷贝旧路由，
-  // 先挂空组、后登记也无效。所以是「先建组并 basePath，组内登记，最后挂到根」。
-  const v1 = new Hono<HonoxEnv>().basePath(API_PREFIX);
-  {
-    v1.route("/login", createLoginApi());
-    v1.route("/bots", createBotsApi());
-  }
-
-  app.route("/", v1);
+  // 业务面：版本前缀只出现在这个文件里，接口组直接挂到根上。
+  //
+  // 不要用 `new Hono().basePath(API_PREFIX)` 套一层「版本组」：Hono 的 route() 在
+  // 子应用带自己的 errorHandler 时会把每个 handler 包进子应用的处理链，父层
+  // `app.onError` 就再也收不到这个组的异常——表现为参数校验失败返回 500
+  // "Internal Server Error" 而不是 400（实测：直挂 400，套一层 500）。
+  // 也不能用 `const v1 = app.route(...)`：route() 返回父 app，从它登记会把
+  // /login 挂到根上，且只拷贝挂载那一刻的路由。
 
   // 测试台（`/`）与 mock 登录（`/api/v1/login`）必须匿名可达：页面本身就是拿 token
   // 的入口，被门禁挡住就永远拿不到第一枚 token。
