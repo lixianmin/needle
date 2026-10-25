@@ -217,6 +217,9 @@ export function createLogList(doc, render, options = {}) {
             schedule();
         },
         clear() {
+            // 清空后必须恢复跟随：内容归零不会让浏览器补发 scroll 事件，following 会
+            // 停在 false，之后新日志不再自动滚到底，面板卡在最旧的一行。
+            following = true;
             rows.length = 0;
             heights.length = 0;
             estimates.length = 0;

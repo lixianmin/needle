@@ -92,6 +92,24 @@ describe("createLogList", () => {
     expect(list.dropped()).toBe(0);
   });
 
+  // 清空发生在用户滚到顶部之后时，following 会停在 false 且没有恢复入口：
+  // 新日志进来不再自动滚到底，面板卡在最旧的一行。
+  test("清空后恢复跟随", () => {
+    const { doc, list } = setup(10_000);
+    Object.defineProperty(list.el, "clientHeight", { value: 100, configurable: true });
+    Object.defineProperty(list.el, "scrollHeight", { value: 10_000, configurable: true });
+
+    list.append(Array.from({ length: 100 }, (_, index) => index));
+    list.flush();
+
+    scrollTo(doc, list.el, 0);
+    list.flush();
+    expect(list.isFollowing()).toBe(false);
+
+    list.clear();
+    expect(list.isFollowing()).toBe(true);
+  });
+
   test("贴底时保持跟随", () => {
     const { list } = setup();
     list.append([1, 2, 3]);
