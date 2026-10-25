@@ -16,10 +16,13 @@ const OFFSET_MS = UTC_OFFSET_MINUTES * 60 * 1000;
  * 多一次比较，约 +15ns，仍然不亏。用 NaN 当“还没缓存过”：NaN 不等于自己。
  */
 let cachedSecond = Number.NaN;
+// Stryker disable next-line StringLiteral: 缓存初始值只影响性能，命中与否不改变输出（等价突变体）
 let cachedPrefix = "";
 /** `2026-10-22T15:04:05`，精确到秒，UTC+8。 */
 export function formatTime(time) {
+    // Stryker disable next-line ArithmeticOperator: 缓存键只需要自洽与“同秒同值”，换成任何等价算式的输出都一样
     const second = Math.floor((time + OFFSET_MS) / 1000);
+    // Stryker disable next-line ConditionalExpression,BlockStatement: 命中分支只是复用上次的前缀，跳过它输出不变（等价突变体）
     if (second === cachedSecond) {
         return cachedPrefix;
     }
@@ -99,8 +102,8 @@ export function parseLine(line) {
         return null;
     }
     try {
-        const parsed = JSON.parse(line.slice(index));
-        return typeof parsed === "object" && parsed !== null ? parsed : null;
+        // 起点就是第一个 `{`，所以 JSON.parse 的结果必是对象：类型护栏在这里是死代码，已删。
+        return JSON.parse(line.slice(index));
     }
     catch {
         return null;

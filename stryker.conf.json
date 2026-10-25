@@ -9,7 +9,7 @@
     "!packages/honox/src/types.ts"
   ],
   "coverageAnalysis": "off",
-  "concurrency": 4,
+  "concurrency": 8,
   "timeoutMS": 30000,
   "thresholds": {
     "high": 95,

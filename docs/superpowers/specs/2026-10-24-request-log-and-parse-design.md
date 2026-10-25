@@ -91,6 +91,27 @@
 
 评估过但**未采纳**：`sanitize` 的「平铺标量对象不递归」快路径。实测省 4 ns/条（标量对象 -14 ns，带数组的对象反而 +10 ns），不值得为安全网代码加分支。
 
+#### 5.1.2 变异测试范围与现存欠账（2026-10-25）
+
+`@needle/logo` 的日志落盘（`record.ts` / `line.ts` / 各 sink）原本不在 Stryker 范围里，只有行覆盖——而 AGENTS.md §11.6 点名这类关键路径必须进。现在**两个包各自一份配置、各自一个 `break`**，因为 Stryker 只支持全局阈值，合成一个会让 honox 的 93.7 被 logo 的欠账稀释：
+
+| 配置 | 范围 | 当前分数 | `break` | 单次耗时（并发 8） |
+|---|---|---|---|---|
+| `stryker.conf.json` | `packages/honox/src/**/*.ts` − `types.ts` | 93.99% | 93.7 | ~1.5 min |
+| `stryker.logo.conf.json` | `packages/logo/src/**/*.ts` − `types.ts` | 68.19% | 68.1 | ~6 min |
+
+两个都是 glob，新增文件自动进范围。`bun run mutate` 顺序跑两份，全量约 8 分钟。
+
+**现存欠账 375 个存活突变体**（logo），按文件分布从差到好：`log-files.ts` 72/127、`sinks/lark.ts` 83/191、`sinks/file.ts` 44/104、`logo.ts` 77/204、`sinks/idb.ts` 60/209、`record.ts` 39/185。已清到 100% 的是 `index.ts`、`human.ts`、`sinks/stdout.ts`、`line.ts`（`line.ts` 的 6 个 `Stryker disable` 全是时间缓存的等价突变体，理由写在代码里）。
+
+下一轮开 `record.ts` 时直接用这些位置，不用重新跑一遍找：
+
+- `sanitize` 的边界：`sanitize(null)`、8 层精确边界（`[Depth]`）、预算正好 10000 个对象（`[Truncated]`）、`Object.keys` 抛异常的 Proxy（`[Throws]`）、四条 `depth + 1` 递归分支各自拿 9 层嵌套去顶。
+- `safeStringify(undefined)` 要走 `String(value)` 那条（现在没测）。
+- `isPlainObject`：`Object.create(null)` 的对象要算纯对象（`proto === null` 分支），Date / 类实例不算。
+- `buildRecord` 的标量参数：`info("hello")` 的 msg 必须是 `hello` 不能是 `"hello"`（带引号就说明走了 `safeStringify` 而非 `String`）。
+- `options.site` / `options.fn` 目前**没有任何测试走到**（9 个存活的根源），要补：给了就写、业务字段已占同名键时不覆盖。
+
 ### 5.2 `traceOf(ctx)`
 
 ```ts

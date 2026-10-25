@@ -51,12 +51,18 @@ describe("formatLine", () => {
       "[I] bots.ts:15 {",
     );
   });
-});
 
-describe("parseLine", () => {
-  test("能把 JSON 载荷取回来", () => {
-    const line = formatLine({ ...base, msg: "burst", seq: 1, total: 2 });
-    expect(parseLine(line)).toEqual({ msg: "burst", seq: 1, total: 2 });
+  test("fn 是空串时不出 [()]（与没给一样）", () => {
+    expect(formatLine({ ...base, fn: "", msg: "x" })).toBe('2026-10-22T08:00:00 [I] {"msg":"x"}');
+    expect(formatLine({ ...base, site: "a.ts:1", fn: "", msg: "x" })).toBe(
+      '2026-10-22T08:00:00 [I] a.ts:1 {"msg":"x"}',
+    );
+  });
+
+  test("不认识的级别出 [?]，不抛", () => {
+    expect(formatLine({ time: at, level: "verbose" as never, msg: "x" })).toBe(
+      '2026-10-22T08:00:00 [?] {"msg":"x"}',
+    );
   });
 
   test("外部手搓的记录带循环引用也不炸：退回 safeStringify", () => {
@@ -67,6 +73,27 @@ describe("parseLine", () => {
 
     expect(() => formatLine(record)).not.toThrow();
     expect(formatLine(record)).toContain("[Circular]");
+  });
+});
+
+describe("parseLine", () => {
+  test("能把 JSON 载荷取回来", () => {
+    const line = formatLine({ ...base, msg: "burst", seq: 1, total: 2 });
+    expect(parseLine(line)).toEqual({ msg: "burst", seq: 1, total: 2 });
+  });
+
+  test("畸形行返回 null", () => {
+    expect(parseLine("not a log line")).toBeNull();
+    expect(parseLine("2026-10-22T08:00:00 [I] {broken")).toBeNull();
+    // 没有 `{` 就先挡下：不能把末尾那个字符当载荷丢给 JSON.parse
+    expect(parseLine("123")).toBeNull();
+    expect(parseLine("true")).toBeNull();
+  });
+
+  test("没有前缀、JSON 就从第 0 位开始时也解得开", () => {
+    expect(parseLine('{"a":1}')).toEqual({ a: 1 });
+    // 第一个 { 在内层，切出来的那段不是合法 JSON，走 catch
+    expect(parseLine("[] {oops}")).toBeNull();
   });
 });
 

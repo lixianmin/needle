@@ -34,6 +34,12 @@ describe("displayNumber", () => {
     expect(displayNumber(36290560)).toBe("34.61M");
     expect(displayNumber(5000)).toBe("4.88K");
   });
+
+  test("1024 这个边界本身就算「大于 1K」，负数按绝对值判", () => {
+    expect(displayNumber(1023)).toBe("1023");
+    expect(displayNumber(1024)).toBe("1.00K");
+    expect(displayNumber(-1024)).toBe("-1.00K");
+  });
 });
 
 describe("formatDuration", () => {
@@ -52,5 +58,11 @@ describe("formatDuration", () => {
     expect(formatDuration(3_600_000)).toBe("1h 00m");
     expect(formatDuration(86_400_000)).toBe("1d 0h");
     expect(formatDuration(-12_300)).toBe("-12.3s");
+  });
+
+  test("非有限值原样返回（不落到 toFixed）", () => {
+    expect(formatDuration(Number.NaN)).toBe("NaN");
+    expect(formatDuration(Number.POSITIVE_INFINITY)).toBe("Infinity");
+    expect(formatDuration(Number.NEGATIVE_INFINITY)).toBe("-Infinity");
   });
 });

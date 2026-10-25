@@ -1,0 +1,30 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "testRunner": "command",
+  "commandRunner": {
+    "command": "bun test packages/logo/test"
+  },
+  "mutate": [
+    "packages/logo/src/**/*.ts",
+    "!packages/logo/src/types.ts"
+  ],
+  "coverageAnalysis": "off",
+  "concurrency": 8,
+  "timeoutMS": 30000,
+  "thresholds": {
+    "high": 95,
+    "low": 68.1,
+    "break": 68.1
+  },
+  "reporters": [
+    "clear-text",
+    "progress",
+    "html"
+  ],
+  "html": {
+    "fileName": "reports/mutation/logo.html"
+  },
+  "incremental": false,
+  "tempDirName": ".stryker-tmp",
+  "disableTypeChecks": false
+}

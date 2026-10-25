@@ -1,6 +1,6 @@
 {
   "name": "needle",
-  "version": "0.3.89",
+  "version": "0.3.90",
   "private": true,
   "type": "module",
   "workspaces": [
@@ -22,8 +22,8 @@
     "example:build": "cd examples/honox-app && bun run build",
     "example": "cd examples/honox-app && bun dist/index.js",
     "example:typecheck": "cd examples/honox-app && bunx tsc --noEmit",
-    "mutate": "bunx stryker run --inPlace",
-    "mutate:full": "bunx stryker run --inPlace --force",
+    "mutate": "bunx stryker run --inPlace && bunx stryker run --inPlace stryker.logo.conf.json",
+    "mutate:full": "bunx stryker run --inPlace --force && bunx stryker run --inPlace stryker.logo.conf.json --force",
     "coverage": "bun test --coverage-reporter=lcov --coverage-dir=coverage && bun scripts/check-coverage.ts"
   },
   "devDependencies": {
