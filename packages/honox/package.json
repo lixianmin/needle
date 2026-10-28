@@ -39,7 +39,7 @@
     "mongodb": "^7"
   },
   "devDependencies": {
-    "hono": "^4.13.13",
+    "hono": "^4.13.14",
     "mongodb": "^7.7.0"
   },
   "peerDependenciesMeta": {
