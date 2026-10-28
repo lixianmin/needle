@@ -34,6 +34,7 @@ export function createFileSink(options) {
     /** 过期归档每次进程只清一次：低流量时没有轮转，靠它兜底。 */
     let pruned = false;
     function ensureDir() {
+        // Stryker disable next-line ConditionalExpression: recursive: true 的 mkdir 对已存在的目录是空操作，这条判断只为省一次系统调用
         if (!existsSync(options.dir)) {
             mkdirSync(options.dir, { recursive: true });
         }
@@ -61,12 +62,9 @@ export function createFileSink(options) {
         if (bytes.has(level)) {
             return;
         }
-        try {
-            bytes.set(level, statSync(file).size);
-        }
-        catch {
-            bytes.set(level, 0);
-        }
+        // `throwIfNoEntry: false`：文件还不存在时返回 undefined，按 0 起算。
+        // 比 try/catch 少一层：那条 catch 只能装「没有这个文件」一句话，空掉它也等价。
+        bytes.set(level, statSync(file, { throwIfNoEntry: false })?.size ?? 0);
     }
     /** 同一毫秒内两次轮转不能让后者覆盖前者，那批日志就永久丢了。 */
     function archivePath(level, stamp) {
@@ -87,17 +85,21 @@ export function createFileSink(options) {
         prune();
     }
     function write(level, lines) {
+        // Stryker disable next-line ConditionalExpression,BlockStatement: 调用点只会为有内容的桶调 write（桶是「有行才建」的），这条是护栏
         if (lines.length === 0) {
             return;
         }
         const file = join(options.dir, `${level}.log`);
         const text = `${lines.join("\n")}\n`;
+        // Stryker disable next-line StringLiteral: Buffer.byteLength 的默认编码就是 utf8
         const size = Buffer.byteLength(text, "utf8");
         seed(level, file);
         const current = bytes.get(level) ?? 0;
+        // Stryker disable next-line ConditionalExpression,EqualityOperator: current 恒 ≥ 0，且首批必然走 rotate 的「文件不存在」早退，`current > 0` 与恒真同解
         if (current > 0 && current + size > maxBytes) {
             rotate(file, level);
         }
+        // Stryker disable next-line StringLiteral: appendFileSync 的默认编码就是 utf8
         appendFileSync(file, text, "utf8");
         bytes.set(level, (bytes.get(level) ?? 0) + size);
     }

@@ -98,11 +98,11 @@
 | 配置 | 范围 | 当前分数 | `break` | 单次耗时（并发 8） |
 |---|---|---|---|---|
 | `stryker.conf.json` | `packages/honox/src/**/*.ts` − `types.ts` | 93.99% | 93.7 | ~1.5 min |
-| `stryker.logo.conf.json` | `packages/logo/src/**/*.ts` − `types.ts` | 81.89% | 81.8 | ~6.5 min |
+| `stryker.logo.conf.json` | `packages/logo/src/**/*.ts` − `types.ts` | 85.7~85.8% | 85.5 | ~6.5 min |
 
-两个都是 glob，新增文件自动进范围。`bun run mutate` 顺序跑两份，全量约 8 分钟。
+两个都是 glob，新增文件自动进范围。`bun run mutate` 顺序跑两份，全量约 8 分钟。**并发度固定 4**：调到 8 会把这台机器的 10 个核吃满，开发时会明显卡顿；变异测试是后台活，不值得抢占交互算力。
 
-已清到 100% 的文件：`record.ts`、`line.ts`、`logo.ts`、`sinks/idb.ts`、`index.ts`、`human.ts`、`sinks/stdout.ts`。**现存欠账 199 个存活突变体**：`sinks/lark.ts` 83/191、`log-files.ts` 72/127、`sinks/file.ts` 44/104。
+已清到 100% 的文件：`record.ts`、`line.ts`、`logo.ts`、`sinks/idb.ts`、`sinks/file.ts`、`index.ts`、`human.ts`、`sinks/stdout.ts`。**现存欠账 154~155 个存活突变体**：`sinks/lark.ts` 83/191、`log-files.ts` 72/127。
 
 两轮的做法可以当模板：
 
@@ -117,7 +117,14 @@
 - **删掉与 `db === null` 逐条重合的 `failed` 标志**，并把 `pending` 计数换成 `queuedWork` 布尔：计数只在「是否 > 0」处被读，±1 的写法都是等价突变体。
 - 剩下的等价项（`overflow <= 0` 与循环条件重复、`cursor !== null` 在计数保证下恒真、`level === null` 后接的 `LEVELS[null]` 本来就过滤空）逐个 `Stryker disable` 并写理由。
 
-**下一步开 `sinks/file.ts`（44 个）**：与 idb 同类（IO 失败分支），但用的是真文件系统，可以注入 `fs` 或拿临时目录造错误。`log-files.ts` 与 `sinks/lark.ts` 的存活大半是错误文案与配额时序，收益递减，排在最后。
+`file.ts`（57.7% → 100%）的关键是**用真实字节数当断言**，而不是靠字符串长度猜：
+
+- 上限类的判断（轮转阈值、`size` 累加、默认 10MB）全部改成「先用 `formatLine` 算出这条记录的整行字节数，再拿它当 `maxBytes`」——手写 `"x".repeat(40)` 时前缀长度一变，断言就悄悄失效了。
+- 归档名直接断言完整文件名（`error-2023-11-14T22-13-20-000Z.log`），才压得住时间戳正则与去重后缀的变异。
+- 清理的边界造真实 mtime：8 天前的删、6 天前的留、正好落在 cutoff 上的留；正在写的 `info.log` 与 `notes-1.txt` 不动（断言旧内容还在——只断言「文件还在」会被「删掉后重建」骗过）。
+- 一处简化：`seed()` 的 try/catch 换成 `statSync(file, { throwIfNoEntry: false })?.size ?? 0`。那条 catch 只能装「没有这个文件」一句话，空掉它也等价。
+
+**剩下两个文件建议就停在这里**：`sinks/lark.ts`（83）的存活集中在飞书配额窗口与签名时序，`log-files.ts`（72）集中在读文件失败的文案。杀它们要把时序和文案抄进断言，维护成本换来的保障很低——真要动，先在 `docs/02.todo.md` 里记一条「何时值得」。
 
 ### 5.1.3 全量变异挪到「合并前」、增量跑法 `bun run mutate:diff`
 

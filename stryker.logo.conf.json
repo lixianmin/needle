@@ -9,12 +9,12 @@
     "!packages/logo/src/types.ts"
   ],
   "coverageAnalysis": "off",
-  "concurrency": 8,
+  "concurrency": 4,
   "timeoutMS": 30000,
   "thresholds": {
     "high": 95,
-    "low": 81.8,
-    "break": 81.8
+    "low": 85.5,
+    "break": 85.5
   },
   "reporters": [
     "clear-text",
