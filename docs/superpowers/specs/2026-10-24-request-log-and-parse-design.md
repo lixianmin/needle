@@ -98,21 +98,29 @@
 | 配置 | 范围 | 当前分数 | `break` | 单次耗时（并发 8） |
 |---|---|---|---|---|
 | `stryker.conf.json` | `packages/honox/src/**/*.ts` − `types.ts` | 93.99% | 93.7 | ~1.5 min |
-| `stryker.logo.conf.json` | `packages/logo/src/**/*.ts` − `types.ts` | 71.16% | 71.0 | ~6 min |
+| `stryker.logo.conf.json` | `packages/logo/src/**/*.ts` − `types.ts` | 77.20% | 77.1 | ~6 min |
 
 两个都是 glob，新增文件自动进范围。`bun run mutate` 顺序跑两份，全量约 8 分钟。
 
-已清到 100% 的文件：`record.ts`、`line.ts`、`index.ts`、`human.ts`、`sinks/stdout.ts`。**现存欠账 336 个存活突变体**，按文件从差到好：`log-files.ts` 72/127、`sinks/lark.ts` 83/191、`logo.ts` 77/204、`sinks/idb.ts` 60/209、`sinks/file.ts` 44/104。
+已清到 100% 的文件：`record.ts`、`line.ts`、`logo.ts`、`index.ts`、`human.ts`、`sinks/stdout.ts`。**现存欠账 259 个存活突变体**：`log-files.ts` 72/127、`sinks/lark.ts` 83/191、`sinks/idb.ts` 60/209、`sinks/file.ts` 44/104。
 
-`record.ts` 这一轮的做法可以当模板：边界值（8 层、10000 个节点）逐个拿数字顶住，不是「覆盖到就行」；剩下 10 个突变体全部走 `Stryker disable next-line <Mutator>: <理由>`，每个理由都写清「为什么输出不变」（字符串键与 `String(sanitize(key))` 等价、URLSearchParams 的值只能是字符串所以递归深度不可观测、catch 是护栏、`typeof x !== "object"` 置 false 与原式等价）。
+两轮的做法可以当模板：
 
-**下一步建议先开 `logo.ts`（77 个，emit / flush / schedule / child / dispose 全在这里）**，再是 `sinks/idb.ts`（60 个）。`log-files.ts` 与 `sinks/lark.ts` 的存活大半是 IO 失败分支与字符串文案，收益递减，排在最后。
+- **边界值拿数字顶住**，不是「覆盖到就行」：8 层才是 `[Depth]`、预算正好 10000 个对象时多出来那个才是 `[Truncated]`、栈帧的第 8 层、定时器只排一个。
+- **难测的纯逻辑抽出来再测**：栈帧解析（`parseFrame` / `pruneInternalFrames`）原来只能靠真栈，凑不出「无函数名」「Windows 反斜杠」「行尾多余空白」这些边角；抽成两个导出函数（不进包入口）后，合成帧逐个格式钉住 `FRAME_PATTERN`，顺带把 `dirOf` 里 `slice(0, -1)` 的隐性 bug 显式化。
+- **等价突变体逐个 `Stryker disable next-line <Mutator>: <理由>`**，理由必须写清「为什么输出不变」（惰性 `.*?` 会吃掉多余空格、`LEVELS["off"]` 是 undefined 所以守卫只为省查表、空固定字段时展开只多一次拷贝、`Error.stack` 恒为字符串所以兜底不可达）。26 个豁免全部带理由，没有 `disable all`。
 
-### 5.1.3 增量闸门 `bun run mutate:diff`
+**下一步开 `sinks/idb.ts`（60 个）**：它有 fake-indexeddb 测试基座，主要缺口在事务/版本冲突那几条路径。`log-files.ts` 与 `sinks/lark.ts` 的存活大半是 IO 失败分支与错误文案，收益递减，排在最后。
 
-全仓 `break` 守的是「总分不许掉」，守不住「新代码里全是没测的分支」——一块新代码哪怕 30% 存活，只要总分还在门槛之上就没人知道。`scripts/mutate-diff.ts` 补这个洞：取 `git diff --name-only origin/main`，按包筛出 `packages/<pkg>/src/**/*.ts`（排除 `types.ts`），用该包的配置只变异这些文件。
+### 5.1.3 全量变异挪到「合并前」、增量跑法 `bun run mutate:diff`
 
-**不进合并门禁**：合并流程会先 rebase 到最新主分支，那一刻差异为空，跑了等于没跑。用法是功能分支上推之前手动跑，或以后接成 pre-push hook。
+全仓变异 8 分钟放进合并门禁太贵（门禁本身要在文件锁里跑，锁住的是所有并发合并）。改成：**全量 `bun run mutate` 在功能分支上、进锁之前跑**；门禁只跑 build / tsc / test / coverage / example:typecheck / smoke。
+
+代价与补偿：门禁不再自动守住变异分数。补偿是 `scripts/mutate-diff.ts`——取 `git diff --name-only origin/main`（rebase 之后照样能看到本分支的改动），按包筛出 `packages/<pkg>/src/**/*.ts`（排除 `types.ts`），只变异这些文件，几十秒出一条「你这次改动留下了哪些没杀掉的突变体」。
+
+**它不做门禁判定**：阈值是按全仓定的，套到「只碰了本来就欠账的 log-files.ts」这种子集上会误判。它生成一份临时配置（`break: null`、`reporters: json`）跑，然后把存活清单打出来；权威判定仍然是合并前的全量跑。
+
+`record.ts` / `line.ts` / `logo.ts` / `index.ts` / `human.ts` / `sinks/stdout.ts` 现在都是 100%；判分口径与等价豁免的写法见 5.1.2。
 
 ### 5.2 `traceOf(ctx)`
 

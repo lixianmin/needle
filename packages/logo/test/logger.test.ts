@@ -316,3 +316,397 @@ describe("dispose 与 child", () => {
     expect(calls.length).toBe(afterDispose);
   });
 });
+
+/** 抓住 console.error，用来断言「坏 sink 只提示一次」这类行为。 */
+async function withConsoleError<T>(
+  run: (seen: unknown[], messages: unknown[]) => T,
+): Promise<T> {
+  const seen: unknown[] = [];
+  const messages: unknown[] = [];
+  const original = console.error;
+  console.error = (...args: unknown[]) => {
+    seen.push(args[0]);
+    messages.push(args[1]);
+  };
+  try {
+    return await run(seen, messages);
+  } finally {
+    console.error = original;
+  }
+}
+
+describe("stackLevel 关闭时 error 也不带栈", () => {
+  // 关闭采集是「连 error 都不要栈」，与「info 不带栈」是两条不同的路径。
+  test('stackLevel: "off" 时用字符串参数打 error，记录里没有 stack', () => {
+    const { calls, sink } = collector();
+    const logger = newLogger({ ...base, stackLevel: "off", sinks: [sink] });
+
+    logger.error("boom");
+
+    expect("stack" in (calls.flat()[0] ?? {})).toBe(false);
+  });
+
+  test("默认 stackLevel 下字符串参数也带栈（否则等于悄悄关了）", () => {
+    const { calls, sink } = collector();
+    const logger = newLogger({ ...base, sinks: [sink] });
+
+    logger.error("boom");
+
+    expect(calls.flat()[0]?.stack).toContain("logger.test.ts");
+  });
+});
+
+describe("栈裁剪", () => {
+  // 栈里出现库自己就等于没裁剪：排障时第一眼看的是调用方，不是我们的内部帧。
+  // 裁剪靠「拿本文件所在目录当基准」实现，写死路径或正则写错都会让内部帧漏出来。
+  test("error 的栈剪掉库内部帧，头行仍是 Error，调用方还在", () => {
+    const { calls, sink } = collector();
+    const logger = newLogger({ ...base, sinks: [sink] });
+
+    logger.error("boom");
+
+    const stack = calls.flat()[0]?.stack ?? "";
+    expect(stack.startsWith("Error\n")).toBe(true);
+    expect(stack).toContain("logger.test.ts");
+    expect(stack).not.toContain("logo/src/");
+  });
+});
+
+describe("坏 sink 的报错", () => {
+  test("只提示一次：同一条坏 sink 每批都抛，也不该刷屏", async () => {
+    await withConsoleError((seen, messages) => {
+      const { calls, sink } = collector();
+      const logger = newLogger({
+        ...base,
+        sinks: [
+          () => {
+            throw new Error("bad sink");
+          },
+          sink,
+        ],
+      });
+
+      logger.info("a");
+      logger.flush();
+      logger.info("b");
+      logger.flush();
+
+      expect(seen).toHaveLength(1);
+      // 提示得能定位：前缀说明是哪个库，第二个参数带出原因
+      expect(String(seen[0])).toContain("[logo]");
+      expect(String(messages[0])).toContain("bad sink");
+      expect(calls).toHaveLength(2);
+    });
+  });
+
+  test("没人抛错时一次都不提示（否则真出错时看不出来）", async () => {
+    await withConsoleError((seen) => {
+      const { calls, sink } = collector();
+      const logger = newLogger({ ...base, sinks: [sink] });
+
+      logger.info("x");
+      logger.flush();
+
+      expect(calls).toHaveLength(1);
+      expect(seen).toHaveLength(0);
+    });
+  });
+});
+
+describe("定时器", () => {
+  test("到点自动写出", async () => {
+    const { calls, sink } = collector();
+    const logger = newLogger({ batch: true, flushIntervalMs: 10, sinks: [sink] });
+
+    logger.info("x");
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(calls.flat().map((record) => record.msg)).toEqual(["x"]);
+    logger.dispose();
+  });
+
+  test("手动 flush 会取消已排的定时器，不会写两遍", async () => {
+    const { calls, sink } = collector();
+    const logger = newLogger({ batch: true, flushIntervalMs: 10, sinks: [sink] });
+
+    logger.info("x");
+    logger.flush();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(calls).toHaveLength(1);
+    logger.dispose();
+  });
+
+  test("flushIntervalMs 为 0 时不装定时器，只能手动 flush", async () => {
+    const { calls, sink } = collector();
+    const logger = newLogger({ batch: true, flushIntervalMs: 0, sinks: [sink] });
+
+    logger.info("x");
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(calls).toHaveLength(0);
+
+    logger.flush();
+    expect(calls).toHaveLength(1);
+    logger.dispose();
+  });
+
+  test("batch:false 时也不装定时器", async () => {
+    const { calls, sink } = collector();
+    const logger = newLogger({ batch: false, flushIntervalMs: 10, sinks: [sink] });
+
+    logger.info("x");
+    await new Promise((resolve) => setTimeout(resolve, 30));
+
+    // 每条已经立刻写过了，定时器不该再补一次空批
+    expect(calls).toHaveLength(1);
+    logger.dispose();
+  });
+
+  test("排定时器时调 unref：一批没到期的日志不该让进程挂着", () => {
+    const { sink } = collector();
+    const original = globalThis.setTimeout;
+    let unrefs = 0;
+    globalThis.setTimeout = (() => ({
+      unref: () => {
+        unrefs += 1;
+      },
+    })) as unknown as typeof setTimeout;
+
+    try {
+      const logger = newLogger({ batch: true, flushIntervalMs: 10, sinks: [sink] });
+      logger.info("x");
+      expect(unrefs).toBe(1);
+      logger.dispose();
+    } finally {
+      globalThis.setTimeout = original;
+    }
+  });
+});
+
+describe("dispose 清理", () => {
+  test("逐个关闭带 close 的 sink，this 指向 sink 本身", () => {
+    const closed: unknown[] = [];
+    const sink = Object.assign(() => {}, {
+      close(this: unknown) {
+        closed.push(this);
+      },
+    });
+    const logger = newLogger({ ...base, sinks: [sink as never] });
+
+    logger.dispose();
+
+    expect(closed).toEqual([sink]);
+  });
+
+  test("一个 sink 的 close 抛错不影响后续 sink，异常也不会漏出去", async () => {
+    await withConsoleError((seen) => {
+      const closed: string[] = [];
+      const bad = Object.assign(() => {}, {
+        close() {
+          throw new Error("close 炸了");
+        },
+      });
+      const good = Object.assign(() => {}, {
+        close() {
+          closed.push("good");
+        },
+      });
+      const logger = newLogger({ ...base, sinks: [bad as never, good as never] });
+
+      expect(() => logger.dispose()).not.toThrow();
+      expect(closed).toEqual(["good"]);
+      expect(seen).toHaveLength(1);
+    });
+  });
+
+  test("dispose 之后不再进缓冲（连 sink 都不会被叫）", () => {
+    const { calls, sink } = collector();
+    const logger = newLogger({ ...base, sinks: [sink] });
+
+    logger.dispose();
+    logger.info("after");
+
+    expect(calls).toHaveLength(0);
+  });
+});
+
+describe("其它边界", () => {
+  test("removeSink 摘一个不在列表里的 sink 是空操作", () => {
+    const { calls, sink } = collector();
+    const logger = newLogger({ ...base, sinks: [sink] });
+
+    logger.removeSink(() => {});
+    logger.info("x");
+    logger.flush();
+
+    expect(calls).toHaveLength(1);
+  });
+
+  test("child 的 name：显式给的优先，没给就继承父的", () => {
+    const { calls, sink } = collector();
+    const parent = newLogger({ ...base, name: "parent", sinks: [sink] });
+
+    parent.child({ a: 1 }).info("no-name");
+    parent.child({ name: "child" }).info("with-name");
+    parent.flush();
+
+    expect(calls.flat().map((record) => [record.msg, record.name])).toEqual([
+      ["no-name", "parent"],
+      ["with-name", "child"],
+    ]);
+  });
+});
+
+describe("缓冲与定时器的边界（用假的 setTimeout 观测有没有装定时器）", () => {
+  /** 把 setTimeout / clearTimeout 换成可观测的假实现：只记账，不真触发。 */
+  async function withFakeTimers<T>(
+    run: (seen: { scheduled: number; cleared: number }) => T,
+  ): Promise<T> {
+    const originalSet = globalThis.setTimeout;
+    const originalClear = globalThis.clearTimeout;
+    const seen = { scheduled: 0, cleared: 0 };
+    globalThis.setTimeout = (() => {
+      seen.scheduled += 1;
+      return { unref: () => {} } as unknown as ReturnType<typeof setTimeout>;
+    }) as unknown as typeof setTimeout;
+    globalThis.clearTimeout = (() => {
+      seen.cleared += 1;
+    }) as unknown as typeof clearTimeout;
+    try {
+      return await run(seen);
+    } finally {
+      globalThis.setTimeout = originalSet;
+      globalThis.clearTimeout = originalClear;
+    }
+  }
+
+  test("flush 会取消已排的定时器", async () => {
+    await withFakeTimers((seen) => {
+      const { sink } = collector();
+      const logger = newLogger({ batch: true, flushIntervalMs: 10, sinks: [sink] });
+
+      logger.info("x");
+      expect(seen.scheduled).toBe(1);
+      logger.flush();
+      expect(seen.cleared).toBe(1);
+      logger.dispose();
+    });
+  });
+
+  test("已经有排着的定时器时不再重复排（一批日志只一个定时器）", async () => {
+    await withFakeTimers((seen) => {
+      const { sink } = collector();
+      const logger = newLogger({ batch: true, flushIntervalMs: 10, sinks: [sink] });
+
+      logger.info("a");
+      logger.info("b");
+      logger.info("c");
+      expect(seen.scheduled).toBe(1);
+      logger.dispose();
+    });
+  });
+
+  test("flushIntervalMs 为 0 时根本不排定时器", async () => {
+    await withFakeTimers((seen) => {
+      const { sink } = collector();
+      const logger = newLogger({ batch: true, flushIntervalMs: 0, sinks: [sink] });
+
+      logger.info("x");
+      expect(seen.scheduled).toBe(0);
+      logger.dispose();
+    });
+  });
+
+  test("dispose 会取消已排的定时器", async () => {
+    await withFakeTimers((seen) => {
+      const { sink } = collector();
+      const logger = newLogger({ batch: true, flushIntervalMs: 10, sinks: [sink] });
+
+      logger.info("x");
+      logger.dispose();
+      expect(seen.cleared).toBe(1);
+    });
+  });
+
+  test("运行时不支持 unref 也不炸（Workers 的 setTimeout 返回值是数字）", async () => {
+    const originalSet = globalThis.setTimeout;
+    globalThis.setTimeout = (() => 1) as unknown as typeof setTimeout;
+    try {
+      const { sink } = collector();
+      const logger = newLogger({ batch: true, flushIntervalMs: 10, sinks: [sink] });
+
+      expect(() => logger.info("x")).not.toThrow();
+      logger.dispose();
+    } finally {
+      globalThis.setTimeout = originalSet;
+    }
+  });
+
+  test("不传 batch 时按 hasStdout() 决定：本进程有 stdout，因此攒批", () => {
+    const { calls, sink } = collector();
+    // 只给 flushIntervalMs: 0（不装定时器），batch 走默认值
+    const logger = newLogger({ flushIntervalMs: 0, sinks: [sink] });
+
+    logger.info("a");
+    logger.info("b");
+    expect(calls).toHaveLength(0);   // 攒着，没有「每条立刻写出」
+
+    logger.flush();
+    expect(calls.flat().map((record) => record.msg)).toEqual(["a", "b"]);
+    logger.dispose();
+  });
+
+  test("一个 sink 都没有时照常工作（默认空数组没有被塞进假元素）", async () => {
+    await withConsoleError((seen) => {
+      const logger = newLogger({ ...base });
+
+      expect(() => {
+        logger.info("x");
+        logger.flush();
+      }).not.toThrow();
+      expect(seen).toHaveLength(0);
+      logger.dispose();
+    });
+  });
+
+  test("flush 之后缓冲清空：下一批只有新记录", () => {
+    const { calls, sink } = collector();
+    const logger = newLogger({ ...base, sinks: [sink] });
+
+    logger.info("a");
+    logger.flush();
+    logger.info("b");
+    logger.flush();
+
+    expect(calls.map((batch) => batch.map((record) => record.msg))).toEqual([["a"], ["b"]]);
+  });
+
+  test("dispose 之后即使手动 flush 也不会再写出", () => {
+    const { calls, sink } = collector();
+    const logger = newLogger({ ...base, sinks: [sink] });
+
+    logger.dispose();
+    logger.info("after");
+    logger.flush();
+
+    expect(calls).toHaveLength(0);
+  });
+
+  test("没有 close 的 sink 跳过关闭流程，不影响旁边有 close 的", async () => {
+    await withConsoleError((seen) => {
+      const closed: string[] = [];
+      const plain = () => {};
+      const closable = Object.assign(() => {}, {
+        close() {
+          closed.push("closed");
+        },
+      });
+      const logger = newLogger({ ...base, sinks: [plain, closable as never] });
+
+      expect(() => logger.dispose()).not.toThrow();
+      expect(closed).toEqual(["closed"]);
+      // 没有 close 不是错误，不能走进 catch 里报「sink 抛错」
+      expect(seen).toHaveLength(0);
+    });
+  });
+});

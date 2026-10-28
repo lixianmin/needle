@@ -9,13 +9,20 @@ const DEFAULT_FLUSH_INTERVAL_MS = 100;
 const DEFAULT_MAX_BUFFER = 10_000;
 
 /** V8 帧：`    at fn (/a/b/file.ts:12:34)` 或 `    at /a/b/file.ts:12:34`。 */
+// Stryker disable next-line Regex: `\s+(` 收成一个空格是等价变体——前面的 `(.*?)` 是惰性的，会把多出来的空格吃掉；正则本身由 frames.test.ts 逐个格式钉住
 const FRAME_PATTERN = /^\s+at\s+(?:(.*?)\s+\()?(.*?):(\d+):(\d+)\)?\s*$/;
 
 interface Frame {
   file: string;
 }
 
-function parseFrame(line: string): Frame | undefined {
+/**
+ * 从一行栈帧里取出文件路径。
+ *
+ * 导出是为了能拿合成帧做测试：真栈的格式由运行时决定，凑不出「无函数名」「Windows
+ * 反斜杠」这些边角，而它们恰恰是这里的分支。
+ */
+export function parseFrame(line: string): Frame | undefined {
   const match = FRAME_PATTERN.exec(line);
   const file = match?.[2];
   if (file === undefined || file === "") {
@@ -23,6 +30,29 @@ function parseFrame(line: string): Frame | undefined {
   }
 
   return { file };
+}
+
+/** 取目录部分。没有分隔符时返回空串（相对文件名没有「所在目录」）。 */
+function dirOf(file: string): string {
+  const index = Math.max(file.lastIndexOf("/"), file.lastIndexOf("\\"));
+  // Stryker disable next-line EqualityOperator: index 只会是 -1 或 ≥0，`<= 0` 与 `< 0` 在这里同解
+  // Stryker disable next-line StringLiteral: 非空串在这条路径上没有意义——它拼出来的前缀不会命中任何真实帧，与返回 "" 同解
+  return index < 0 ? "" : file.slice(0, index);
+}
+
+/**
+ * 剪掉与 `originFile` 同目录的所有帧。
+ *
+ * 同样导出给测试：拿合成帧就能覆盖「同一目录」「子目录」「反斜杠」这几条路径。
+ */
+export function pruneInternalFrames(frames: readonly string[], originFile: string): string[] {
+  const dir = dirOf(originFile);
+  if (dir === "") {
+    return [...frames];
+  }
+
+  // Windows 的栈里是反斜杠，两种分隔符都试。
+  return frames.filter((line) => !line.includes(`${dir}/`) && !line.includes(`${dir}\\`));
 }
 
 /**
@@ -33,20 +63,16 @@ function parseFrame(line: string): Frame | undefined {
  * 与目录布局无关。
  */
 function externalFrames(): string[] {
+  // Stryker disable next-line StringLiteral: `?? ""` 是护栏——V8/JSC/SpiderMonkey 的 Error.stack 恒为字符串
   const frames = (new Error().stack ?? "").split("\n").slice(1);
+  // Stryker disable next-line StringLiteral: 同上，split 至少产出一个元素，这个兜底用不到
   const origin = parseFrame(frames[0] ?? "");
+  // Stryker disable next-line ConditionalExpression,BlockStatement: 真栈的第一帧永远是一条 `at …` 帧，这条分支在真实输入下走不到
   if (origin === undefined) {
     return frames;
   }
 
-  const file = origin.file;
-  const dir = file.slice(0, Math.max(file.lastIndexOf("/"), file.lastIndexOf("\\")));
-  if (dir === "") {
-    return frames;
-  }
-
-  // Windows 的栈里是反斜杠，两种分隔符都试。
-  return frames.filter((line) => !line.includes(`${dir}/`) && !line.includes(`${dir}\\`));
+  return pruneInternalFrames(frames, origin.file);
 }
 
 /** 完整调用栈：只有达到 stackLevel 的级别才带上，头一行保留 "Error"。 */
@@ -224,6 +250,7 @@ function buildLogger(options: LoggerOptions, state: LoggerState): Logger {
       return;
     }
 
+    // Stryker disable next-line StringLiteral,ConditionalExpression: `LEVELS["off"]` 是 undefined，比较恒为 false——"off" 这个守卫只为省掉那次查表，等价
     const withStack = stackLevel !== "off" && LEVELS[recordLevel] >= LEVELS[stackLevel];
     // 只有要完整栈时才构造 Error（一次取帧）。info / warn / debug 零构造。
     const frames = withStack ? externalFrames() : undefined;
@@ -235,6 +262,7 @@ function buildLogger(options: LoggerOptions, state: LoggerState): Logger {
 
     // child 的固定字段在前、本次调用的字段在后：更具体的赢。
     const record =
+      // Stryker disable next-line ConditionalExpression,EqualityOperator: 空固定字段时展开成新对象只是多一次拷贝，记录内容与 identity 都不对外暴露（等价变体）
       Object.keys(fixedFields).length > 0 ? { ...fixedFields, ...built } : built;
 
     state.buffer.push(record);
@@ -304,6 +332,7 @@ function buildLogger(options: LoggerOptions, state: LoggerState): Logger {
 
     dispose() {
       state.disposed = true;
+      // Stryker disable next-line CallExpression: 排着的定时器必然对应非空缓冲，紧接着的 flush() 会自己清掉它（等价变体）
       clearTimer();
       flush();
       for (const sink of sinks) {

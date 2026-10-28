@@ -1,17 +1,21 @@
 import { execFileSync } from "node:child_process";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 
 /**
  * 只对「相对主分支改动过的源文件」跑变异测试。
  *
- * 全仓 `break` 只能守住「总分不许掉」，守不住「新代码里全是没测的分支」——
- * 一块新代码就算 30% 存活，只要总分还在门槛之上就没人知道。这条闸门补的就是
- * 这个洞：改动过的文件必须当场把突变体杀干净。
+ * 全仓 `bun run mutate` 要 8 分钟，合并门禁里跑它太贵；而全仓 break 又守不住
+ * 「新代码里全是没测的分支」——一块新代码哪怕 30% 存活，只要总分还在门槛之上
+ * 就没人知道。这个脚本补的是「改完立刻知道自己有没有留下存活突变体」，通常
+ * 十几秒到一分钟。
  *
- * 不进合并门禁：它依赖「与主分支的差异」，在合并流程里（rebase 到最新主分支
- * 之后）差异为空，跑了个寂寞。用法是推之前、或者在功能分支上手动跑。
+ * 它**不做门禁判定**：阈值是给全仓定的，套到「只改了某个本来就欠账的文件」
+ * 这种子集上会误判（比如只动了 log-files.ts，那 43% 不是这次造成的）。
+ * 权威判定仍然是合并前的 `bun run mutate` 全量跑。
  */
 
-/** 参与变异测试的包与它们各自的配置：两个包的 break 是分开 ratchet 的。 */
+/** 参与变异测试的包与各自的配置：两个包的 break 是分开 ratchet 的。 */
 export const PACKAGES = [
   { dir: "packages/honox", config: "stryker.conf.json" },
   { dir: "packages/logo", config: "stryker.logo.conf.json" },
@@ -31,40 +35,80 @@ export function pickSources(paths: readonly string[], dir: string): string[] {
   );
 }
 
-function changedPaths(base: string): string[] {
-  const out = execFileSync("git", ["diff", "--name-only", base], { encoding: "utf8" });
+interface Mutant {
+  status: string;
+  mutatorName: string;
+  location: { start: { line: number } };
+  replacement: string;
+}
 
-  return out.split("\n").filter((line) => line !== "");
+interface Report {
+  files: Record<string, { mutants: Mutant[] }>;
+}
+
+const REPORT_PATH = "reports/mutation/mutation.json";
+
+/** 临时配置：阈值关掉，报告落 JSON，其余照抄该包的正式配置。 */
+function diffConfig(configPath: string): string {
+  const config = JSON.parse(readFileSync(configPath, "utf8")) as Record<string, unknown>;
+  config.thresholds = { high: 100, low: 0, break: null };
+  config.reporters = ["json"];
+  // 正式配置里给 html reporter 的选项，换了 reporter 就没人认它了
+  delete config.html;
+
+  const out = join(".stryker-tmp", `diff-${configPath}`);
+  mkdirSync(dirname(out), { recursive: true });
+  writeFileSync(out, JSON.stringify(config, null, 2));
+  return out;
+}
+
+function summarize(files: readonly string[]): number {
+  const report = JSON.parse(readFileSync(REPORT_PATH, "utf8")) as Report;
+  let survived = 0;
+
+  for (const [file, info] of Object.entries(report.files)) {
+    const bad = info.mutants.filter((m) => m.status === "Survived" || m.status === "NoCoverage");
+    if (bad.length === 0) {
+      continue;
+    }
+
+    survived += bad.length;
+    console.log(`  ${file}：${bad.length} 个没杀掉的突变体`);
+    for (const m of bad.slice(0, 20)) {
+      console.log(`    L${m.location.start.line} ${m.mutatorName} → ${m.replacement.slice(0, 60)}`);
+    }
+
+    if (bad.length > 20) {
+      console.log(`    …还有 ${bad.length - 20} 个，明细见 ${REPORT_PATH}`);
+    }
+  }
+
+  console.log(`[mutate:diff] 共 ${files.length} 个文件、${survived} 个没杀掉`);
+  return survived;
 }
 
 function main(): void {
   const base = process.argv[2] ?? "origin/main";
-  const changed = changedPaths(base);
-  let failed = false;
+  const changed = execFileSync("git", ["diff", "--name-only", base], { encoding: "utf8" })
+    .split("\n")
+    .filter((line) => line !== "");
 
-  for (const pkg of PACKAGES) {
-    const files = pickSources(changed, pkg.dir);
-    if (files.length === 0) {
-      continue;
-    }
+  const targets = PACKAGES.map((pkg) => ({ ...pkg, files: pickSources(changed, pkg.dir) }))
+    .filter((pkg) => pkg.files.length > 0);
 
-    console.log(`[mutate:diff] ${pkg.dir}：${files.length} 个文件 → ${pkg.config}`);
-    try {
-      execFileSync("bunx", ["stryker", "run", "--inPlace", pkg.config, "--mutate", files.join(",")], {
-        stdio: "inherit",
-      });
-    } catch {
-      failed = true;
-    }
-  }
-
-  // 没有改动就是一次空跑：不是失败，但要说清楚，免得以为「测过了」。
-  if (!failed && PACKAGES.every((pkg) => pickSources(changed, pkg.dir).length === 0)) {
+  if (targets.length === 0) {
     console.log(`[mutate:diff] 相对 ${base} 没有改动过的源文件，跳过`);
+    return;
   }
 
-  if (failed) {
-    process.exitCode = 1;
+  for (const target of targets) {
+    console.log(`[mutate:diff] ${target.dir}：${target.files.length} 个文件`);
+    execFileSync(
+      "bunx",
+      ["stryker", "run", "--inPlace", diffConfig(target.config), "--mutate", target.files.join(",")],
+      { stdio: "inherit" },
+    );
+    summarize(target.files);
   }
 }
 

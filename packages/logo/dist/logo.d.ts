@@ -1,4 +1,20 @@
 import { type Level, type Sink } from "./types.js";
+interface Frame {
+    file: string;
+}
+/**
+ * 从一行栈帧里取出文件路径。
+ *
+ * 导出是为了能拿合成帧做测试：真栈的格式由运行时决定，凑不出「无函数名」「Windows
+ * 反斜杠」这些边角，而它们恰恰是这里的分支。
+ */
+export declare function parseFrame(line: string): Frame | undefined;
+/**
+ * 剪掉与 `originFile` 同目录的所有帧。
+ *
+ * 同样导出给测试：拿合成帧就能覆盖「同一目录」「子目录」「反斜杠」这几条路径。
+ */
+export declare function pruneInternalFrames(frames: readonly string[], originFile: string): string[];
 export interface LoggerOptions {
     /** 低于这个级别不记录。默认 "info"。 */
     level?: Level;
@@ -72,4 +88,5 @@ export interface Logger {
     dispose(): void;
 }
 export declare function newLogger(options?: LoggerOptions): Logger;
+export {};
 //# sourceMappingURL=logo.d.ts.map
