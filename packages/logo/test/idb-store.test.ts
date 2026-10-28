@@ -1,7 +1,7 @@
 import "fake-indexeddb/auto";
 import { describe, expect, test } from "bun:test";
 
-import { parseLine } from "../src/line.js";
+import { formatLine, parseLine } from "../src/line.js";
 import { newLogger } from "../src/logo.js";
 import { createIndexedDbStore, type IndexedDbStoreOptions } from "../src/sinks/idb.js";
 import type { Level, LogRecord } from "../src/types.js";
@@ -460,5 +460,117 @@ describe("文档里的接线", () => {
       return parsed.length >= 2 ? parsed : null;
     });
     expect(lines.map(msgOf)).toEqual(["first", "second"]);
+  });
+});
+
+describe("sample 裁剪与 size 口径", () => {
+  /** 让 formatLine 的整行长度正好是 target（msg 是纯 ASCII，一个字符一个字节）。 */
+  function msgForLineLength(target: number): string {
+    const empty = formatLine({ time: BASE_TIME, level: "info", msg: "" });
+    return "x".repeat(target - empty.length);
+  }
+
+  test("整行正好 200 字符时不裁剪；201 时裁到 200", async () => {
+    const store = makeStore();
+    store([rec("info", msgForLineLength(200))]);
+    const [entry] = await store.list();
+    const [line] = (entry?.sample ?? "").split("\n");
+    expect(line?.length).toBe(200);
+
+    const longer = makeStore();
+    longer([rec("info", msgForLineLength(201))]);
+    const [entry2] = await longer.list();
+    const [line2] = (entry2?.sample ?? "").split("\n");
+    expect(line2?.length).toBe(200);
+    // 裁掉的是尾巴，不是「原样返回」
+    expect(line2).toBe(formatLine({ time: BASE_TIME, level: "info", msg: msgForLineLength(201) }).slice(0, 200));
+  });
+
+  test("size 按「每行 + 换行」累加", async () => {
+    const store = makeStore();
+    store([rec("info", "a"), rec("info", "bb")]);
+    const [entry] = await store.list();
+    const expected = [
+      formatLine({ time: BASE_TIME, level: "info", msg: "a" }).length + 1,
+      formatLine({ time: BASE_TIME, level: "info", msg: "bb" }).length + 1,
+    ].reduce((total, size) => total + size, 0);
+    expect(entry?.size).toBe(expected);
+  });
+});
+
+describe("关闭之后的写入", () => {
+  test("close 之后立刻来的批次不能落库（要按新连接读回来验证）", async () => {
+    const name = uniqueName();
+    const store = createIndexedDbStore({ name, now: () => BASE_TIME + DAY });
+    store([rec("info", "before")]);
+    await store.list(); // 等前面的批次落库
+
+    store.close();
+    store([rec("info", "after")]);
+
+    const reopened = createIndexedDbStore({ name, now: () => BASE_TIME + DAY });
+    const lines = await waitFor(async () => {
+      const parsed = (await reopened.read("info.log"))?.split("\n") ?? [];
+      return parsed.length > 0 ? parsed : null;
+    });
+    reopened.close();
+    expect(lines.map(msgOf)).toEqual(["before"]);
+  });
+});
+
+describe("错误只提示一次", () => {
+  test("同一批里两条脏记录也只报一条，且带 [logo] 前缀", async () => {
+    await withConsoleErrors(async (errors) => {
+      const store = makeStore();
+      store([
+        { time: BASE_TIME, level: "info", msg: "poison-1", bad: () => {} },
+        { time: BASE_TIME, level: "info", msg: "poison-2", bad: () => {} },
+        { time: BASE_TIME, level: "info", msg: "ok" },
+      ]);
+      await store.read("info.log");
+
+      expect(errors.filter((line) => line.includes("[logo]"))).toHaveLength(1);
+    });
+  });
+});
+
+describe("默认库名与 cutoff 边界", () => {
+  test("不传 name 时落在 needle-logs 这个库里（多应用共存靠显式命名）", async () => {
+    const store = createIndexedDbStore({ now: () => BASE_TIME + DAY });
+    store([rec("info", "default-name")]);
+    await store.list();
+
+    const same = createIndexedDbStore({ name: "needle-logs", now: () => BASE_TIME + DAY });
+    const lines = (await same.read("info.log"))?.split("\n") ?? [];
+    same.close();
+    store.close();
+
+    expect(lines.map(msgOf)).toContain("default-name");
+  });
+
+  test("正好落在 cutoff 上的记录不算过期（区间是上界开）", async () => {
+    // now - keepDays 天 = cutoff，记录时间正好等于 cutoff
+    const cutoff = BASE_TIME;
+    const store = createIndexedDbStore({
+      name: uniqueName(),
+      keepDays: 1,
+      now: () => cutoff + DAY,
+    });
+    store([rec("info", "exactly-cutoff", 0), rec("info", "one-ms-older", -1)]);
+    const lines = (await store.read("info.log"))?.split("\n") ?? [];
+
+    expect(lines.map(msgOf)).toEqual(["exactly-cutoff"]);
+  });
+
+  test("close 之后立刻读就返回空，不等队列排空", async () => {
+    const store = makeStore();
+    store([rec("info", "x")]);
+    await store.list(); // 连接已建立、队列已排空
+
+    store.close();
+
+    // 此刻队尾的「关连接」还没跑，实现若只判 closed 之外的条件就会读出内容
+    expect(await store.list()).toEqual([]);
+    expect(await store.read("info.log")).toBeNull();
   });
 });

@@ -98,11 +98,11 @@
 | 配置 | 范围 | 当前分数 | `break` | 单次耗时（并发 8） |
 |---|---|---|---|---|
 | `stryker.conf.json` | `packages/honox/src/**/*.ts` − `types.ts` | 93.99% | 93.7 | ~1.5 min |
-| `stryker.logo.conf.json` | `packages/logo/src/**/*.ts` − `types.ts` | 77.20% | 77.1 | ~6 min |
+| `stryker.logo.conf.json` | `packages/logo/src/**/*.ts` − `types.ts` | 81.89% | 81.8 | ~6.5 min |
 
 两个都是 glob，新增文件自动进范围。`bun run mutate` 顺序跑两份，全量约 8 分钟。
 
-已清到 100% 的文件：`record.ts`、`line.ts`、`logo.ts`、`index.ts`、`human.ts`、`sinks/stdout.ts`。**现存欠账 259 个存活突变体**：`log-files.ts` 72/127、`sinks/lark.ts` 83/191、`sinks/idb.ts` 60/209、`sinks/file.ts` 44/104。
+已清到 100% 的文件：`record.ts`、`line.ts`、`logo.ts`、`sinks/idb.ts`、`index.ts`、`human.ts`、`sinks/stdout.ts`。**现存欠账 199 个存活突变体**：`sinks/lark.ts` 83/191、`log-files.ts` 72/127、`sinks/file.ts` 44/104。
 
 两轮的做法可以当模板：
 
@@ -110,7 +110,14 @@
 - **难测的纯逻辑抽出来再测**：栈帧解析（`parseFrame` / `pruneInternalFrames`）原来只能靠真栈，凑不出「无函数名」「Windows 反斜杠」「行尾多余空白」这些边角；抽成两个导出函数（不进包入口）后，合成帧逐个格式钉住 `FRAME_PATTERN`，顺带把 `dirOf` 里 `slice(0, -1)` 的隐性 bug 显式化。
 - **等价突变体逐个 `Stryker disable next-line <Mutator>: <理由>`**，理由必须写清「为什么输出不变」（惰性 `.*?` 会吃掉多余空格、`LEVELS["off"]` 是 undefined 所以守卫只为省查表、空固定字段时展开只多一次拷贝、`Error.stack` 恒为字符串所以兜底不可达）。26 个豁免全部带理由，没有 `disable all`。
 
-**下一步开 `sinks/idb.ts`（60 个）**：它有 fake-indexeddb 测试基座，主要缺口在事务/版本冲突那几条路径。`log-files.ts` 与 `sinks/lark.ts` 的存活大半是 IO 失败分支与错误文案，收益递减，排在最后。
+`idb.ts`（71.3% → 100%）补的是另外两类缺口，做法可以复用：
+
+- **open 的四个事件处理器只能拿假 factory 驱动**：`onupgradeneeded`（建 store / 删 v1 布局 / 建索引）、`onerror`（降级但不静默）、`onblocked`（先报一条并放行 ready，对方让路后连接照用）、`versionchange`（报一条并停写）。fake-indexeddb 里这些要求另一个真实连接配合，顺序也控不住，所以造了个记录调用的假 `indexedDB`。
+- **「事务/请求失败」的 Promise 适配器抽出来单独测**（`awaitRequest` / `awaitTransaction` / `nextCursor`，都不进包入口）：拿假 request 触发 `onerror`，才能验证「拒绝而不是永远挂着」——那正是把整条 tail 链卡死的写法。
+- **删掉与 `db === null` 逐条重合的 `failed` 标志**，并把 `pending` 计数换成 `queuedWork` 布尔：计数只在「是否 > 0」处被读，±1 的写法都是等价突变体。
+- 剩下的等价项（`overflow <= 0` 与循环条件重复、`cursor !== null` 在计数保证下恒真、`level === null` 后接的 `LEVELS[null]` 本来就过滤空）逐个 `Stryker disable` 并写理由。
+
+**下一步开 `sinks/file.ts`（44 个）**：与 idb 同类（IO 失败分支），但用的是真文件系统，可以注入 `fs` 或拿临时目录造错误。`log-files.ts` 与 `sinks/lark.ts` 的存活大半是错误文案与配额时序，收益递减，排在最后。
 
 ### 5.1.3 全量变异挪到「合并前」、增量跑法 `bun run mutate:diff`
 

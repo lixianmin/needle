@@ -22,22 +22,41 @@ const TIME_INDEX = "by_time";
 const DB_VERSION = 2;
 /** 级联虚拟文件候选（低 → 高），语义与 createFileSink 一致。 */
 const CASCADE_LEVELS = ["debug", "info", "warn", "error"];
-/** 把 IDBRequest 变成 Promise，事务内的连续请求用 await 串起来。 */
-function awaitRequest(request) {
+/**
+ * 把 IDBRequest 变成 Promise，事务内的连续请求用 await 串起来。
+ *
+ * 导出是为了测错误分支：fake-indexeddb 里造不出「请求失败」「事务中途 abort」
+ * 的确定性场景，而这两条路径一旦写错就是整条 tail 链永久卡住。
+ */
+export function awaitRequest(request) {
     return new Promise((resolve, reject) => {
         request.onsuccess = () => resolve(request.result);
         request.onerror = () => reject(request.error);
     });
 }
-/** 事务完成（或失败）的 Promise。失败走 reject，让上层统一报错。 */
-function awaitTransaction(tx) {
+/** 事务完成（或失败）的 Promise。失败走 reject，让上层统一报错。导出理由同上。 */
+export function awaitTransaction(tx) {
     return new Promise((resolve, reject) => {
         tx.oncomplete = () => resolve();
         tx.onerror = () => reject(tx.error);
         tx.onabort = () => reject(tx.error ?? new Error("transaction aborted"));
     });
 }
+/**
+ * 等游标的下一次回调。
+ *
+ * 必须复用同一个 request（`continue()` 之后 success 会再响一次），也必须挂 onerror：
+ * 事务中途 abort 时 success 不会再来，promise 永不落地会把整条 tail 链永久卡死。
+ * 导出是为了测这两条路径——fake-indexeddb 造不出「游标请求失败」。
+ */
+export function nextCursor(request) {
+    return new Promise((resolve, reject) => {
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error ?? new Error("cursor failed"));
+    });
+}
 function clipLine(line) {
+    // Stryker disable next-line ConditionalExpression,EqualityOperator: 对不超过上限的行，slice(0, 200) 返回的就是原串——条件只为省一次切片
     return line.length > SAMPLE_LINE_MAX_CHARS ? line.slice(0, SAMPLE_LINE_MAX_CHARS) : line;
 }
 /** 把记录按级联规则分桶并格式化成行——list 与 read 共用这一趟。 */
@@ -75,11 +94,14 @@ export function createIndexedDbStore(options = {}) {
     const minLevel = options.minLevel ?? "info";
     const now = options.now ?? Date.now;
     let closed = false;
-    let failed = false;
     let failureReported = false;
     let db = null;
-    /** 已入队、尚未执行完的写操作数：决定 open 完成时能不能立刻关连接。 */
-    let pending = 0;
+    /**
+     * 队列里还有没跑完的写操作：决定 open 完成时能不能立刻关连接。
+     *
+     * 只关心「有没有」而不是「几条」——这个判断只在 open 完成那一刻做一次。
+     */
+    let queuedWork = false;
     // 对齐 logo.ts 的 reportSinkError：只提示一次，刷屏比沉默更糟。
     // 文案不写死「日志不再落本机」：读失败、升级被挡也走这里，不一定意味着写不进去。
     function reportOnce(error) {
@@ -92,8 +114,9 @@ export function createIndexedDbStore(options = {}) {
     const ready = new Promise((resolve) => {
         const factory = globalThis.indexedDB;
         // 无痕模式 / 部分 WebView 里全局直接缺失：降级成空 store，不打扰业务。
+        // 之后所有操作都以 `db === null` 判定降级，不再单独维护一个 failed 标志：
+        // 它与 `db === null` 逐条重合（只有 open 成功才会拿到连接），双份状态只会漂移。
         if (factory === undefined) {
-            failed = true;
             resolve();
             return;
         }
@@ -114,14 +137,12 @@ export function createIndexedDbStore(options = {}) {
             // 已经 close 且没排队工作：不能把连接留在手里——它会一直挡住
             // 其它上下文的版本升级。还有排队工作的 close 例外：写入要用它，
             // 关连接排在队尾那一步。
-            if (closed && pending === 0) {
+            if (closed && !queuedWork) {
                 connection.close();
                 resolve();
                 return;
             }
-            // blocked 只是「现在升不上去」：对方让路后这次打开会成功，
-            // 之前判的 failed 要撤销，否则永远降级、再也写不进日志。
-            failed = false;
+            // blocked 只是「现在升不上去」：对方让路后这次打开会成功，连接照用。
             db = connection;
             // 别的上下文要升级版本（或在 DevTools 里清站数据）：必须让路。
             // 不挂这个处理器，IDB 会无限期地把对方卡在 blocked 上；但也不能
@@ -134,7 +155,6 @@ export function createIndexedDbStore(options = {}) {
             resolve();
         };
         request.onerror = () => {
-            failed = true;
             // 降级不抛错，但也不能完全无声：一条错误日志是排查这个 store 的唯一线索。
             reportOnce(request.error);
             resolve();
@@ -149,17 +169,31 @@ export function createIndexedDbStore(options = {}) {
     });
     // 所有操作串在一条链上：读排在写后面才有 read-after-write；写与写之间保序。
     let tail = ready;
+    /**
+     * 一个排队的写操作结束了。
+     *
+     * 这次复位的读者只有 open 完成时那一次判断，而队列是从 ready 起算的——那一刻
+     * 队列里的工作还没开始跑，所以它读到的必然是 true。保留是为了让「有没有排队
+     * 工作」这个状态本身始终正确，而不是为了那一次判断。
+     */
+    // Stryker disable next-line BlockStatement: 见上——清空函数体（不复位）对那次判断无法观测
+    function settle() {
+        // Stryker disable next-line BooleanLiteral: 复位成 true 等于不复位，同上
+        queuedWork = false;
+    }
     function enqueue(op) {
         // 关闭之后新来的批次丢弃；但**已排队**的必须写下去——logger.dispose 是
         // 「先 flush（此时入队）再 close」，在这里判 closed 会把最后一批静默吞掉。
         // 所以 closed 只在入队时刻检查一次，不在出队时再查。
+        // Stryker disable next-line ConditionalExpression,BlockStatement: close() 会把自己的「关连接」排在队尾，出队时 db 已经是 null，这个判断只是少排一次队
         if (closed) {
             return;
         }
-        pending += 1;
+        queuedWork = true;
         tail = tail
             .then(() => {
-            if (failed || db === null) {
+            // Stryker disable next-line ConditionalExpression,BlockStatement: db 为 null 时 op 必然抛错，同样落到 reportOnce（已被「只提示一次」吞掉），行为等价
+            if (db === null) {
                 return;
             }
             return op(db);
@@ -167,14 +201,13 @@ export function createIndexedDbStore(options = {}) {
             .catch((error) => {
             reportOnce(error);
         })
-            .finally(() => {
-            pending -= 1;
-        });
+            .finally(settle);
     }
     function query(op, fallback) {
         return tail
             .then(() => {
-            if (closed || failed || db === null) {
+            // Stryker disable next-line ConditionalExpression: db 为 null 时 op 必然抛错并落到下面的 catch，与这里直接返回 fallback 等价
+            if (closed || db === null) {
                 return fallback;
             }
             return op(db);
@@ -200,6 +233,7 @@ export function createIndexedDbStore(options = {}) {
         }
         const total = await awaitRequest(store.count());
         const overflow = total - maxRecords;
+        // Stryker disable next-line ConditionalExpression,EqualityOperator,BlockStatement: overflow 为 0 时下面的 `remaining > 0` 自己就不进循环，这个提前返回只是短路
         if (overflow <= 0) {
             return;
         }
@@ -209,14 +243,12 @@ export function createIndexedDbStore(options = {}) {
         // 会把整条 tail 链永久卡死。
         const cursorRequest = store.openCursor();
         let cursor = await awaitRequest(cursorRequest);
+        // Stryker disable next-line ConditionalExpression: remaining 由「总数 - 上限」算出，删到这里游标必然还没走完，`cursor !== null` 只是防御
         while (cursor !== null && remaining > 0) {
             cursor.delete();
             remaining -= 1;
             cursor.continue();
-            cursor = await new Promise((resolve, reject) => {
-                cursorRequest.onsuccess = () => resolve(cursorRequest.result);
-                cursorRequest.onerror = () => reject(cursorRequest.error ?? new Error("cursor failed"));
-            });
+            cursor = await nextCursor(cursorRequest);
         }
     }
     const sink = ((batch) => {
@@ -266,6 +298,7 @@ export function createIndexedDbStore(options = {}) {
     }, []);
     sink.read = (logName) => query(async (database) => {
         const level = levelOfName(logName);
+        // Stryker disable next-line ConditionalExpression,BlockStatement: level 为 null 时下面的 `LEVELS[null]` 是 undefined，过滤后必为空，仍然返回 null
         if (level === null) {
             return null;
         }
@@ -289,6 +322,7 @@ export function createIndexedDbStore(options = {}) {
         return null;
     }
     sink.close = () => {
+        // Stryker disable next-line ConditionalExpression,BlockStatement: 重复 close 只是再往队尾排一个「把已经是 null 的 db 关掉」的空操作
         if (closed) {
             return;
         }
@@ -297,6 +331,7 @@ export function createIndexedDbStore(options = {}) {
         // 所以关连接顺着链走，不阻塞调用方。
         tail = tail
             .then(() => {
+            // Stryker disable next-line OptionalChaining: db 为 null 时 `db.close()` 会抛错，同样被下面的 catch 吞掉，结果一致
             db?.close();
             db = null;
         })
