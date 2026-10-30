@@ -3,6 +3,8 @@
 > **2026-10-25 更新：`core` 包已改名为 `got`（`@needle/got`，目录 `packages/got`，构建脚本 `build:got`）。** 本文正文保留 2026-10-24 当时的写法，不改写历史；当前包结构以 `docs/01.memory.md` 为准，除包名外本文其余内容仍然有效。
 
 > **2026-10-24 更新：`@needle/got` 的边界从「只含数据结构」扩为「数据结构 + id 生成」（`nextUlid` / `nextSnowflakeId` / `createSnowflake` / `parseSnowflake`），请求 id 改用 ULID。** 正文里「got 只导出 SortedTable」的表述以本条为准；选型理由见 `2026-10-24-honox-design.md` §8.4.1。
+>
+> **2026-10-30 更新：id 生成改为单套方案（UUIDv7 位布局 + Crockford Base32，同毫秒单调），ULID 与 Snowflake 全部删除。** `@needle/got` 现在导出 `nextId` / `nextIdBytes` / `nextIdUuid` / `nextRandomId` / `createIdGenerator` / `parseId` / `idToUuid`。见 `2026-10-30-id-generator-design.md`。
 
 日期：2026-10-24
 状态：已批准（2026-10-24）

@@ -1,4 +1,4 @@
-import { nextUlid } from "@needle/got";
+import { nextId } from "@needle/got";
 import type { Logger } from "@needle/logo";
 import type { Hono, MiddlewareHandler } from "hono";
 import { createAuthGuard, type AuthOptions } from "./auth.js";
@@ -28,9 +28,9 @@ function resolveRid(header: (name: string) => string | undefined): string {
     }
   }
 
-  // 自己生成时是 26 位 ULID：时间在前、80 位随机在后。
-  // 不用 Snowflake：rid 不需要机器号，多实例也不必互相协调位宽。
-  return nextUlid();
+  // 自己生成时是 26 位可排序 id：时间在前、74 位随机段在后，同一毫秒内也严格递增。
+  // 不用 Snowflake：rid 不需要机器号，多实例也不必互相协调。
+  return nextId();
 }
 
 /** 保留 1 位小数：毫秒精度够定位慢请求，也不会让日志字段变成浮点长尾。 */

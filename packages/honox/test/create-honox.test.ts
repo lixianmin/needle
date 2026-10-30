@@ -8,15 +8,15 @@ import { RequestError } from "../src/request.js";
 import { apiRoute, createApi } from "../src/route.js";
 import { traceOf } from "../src/trace.js";
 
-/** 26 位大写 Crockford：rid 用 ULID，时间在前 48 位（前 10 个字符）。 */
-const ULID_PATTERN = /^[0-9A-HJKMNP-TV-Z]{26}$/;
-const ULID_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+/** 26 位大写 Crockford：rid 用可排序 id，时间在最前 48 位（前 10 个字符里高 2 位是补零）。 */
+const ID_PATTERN = /^[0-9A-HJKMNP-TV-Z]{26}$/;
+const ID_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 
 /** 把前 10 个字符解回毫秒时间戳，验证 rid 里带的时间没写错。 */
-function ulidTime(id: string): number {
+function idTime(id: string): number {
   let value = 0;
   for (const char of id.slice(0, 10)) {
-    value = value * 32 + ULID_ALPHABET.indexOf(char);
+    value = value * 32 + ID_ALPHABET.indexOf(char);
   }
 
   return value;
@@ -80,20 +80,20 @@ describe("createHonox", () => {
       const res = await app.request("/health", { headers: { "x-rid": bad } });
       const id = res.headers.get("x-rid");
       expect(id).not.toBe(bad);
-      expect(id).toMatch(ULID_PATTERN);
+      expect(id).toMatch(ID_PATTERN);
     }
   });
 
-  test("没带 rid 时自己生成：26 位 ULID，时间前缀就是当前时间", async () => {
+  test("没带 rid 时自己生成：26 位可排序 id，时间前缀就是当前时间", async () => {
     const app = createHonox({ auth: { secret: SECRET } });
     app.get("/rid", (ctx) => ctx.json({}));
     const before = Date.now();
     const res = await app.request("/rid");
     const rid = res.headers.get("x-rid")!;
-    expect(rid).toMatch(ULID_PATTERN);
-    // ULID 的时间位是绝对毫秒：能对回当前时间就说明时间位没写错，
+    expect(rid).toMatch(ID_PATTERN);
+    // 时间位是绝对毫秒：能对回当前时间就说明时间位没写错，
     // 而且 rid 不再依赖任何 nodeId 配置（多实例不必互相对号）。
-    expect(Math.abs(ulidTime(rid) - before)).toBeLessThan(60_000);
+    expect(Math.abs(idTime(rid) - before)).toBeLessThan(60_000);
   });
 
   test("响应头有 x-rid，业务日志里的 rid 与它一致", async () => {

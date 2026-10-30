@@ -45,7 +45,7 @@ const shell =
 await initTemplates(viper.getString("metadata.base_url"));
 
 // createHonox 返回现成的 Hono 实例，路由直接挂在它上面，类型从实例上就带着。
-// rid 由库自己发 ULID：带时间位和 80 位随机，不需要配机器号，多实例直接跑。
+// rid 由库自己发可排序 id：时间位在前、随机段在后，不需要配机器号，多实例直接跑。
 const app = createHonox({
   logger: logo,
   auth: { secret: viper.getString("auth.secret") },

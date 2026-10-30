@@ -3,6 +3,8 @@
 日期：2026-10-24
 状态：待人类批准
 
+> **2026-10-30 更新：rid 的生成器从 `nextUlid()`（ULID）换成 `nextId()`（UUIDv7 位布局 + 26 位 Crockford Base32，同一毫秒内随机段 +1），`@needle/got` 删除 ULID 与 Snowflake，只留一套 id。见 `2026-10-30-id-generator-design.md`；§8.4.1 正文保留当时写法。**
+
 ## 1. 结论
 
 在 `packages/honox` 新增 `@needle/honox`：一个跟业务无关的 Hono 底座。它做四件事——配置加载、鉴权、兜底日志、可选 MongoDB——外加把 `@needle/shell` 的控制台挂上去。示例 app 放在 `examples/honox-app`（纯 Hono + `bun build` + Dockerfile），用来说明它怎么接。

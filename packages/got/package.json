@@ -1,7 +1,7 @@
 {
   "name": "@needle/got",
-  "version": "0.3.94",
-  "description": "Needle 的通用工具：SortedTable 数据结构、ULID / Snowflake id 生成",
+  "version": "0.3.95",
+  "description": "Needle 的通用工具：SortedTable 数据结构、UUIDv7 位布局的可排序 id 生成",
   "type": "module",
   "sideEffects": false,
   "license": "MIT",

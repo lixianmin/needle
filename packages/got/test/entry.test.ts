@@ -9,8 +9,8 @@ describe("@needle/got 的入口边界", () => {
   test("只出数据结构与 id 生成，不出日志与 Shell", () => {
     expect(typeof gotEntry.SortedTable).toBe("function");
     expect(typeof gotEntry.defaultComparer).toBe("function");
-    expect(typeof gotEntry.nextUlid).toBe("function");
-    expect(typeof gotEntry.nextSnowflakeId).toBe("function");
+    expect(typeof gotEntry.nextId).toBe("function");
+    expect(typeof gotEntry.nextRandomId).toBe("function");
 
     expect("logo" in gotEntry).toBe(false);
     expect("newLogger" in gotEntry).toBe(false);
